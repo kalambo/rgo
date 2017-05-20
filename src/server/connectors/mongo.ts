@@ -6,7 +6,7 @@ import { Field, keysToObject, mapObject, ScalarName } from '../../core';
 
 import { Connector } from '../typings';
 
-interface TypeMap {
+export interface TypeMap {
   toDb: (value: any) => any;
   fromDb: (value: any) => any;
 };
@@ -60,13 +60,13 @@ export default function mongoConnector(
 
   return {
 
-    async query({ filter = {}, sort = {}, skip = 0, show = null, fields = [] }) {
+    async query({ filter = {}, sort = {}, skip = 0, show = null, fields = null }) {
 
       if (show === 0) return [];
 
       const cursor = collection.find(
         toDb(mongoFilter(filter), { flat: true }),
-        toDb(keysToObject(fields, () => true), { flat: true, ignoreValues: true }),
+        toDb(keysToObject(fields || [], () => true), { flat: true, ignoreValues: true }),
       );
 
       cursor.sort(toDb(sort, { flat: true, ignoreValues: true }));

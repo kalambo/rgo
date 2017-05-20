@@ -13,7 +13,7 @@ export {
   parseSort,
 };
 
-interface Args {
+export interface Args {
   filter?: string;
   sort?: string;
   skip?: number;

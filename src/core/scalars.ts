@@ -26,7 +26,7 @@ interface ScalarConfig {
   kinds?: string[];
 }
 
-interface Scalar {
+export interface Scalar {
   type: GraphQLScalarType,
   decode?: (value: any) => any;
   encode?: (value: any) => any;

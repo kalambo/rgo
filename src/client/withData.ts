@@ -1,4 +1,4 @@
-import { branch, compose, withProps } from 'recompose';
+import { branch, ComponentEnhancer, compose, withProps } from 'recompose';
 import * as most from 'most';
 import { mapPropsStream, withStore } from 'mishmash';
 import merge from 'lodash/fp/merge';
@@ -118,5 +118,5 @@ export default function withData(url: string, authFetch: AuthFetch, log?: boolea
       }, { server: {}, client: {}, combined: {} }, log),
     ),
 
-  );
+  ) as ComponentEnhancer<any, any>;
 }

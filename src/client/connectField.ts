@@ -2,7 +2,7 @@ import { connectStores } from 'mishmash';
 
 import { DataKey } from '../core';
 
-interface FieldConfig {
+export interface FieldConfig {
   store?: string;
   dataKey: DataKey;
   optional?: boolean;

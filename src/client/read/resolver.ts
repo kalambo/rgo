@@ -4,7 +4,7 @@ import { Obj } from 'mishmash';
 
 import { Field, isForeignRelation, isRelation, isScalar, parseArgs } from '../../core';
 
-interface ResolverContext {
+export interface ResolverContext {
   schema: Obj<Obj<Field>>;
   data: Obj<any[]>;
   user: string | null;

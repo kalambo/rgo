@@ -8,7 +8,7 @@ const flatSet = (obj: any, key: string, value: any, flat?: boolean) => (
   flat ? ({ ...obj, [key]: value }) : set(key, value, obj)
 );
 
-interface MapConfig {
+export interface MapConfig {
   newKeys?: { [key: string]: string };
   flat?: boolean;
   fields?: Obj<Field>;

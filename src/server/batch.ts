@@ -13,7 +13,7 @@ interface Batch {
   callbacks: BatchCallbacks[];
 }
 
-type BatchResolveFunc =
+export type BatchResolveFunc =
   (sources: any[], args: any, context: any, info: GraphQLResolveInfo) => any[] | Promise<any[]>;
 
 const resolveBatches = async (batchResolveFn: BatchResolveFunc, batches: Batch[]) => {

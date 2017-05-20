@@ -1,9 +1,9 @@
-import { compose } from 'recompose';
+import { ComponentEnhancer, compose } from 'recompose';
 import { connectStores, mapPropsStream, streamState } from 'mishmash';
 
 import prepareQuery from './prepareQuery';
 
-interface QueryOptions {
+export interface QueryOptions {
   name?: string | null;
   variables?: (props: any) => any;
 }
@@ -41,6 +41,7 @@ export default function withQuery(query: string, { name = 'data', variables }: Q
       }), done$);
 
     }),
-  );
+
+  ) as ComponentEnhancer<any, any>;
 
 }
