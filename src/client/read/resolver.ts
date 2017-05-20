@@ -2,7 +2,7 @@ import sift from 'sift';
 import orderBy from 'lodash/fp/orderby';
 import { Obj } from 'mishmash';
 
-import { Field, parseArgs } from '../../core';
+import { Field, isForeignRelation, isRelation, isScalar, parseArgs } from '../../core';
 
 interface ResolverContext {
   schema: Obj<Obj<Field>>;
@@ -42,27 +42,31 @@ export default function resolver(
     return getData(field, args || {}, schema, data, user, previousResult && previousResult[field]);
   }
 
-  const rel = schema[root.__typename][field].relation;
-  if (rel) {
+  const schemaField = schema[root.__typename][field];
+
+  if (!isScalar(schemaField)) {
 
     const filters: any[] = [{ id: { $in: toArray(root[field]) } }];
-    if (rel.field) {
-      filters.push({ [rel.field]: root.id });
+
+    if (isRelation(schemaField)) {
+      const foreignField = Object.keys(schema[schemaField.relation.type]).find(f => {
+        const foreignSchemaField = schema[schemaField.relation.type][f];
+        return isForeignRelation(foreignSchemaField) &&
+          foreignSchemaField.relation.type === root.__typename &&
+          foreignSchemaField.relation.field === field;
+      });
+      if (foreignField) filters.push({ [foreignField]: root.id });
     } else {
-      const foreignField = Object.keys(schema[rel.type]).find(f =>
-        !!schema[rel.type][f].relation &&
-        schema[rel.type][f].relation!.type === root.__typename &&
-        schema[rel.type][f].relation!.field === field
-      );
-      if (foreignField) {
-        filters.push({ [foreignField]: root.id });
-      }
+      filters.push({ [schemaField.relation.field]: root.id });
     }
 
     const prev = root.__previous && root.__previous[field];
-    const relData = getData(rel.type, args || {}, schema, data, user, prev, { $or: filters });
+    const result = getData(
+      schemaField.relation.type, args || {}, schema, data, user, prev, { $or: filters },
+    );
 
-    return schema[root.__typename][field].isList ? relData : relData[0];
+    return (isForeignRelation(schemaField) || schemaField.isList) ? result : result[0];
+
   }
 
   return root[field];

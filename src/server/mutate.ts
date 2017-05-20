@@ -1,0 +1,99 @@
+import { Obj } from 'mishmash';
+
+import { isScalar, keysToObject } from '../core';
+
+import { DataType } from './typings';
+
+export default async function mutate(
+  types: Obj<DataType>, args, { userId }: { userId: string | null },
+) {
+
+  const typeNames = Object.keys(types);
+
+  const newIds = {
+    $user: userId || '',
+    ...keysToObject(typeNames, type => keysToObject(
+      args[type].map(m => m.id).filter(id => id[0] === '$'),
+      types[type].newId,
+    )),
+  };
+
+  const mutations = keysToObject(typeNames, () => [] as any[]);
+  for (const type of typeNames) {
+    for (const { id, ...mutation } of args[type]) {
+
+      const { fields, connector, auth } = types[type];
+
+      const mId = newIds[type][id] || id;
+
+      for (const f of Object.keys(fields)) {
+        if (Array.isArray(mutation[f])) {
+          mutation[f] = mutation[f].map(v => newIds[type][v] || v);
+        } else if (mutation[f]) {
+          mutation[f] = newIds[type][mutation[f]] || mutation[f];
+        }
+      }
+
+      const data: Obj | null = Object.keys(mutation).length ? mutation : null;
+      const prev: Obj | null = (id === mId) && (await connector.findById(mId)) || null;
+      if (prev) delete prev.id;
+
+      const mutateArgs = { id: mId, data, prev };
+
+      let allow = true;
+      if (data && prev && auth.update) allow = await auth.update(userId, id, data, prev);
+      else if (data && !prev && auth.insert) allow = await auth.insert(userId, id, data);
+      else if (!data && auth.delete) allow = await auth.delete(userId, id, prev);
+
+      if (!allow) {
+        const error = new Error('Not authorized') as any;
+        error.status = 401;
+        return error;
+      }
+
+      mutations[type].push(mutateArgs);
+
+    }
+  }
+
+  const results = keysToObject(typeNames, () => [] as any[]);
+  for (const type of typeNames) {
+    for (const { id, data, prev } of mutations[type]) {
+
+      const { fields, connector } = types[type];
+
+      if (data) {
+
+        const time = new Date();
+
+        const combinedData = { ...prev, ...data };
+        const formulae = {};
+        for (const f of Object.keys(fields)) {
+          const field = fields[f];
+          if (isScalar(field) && typeof field.formula === 'function') {
+            formulae[f] = await field.formula(combinedData, connector.query);
+          }
+        }
+
+        const fullData = {
+          ...(!prev ? { createdAt: time } : {}),
+          modifiedAt: time,
+          ...data,
+          ...formulae,
+        };
+
+        if (prev) await connector.update(id, fullData);
+        else await connector.insert(id, fullData);
+        results[type].push({ id, ...prev, ...fullData });
+
+      }
+
+      await connector.delete(id);
+      results[type].push({ id });
+
+    }
+  }
+
+  return results;
+
+}

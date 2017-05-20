@@ -1,7 +1,7 @@
 import set from 'lodash/fp/set';
 import { Obj } from 'mishmash';
 
-import { Field, ScalarName } from './typings';
+import { Field, isScalar, ScalarName } from './typings';
 import { isObject, keysToObject } from './utils';
 
 const flatSet = (obj: any, key: string, value: any, flat?: boolean) => (
@@ -28,7 +28,8 @@ export default function mapObject(obj: any, config: MapConfig, currentField?: Fi
     if (isObject(obj) && Object.keys(obj).some(k => k[0] === '$')) {
       return keysToObject(Object.keys(obj), key => mapObject(obj[key], config, currentField));
     }
-    return mapValue(obj, (config.typeMaps || {})[currentField.scalar]);
+    const typeMap =  (config.typeMaps || {})[isScalar(currentField) ? currentField.scalar : ''];
+    return mapValue(obj, typeMap);
   }
 
   if (Array.isArray(obj)) return obj.map(o => mapObject(o, config));

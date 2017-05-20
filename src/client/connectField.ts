@@ -29,9 +29,7 @@ export default function connectField(mapPropsToConfig: (props: any) => FieldConf
     return {
       type: `${inputTypes[scalar]}${isList ? 'list': ''}`,
       value: stores[store].value(dataKey),
-      onChange(value) {
-        stores[store].set(dataKey, value);
-      },
+      onChange: (value) => stores[store].set(dataKey, value),
       invalid: !hideInvalid && !stores[store].valid(dataKey, optional),
       editing: stores[store].editing(dataKey),
       rules,

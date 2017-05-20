@@ -7,7 +7,7 @@ export interface QueryArgs {
   sort: any;
   skip: number;
   show: number | null;
-  fields: string[];
+  fields: string[] | null;
 }
 
 export type Formula = (obj: any, query: (args: QueryArgs) => Promise<any[]>) => Promise<any> | any;
@@ -32,6 +32,9 @@ export const isScalar = (field: Field): field is ScalarField => {
 }
 export const isRelation = (field: Field): field is RelationField => {
   return !!(field as RelationField).relation && !(field as ForeignRelationField).relation.field;
+}
+export const isForeignRelation = (field: Field): field is ForeignRelationField => {
+  return !!(field as RelationField).relation && !!(field as ForeignRelationField).relation.field;
 }
 
 export interface DataKey {

@@ -1,61 +1,45 @@
 import { branch, compose, withProps } from 'recompose';
 import * as most from 'most';
-import { mapPropsStream, Obj, withStore } from 'mishmash';
+import { mapPropsStream, withStore } from 'mishmash';
 import merge from 'lodash/fp/merge';
 
-import { dataGet, DataKey, dataSet, isValid, undefToNull } from '../core';
+import { dataGet, DataKey, dataSet, isValid, keysToObject, undefToNull } from '../core';
 
-import graphApi from './graphApi';
+import graphApi, { AuthFetch } from './graphApi';
 import read from './read';
-import { Auth } from './typings';
 
 const getStateValue = (state: { server: any, client: any }, key: DataKey) => {
   const clientValue = dataGet(state.client, key);
   return undefToNull(clientValue !== undefined ? clientValue : dataGet(state.server, key));
 }
 
-const withCombined = ({ server, client }) => {
+const withCombined = ({ server, client }) => ({ server, client,
+  combined: keysToObject(
+    Array.from(new Set([...Object.keys(server), ...Object.keys(client)])),
+    type => {
 
-  const allTypes = Array.from(new Set([...Object.keys(server), ...Object.keys(client)]));
+      const serverData = Object.keys(server[type] || []).map(id => ({ id, ...server[type][id] }));
+      const clientData = Object.keys(client[type] || []).map(id => ({ id, ...client[type][id] }));
 
-  const combined = allTypes.reduce((res, type) => {
+      const result = [...serverData];
+      for (const obj of clientData) {
+        const index = result.findIndex(o => o.id === obj.id);
+        if (index !== -1) result[index] = { ...result[index], ...obj };
+        else result.push(obj);
+      }
 
-    const serverData = Object.keys(server[type] || []).map(id => ({ id, ...server[type][id] }));
-    const clientData = Object.keys(client[type] || []).map(id => ({ id, ...client[type][id] }));
+      return result;
+    },
+  ),
+});
 
-    const result = [...serverData];
-    for (const obj of clientData) {
-      const index = result.findIndex(o => o.id === obj.id);
-      if (index !== -1) result[index] = { ...result[index], ...obj };
-      else result.push(obj);
-    }
-
-    return { ...res, [type]: result };
-
-  }, {});
-
-  return { server, client, combined };
-
-}
-
-interface DataOptions {
-  rules?: Obj<Obj>;
-  auth$?: most.Stream<Auth>;
-  log?: boolean;
-}
-
-export default function withData(url: string, { rules, auth$, log }: DataOptions) {
+export default function withData(url: string, authFetch: AuthFetch, log?: boolean) {
 
   return compose(
 
     mapPropsStream(props$ => {
-
-      const api$ = most.fromPromise<any>(graphApi(url, rules)).startWith(null);
-
-      return props$.combine((props, api, auth) => ({
-        ...props, api, auth,
-      }), api$, auth$ || most.just(null));
-
+      const api$ = most.fromPromise<any>(graphApi(url, authFetch)).startWith(null);
+      return props$.combine((props, api) => ({ ...props, api }), api$);
     }),
 
     withProps(({ api }) => ({
