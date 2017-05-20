@@ -1,7 +1,7 @@
 import { normalize, schema as normalizrSchema } from 'normalizr';
 import { Obj } from 'mishmash';
 
-import { Field, isForeignRelation, isScalar, keysToObject, scalars } from '../core';
+import { Field, fieldIs, keysToObject, mapArray, scalars } from '../core';
 
 export default async function loadSchema(url: string) {
 
@@ -17,9 +17,8 @@ export default async function loadSchema(url: string) {
     entities[type] = [new normalizrSchema.Entity(type, {}, {
       processStrategy: ({ id: _, ...data }) => keysToObject(Object.keys(data), f => {
         const field = schema[type][f];
-        const decode = isScalar(field) && scalars[field.scalar].decode;
-        return (data[f] === null || !decode) ? data[f] :
-          (Array.isArray(data[f]) ? data[f].map(decode) : decode(data[f]));
+        const decode = fieldIs.scalar(field) && scalars[field.scalar].decode;
+        return (data[f] === null || !decode) ? data[f] : mapArray(data[f], decode);
       }),
     })];
   }
@@ -27,10 +26,10 @@ export default async function loadSchema(url: string) {
   for (const type of Object.keys(schema)) {
     for (const f of Object.keys(schema[type])) {
       const field = schema[type][f];
-      if (!isScalar(field)) {
+      if (!fieldIs.scalar(field)) {
         const relEntity = entities[field.relation.type][0];
         entities[type][0].define({
-          [f]: (isForeignRelation(field) || field.isList) ? [relEntity] : relEntity,
+          [f]: (fieldIs.foreignRelation(field) || field.isList) ? [relEntity] : relEntity,
         });
       }
     }

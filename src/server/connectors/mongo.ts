@@ -1,15 +1,10 @@
 import { Collection } from 'mongodb';
-import get from 'lodash/fp/get';
 import { Obj } from 'mishmash';
+import flatten from 'flat';
 
-import { Field, keysToObject, mapObject, ScalarName } from '../../core';
+import { keysToObject, mapArray } from '../../core';
 
-import { Connector } from '../typings';
-
-export interface TypeMap {
-  toDb: (value: any) => any;
-  fromDb: (value: any) => any;
-};
+import { Connector, FieldDbMap } from '../typings';
 
 const isObject = (v) => (
   Object.prototype.toString.call(v) === '[object Object]' && !v._bsontype
@@ -29,33 +24,26 @@ const mongoFilter = (filter: any) => {
 }
 
 export default function mongoConnector(
-  collection: Collection, fields: Obj<Field>, fieldDbKeys: Obj<string>,
-  typeMaps: { [T in ScalarName]?: TypeMap },
+  collection: Collection, fieldDbKeys: Obj<string>, fieldMaps: Obj<FieldDbMap>,
 ): Connector {
 
-  const typesToDb = {} as { [T in ScalarName]: (value: any) => any };
-  const typesFromDb = {} as { [T in ScalarName]: (value: any) => any };
-  for (const k of Object.keys(typeMaps)) {
-    typesToDb[k] = typeMaps[k].toDb;
-    typesFromDb[k] = typeMaps[k].fromDb;
-  }
+  const reverseFieldDbKeys = keysToObject(Object.keys(fieldDbKeys), k => k, k => fieldDbKeys[k]);
 
-  const toDb = (obj: any, config: { flat?: boolean, ignoreValues?: boolean } = {}) => {
-    return mapObject(obj, {
-      newKeys: fieldDbKeys,
-      flat: config.flat,
-      fields,
-      typeMaps: config.ignoreValues ? ({} as any) : typesToDb,
-    });
+  const toDb = (obj, config: { flat?: boolean, ignoreValues?: boolean } = {}) => {
+    return keysToObject(
+      Object.keys(obj),
+      k => (!config.ignoreValues && fieldMaps[k]) ? mapArray(obj[k], fieldMaps[k].toDb) : obj[k],
+      k => fieldDbKeys[k] || k,
+    );
   };
   const fromDb = (doc: any) => {
     if (!doc) return doc;
-    const obj = {} as any;
-    Object.keys(fields).forEach(k => {
-      const v = get(fieldDbKeys[k] || k, doc);
-      if (v !== undefined) obj[k] = mapObject(v, { typeMaps: typesFromDb }, fields[k]);
-    });
-    return obj;
+    const flat = flatten(doc, { safe: true });
+    return keysToObject(
+      Object.keys(flat).map(k => ({ k: reverseFieldDbKeys[k] || k, dbKey: k })),
+      ({ k, dbKey }) => fieldMaps[k] ? mapArray(flat[dbKey], fieldMaps[k].fromDb) : flat[dbKey],
+      ({ k }) => k,
+    );
   };
 
   return {

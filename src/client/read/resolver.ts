@@ -2,7 +2,7 @@ import sift from 'sift';
 import orderBy from 'lodash/fp/orderby';
 import { Obj } from 'mishmash';
 
-import { Field, isForeignRelation, isRelation, isScalar, parseArgs } from '../../core';
+import { Field, fieldIs, parseArgs } from '../../core';
 
 export interface ResolverContext {
   schema: Obj<Obj<Field>>;
@@ -44,14 +44,14 @@ export default function resolver(
 
   const schemaField = schema[root.__typename][field];
 
-  if (!isScalar(schemaField)) {
+  if (!fieldIs.scalar(schemaField)) {
 
     const filters: any[] = [{ id: { $in: toArray(root[field]) } }];
 
-    if (isRelation(schemaField)) {
+    if (fieldIs.relation(schemaField)) {
       const foreignField = Object.keys(schema[schemaField.relation.type]).find(f => {
         const foreignSchemaField = schema[schemaField.relation.type][f];
-        return isForeignRelation(foreignSchemaField) &&
+        return fieldIs.foreignRelation(foreignSchemaField) &&
           foreignSchemaField.relation.type === root.__typename &&
           foreignSchemaField.relation.field === field;
       });
@@ -65,7 +65,7 @@ export default function resolver(
       schemaField.relation.type, args || {}, schema, data, user, prev, { $or: filters },
     );
 
-    return (isForeignRelation(schemaField) || schemaField.isList) ? result : result[0];
+    return (fieldIs.foreignRelation(schemaField) || schemaField.isList) ? result : result[0];
 
   }
 

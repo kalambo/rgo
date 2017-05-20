@@ -2,7 +2,7 @@ import { DocumentNode, print } from 'graphql';
 import { Obj } from 'mishmash';
 import * as throttle from 'lodash/throttle';
 
-import { Field, isForeignRelation, isScalar, keysToObject, scalars } from '../core';
+import { Field, fieldIs, keysToObject, mapArray, scalars } from '../core';
 
 import loadSchema from './loadSchema';
 
@@ -13,8 +13,8 @@ const allKeys = (objects: any[]) => (
 );
 
 const isReadonly = (field: Field) => {
-  if (isScalar(field)) return !!field.formula;
-  return isForeignRelation(field);
+  if (fieldIs.scalar(field)) return !!field.formula;
+  return fieldIs.foreignRelation(field);
 }
 
 export default async function graphApi(url: string, authFetch: AuthFetch) {
@@ -54,9 +54,8 @@ export default async function graphApi(url: string, authFetch: AuthFetch) {
         ...keysToObject(Object.keys(data[type][id]), f => {
           const value = data[type][id][f];
           const field = schema[type][f];
-          const encode = isScalar(field) && scalars[field.scalar].encode;
-          return (value === null || !encode) ? value :
-            (Array.isArray(value) ? value.map(encode) : encode(value));
+          const encode = fieldIs.scalar(field) && scalars[field.scalar].encode;
+          return (value === null || !encode) ? value : mapArray(value, encode);
         })
       })));
 
@@ -68,7 +67,7 @@ export default async function graphApi(url: string, authFetch: AuthFetch) {
                 ...allKeys(mutations[t]),
                 ...Object.keys(schema[t]).filter(f => isReadonly(schema[t][f])),
                 'modifiedAt',
-              ].map(f => isScalar(schema[t][f]) ? f : `${f} { id }`).join('\n')}
+              ].map(f => fieldIs.scalar(schema[t][f]) ? f : `${f} { id }`).join('\n')}
             }`)}
           }
         }

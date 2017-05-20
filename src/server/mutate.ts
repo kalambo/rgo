@@ -1,6 +1,6 @@
 import { Obj } from 'mishmash';
 
-import { isScalar, keysToObject } from '../core';
+import { fieldIs, keysToObject } from '../core';
 
 import { DataType } from './typings';
 
@@ -70,7 +70,7 @@ export default async function mutate(
         const formulae = {};
         for (const f of Object.keys(fields)) {
           const field = fields[f];
-          if (isScalar(field) && typeof field.formula === 'function') {
+          if (fieldIs.scalar(field) && typeof field.formula === 'function') {
             formulae[f] = await field.formula(combinedData, connector.query);
           }
         }

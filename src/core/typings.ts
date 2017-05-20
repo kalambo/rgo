@@ -27,15 +27,17 @@ export interface ForeignRelationField {
 }
 export type Field = ScalarField | RelationField | ForeignRelationField;
 
-export const isScalar = (field: Field): field is ScalarField => {
-  return !!(field as ScalarField).scalar;
-}
-export const isRelation = (field: Field): field is RelationField => {
-  return !!(field as RelationField).relation && !(field as ForeignRelationField).relation.field;
-}
-export const isForeignRelation = (field: Field): field is ForeignRelationField => {
-  return !!(field as RelationField).relation && !!(field as ForeignRelationField).relation.field;
-}
+export const fieldIs = {
+  scalar: (field: Field): field is ScalarField => {
+    return !!(field as ScalarField).scalar;
+  },
+  relation: (field: Field): field is RelationField => {
+    return !!(field as RelationField).relation && !(field as ForeignRelationField).relation.field;
+  },
+  foreignRelation: (field: Field): field is ForeignRelationField => {
+    return !!(field as RelationField).relation && !!(field as ForeignRelationField).relation.field;
+  },
+};
 
 export interface DataKey {
   type: string;

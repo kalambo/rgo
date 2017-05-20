@@ -4,7 +4,7 @@ import {
 } from 'graphql';
 import { Obj } from 'mishmash';
 
-import { isForeignRelation, isRelation, isScalar, keysToObject, parseArgs, scalars } from '../core';
+import { fieldIs, keysToObject, parseArgs, scalars } from '../core';
 
 import batch from './batch';
 import mutate from './mutate';
@@ -17,7 +17,7 @@ const argTypes = {
   show: { type: GraphQLInt },
 };
 
-export default function createSchema(types: Obj<DataType>) {
+export default function buildSchema(types: Obj<DataType>) {
 
   const typeNames = Object.keys(types);
 
@@ -27,15 +27,15 @@ export default function createSchema(types: Obj<DataType>) {
 
       const field = types[type].fields[f];
 
-      if (isScalar(field)) {
+      if (fieldIs.scalar(field)) {
         const scalar = scalars[field.scalar].type;
         return { type: field.isList ? new GraphQLList(scalar) : scalar };
       }
 
       const relQueryType = queryTypes[field.relation.type];
       return {
-        type:
-          (isForeignRelation(field) || field.isList) ? new GraphQLList(relQueryType) : relQueryType,
+        type: (fieldIs.foreignRelation(field) || field.isList) ?
+          new GraphQLList(relQueryType) : relQueryType,
         args: argTypes,
         resolve: batch(async (
           roots: any[], args, { userId }: { userId: string | null }, info: GraphQLResolveInfo,
@@ -43,8 +43,8 @@ export default function createSchema(types: Obj<DataType>) {
 
           const { fields, connector, auth } = types[field.relation.type];
 
-          const rootField = isRelation(field) ? f : 'id';
-          const relField = isRelation(field) ? 'id' : field.relation.field;
+          const rootField = fieldIs.relation(field) ? f : 'id';
+          const relField = fieldIs.relation(field) ? 'id' : field.relation.field;
 
           const queryArgs = parseArgs(args, userId, fields, info);
           queryArgs.fields = [relField, ...(queryArgs.fields || [])];
@@ -57,7 +57,7 @@ export default function createSchema(types: Obj<DataType>) {
           const results = await connector.query(authArgs);
 
           return roots.map(root => {
-            if (isRelation(field)) {
+            if (fieldIs.relation(field)) {
               if (!field.isList) return results.find(res => res.id === root[f]);
               return root[f] && root[f].map(id => results.find(res => res.id === id));
             }
@@ -79,12 +79,12 @@ export default function createSchema(types: Obj<DataType>) {
 
       const field = types[type].fields[f];
 
-      if (isScalar(field) && field.isList) {
+      if (fieldIs.scalar(field) && field.isList) {
         const scalar = scalars[field.scalar].type;
         return { type: field.isList ? new GraphQLList(scalar) : scalar };
       }
 
-      if (isRelation(field)) {
+      if (fieldIs.relation(field)) {
         return { type: field.isList ? new GraphQLList(scalars.ID.type) : scalars.ID.type, };
       }
 

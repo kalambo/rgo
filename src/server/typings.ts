@@ -17,7 +17,7 @@ export interface Connector {
 
 }
 
-export interface Auth {
+export interface TypeAuth {
   query?: (userId: string | null, args: QueryArgs) => QueryArgs | Promise<QueryArgs>;
   insert?: (userId: string | null, id: string, data: any) => boolean | Promise<boolean>;
   update?: (
@@ -30,5 +30,10 @@ export interface DataType {
   fields: Obj<Field>;
   connector: Connector;
   newId: () => string;
-  auth: Auth;
+  auth: TypeAuth;
 }
+
+export interface FieldDbMap {
+  toDb: (value: any) => any;
+  fromDb: (value: any) => any;
+};
