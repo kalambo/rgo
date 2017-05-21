@@ -6,7 +6,7 @@ import { Field, fieldIs, mapArray, scalars } from '../core';
 
 import loadSchema from './loadSchema';
 
-export type AuthFetch = (url: string, body: any[]) => Promise<any[]>;
+export type AuthFetch = (url: string, body: any[]) => Promise<any[] | null>;
 
 const allKeys = (objects: any[]) => (
   Array.from(new Set(objects.reduce((res, o) => [...res, ...Object.keys(o)], []))) as string[]

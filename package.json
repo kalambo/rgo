@@ -8,8 +8,9 @@
   "types": "lib/index.d.ts",
   "scripts": {
     "clean": "rimraf lib/*",
-    "build": "yarn run clean && tsc",
-    "test": "jest",
+    "build": "yarn run clean && tsc --p tsconfig.server.json && tsc --p tsconfig.client.json",
+    "db": "mongod --dbpath data",
+    "test": "jest --forceExit",
     "prepublish": "yarn run test && yarn run build"
   },
   "jest": {
@@ -21,7 +22,10 @@
       "ts",
       "tsx",
       "js"
-    ]
+    ],
+    "globals": {
+      "__TS_CONFIG__": "tsconfig.server.json"
+    }
   },
   "devDependencies": {
     "@types/enzyme": "^2.8.0",

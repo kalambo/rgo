@@ -130,8 +130,8 @@ export default function buildSchema(types: Obj<DataType>) {
 
           },
         })),
-        _schema: {
-          type: queryTypes.JSON,
+        SCHEMA: {
+          type: scalars.JSON.type,
           resolve: () => JSON.stringify(
             keysToObject(typeNames, type => types[type].fields),
             (_, v) => typeof v === 'function' ? true : v,
@@ -162,7 +162,7 @@ export default function buildSchema(types: Obj<DataType>) {
 
   });
 
-  return async (query: string, context: any, variables?: any): Promise<ExecutionResult> => (
+  return async (query: string, context?: any, variables?: any): Promise<ExecutionResult> => (
     graphql(schema, query, null, { ...context, rootQuery: query }, variables)
   );
 

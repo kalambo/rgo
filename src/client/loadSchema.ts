@@ -6,10 +6,10 @@ import { Field, fieldIs, mapArray, scalars } from '../core';
 export default async function loadSchema(url: string) {
 
   const schema: Obj<Obj<Field>> = JSON.parse(
-    await (await fetch(`${url}/schema`, {
+    (await (await fetch(url, {
       method: 'POST',
-      body: JSON.stringify({ query: '{ _schema }' }),
-    })).text()
+      body: JSON.stringify({ query: '{ SCHEMA }' }),
+    })).json()).data.SCHEMA
   );
 
   const entities: Obj<[normalizrSchema.Entity]> = {};
