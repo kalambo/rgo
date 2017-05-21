@@ -1,9 +1,9 @@
-import { withData, withQuery } from './client';
-import { Field, fieldIs } from './core';
+import { connectField, withData, withQuery } from './client';
+import { Field, fieldIs, isValid } from './core';
 import { buildSchema, connectors } from './server';
 
 export {
-  withData, withQuery,
-  Field, fieldIs,
+  connectField, withData, withQuery,
+  Field, fieldIs, isValid,
   buildSchema, connectors,
 };

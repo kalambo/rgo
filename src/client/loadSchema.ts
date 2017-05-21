@@ -1,7 +1,7 @@
 import { normalize, schema as normalizrSchema } from 'normalizr';
-import { Obj } from 'mishmash';
+import { keysToObject, Obj } from 'mishmash';
 
-import { Field, fieldIs, keysToObject, mapArray, scalars } from '../core';
+import { Field, fieldIs, mapArray, scalars } from '../core';
 
 export default async function loadSchema(url: string) {
 

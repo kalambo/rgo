@@ -6,7 +6,7 @@ import {
   DataKey, Field, fieldIs, Formula, QueryArgs, ScalarName,
 } from './typings';
 import {
-  dataGet, dataSet, isObject, keysToObject, mapArray, mapObject, undefToNull,
+  dataGet, dataSet, isObject, mapArray, mapObject, undefToNull,
 } from './utils';
 
 export {
@@ -14,5 +14,5 @@ export {
   isValid,
   scalars,
   DataKey, Field, fieldIs, Formula, QueryArgs, ScalarName,
-  dataGet, dataSet, isObject, keysToObject, mapArray, mapObject, undefToNull,
+  dataGet, dataSet, isObject, mapArray, mapObject, undefToNull,
 }

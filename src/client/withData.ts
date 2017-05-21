@@ -1,9 +1,9 @@
 import { branch, ComponentEnhancer, compose, withProps } from 'recompose';
 import * as most from 'most';
-import { mapPropsStream, withStore } from 'mishmash';
+import { keysToObject, mapPropsStream, withStore } from 'mishmash';
 import merge from 'lodash/fp/merge';
 
-import { dataGet, DataKey, dataSet, isValid, keysToObject, undefToNull } from '../core';
+import { dataGet, DataKey, dataSet, isValid, undefToNull } from '../core';
 
 import graphApi, { AuthFetch } from './graphApi';
 import read from './read';
@@ -52,9 +52,9 @@ export default function withData(url: string, authFetch: AuthFetch, log?: boolea
 
         value: ({ getState }, key) => getStateValue(getState(), key),
         schema: ({ getProps }, { type, field }) => getProps().api.schema[type][field],
-        valid: ({ getState, getProps }, { type, id, field }, optional) => {
+        valid: ({ getState, getProps }, { type, id, field }) => {
           const { scalar, rules } = getProps().api.schema[type][field];
-          return isValid(scalar, rules, optional, getStateValue(getState(), { type, id, field }));
+          return isValid(scalar, rules, getStateValue(getState(), { type, id, field }));
         },
         read: ({ getState, getProps }, query, variables, previousResult) => read(
           getProps().api.schema, query, variables, getState().combined, previousResult,

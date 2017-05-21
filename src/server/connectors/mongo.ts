@@ -1,8 +1,8 @@
 import { Collection } from 'mongodb';
-import { Obj } from 'mishmash';
+import { keysToObject, Obj } from 'mishmash';
 import flatten from 'flat';
 
-import { keysToObject, mapArray } from '../../core';
+import { mapArray } from '../../core';
 
 import { Connector, FieldDbMap } from '../typings';
 

@@ -49,7 +49,7 @@
     "graphql": "^0.9.6",
     "graphql-anywhere": "^3.0.1",
     "lodash": "^4.17.4",
-    "mishmash": "^0.2.3",
+    "mishmash": "^0.2.4",
     "mongodb": "^2.2.26",
     "most": "^1.3.0",
     "normalizr": "^3.2.3",

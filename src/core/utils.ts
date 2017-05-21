@@ -19,20 +19,6 @@ export const dataSet = (data: any, key: DataKey, value: any) => (
   set([key.type, key.id, key.field], value, data)
 );
 
-export const keysToObject = <T, U>(
-  keys: T[],
-  valueMap: (k: T, i: number) => U | undefined,
-  keyMap?: (k: T, i: number) => string,
-) => (
-  keys.reduce(
-    (res, k, i) => {
-      const newValue = valueMap(k, i);
-      return newValue === undefined ? res : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
-    },
-    {} as Obj<U>,
-  )
-);
-
 export interface MapConfig {
   valueMaps?: Obj<(value: any) => any>;
   newKeys?: Obj<string>;

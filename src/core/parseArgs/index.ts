@@ -1,8 +1,8 @@
 import { GraphQLResolveInfo, FieldNode } from 'graphql';
-import { Obj } from 'mishmash';
+import { keysToObject, Obj } from 'mishmash';
 
 import { Field, fieldIs, QueryArgs } from '../typings';
-import { isObject, keysToObject, mapArray, mapObject } from '../utils';
+import { isObject, mapArray, mapObject } from '../utils';
 
 import parseDateString from './parseDateString';
 import parseFilter from './parseFilter';

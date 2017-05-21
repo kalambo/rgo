@@ -2,9 +2,7 @@ import {
   GraphQLID, GraphQLBoolean, GraphQLInt, GraphQLFloat, GraphQLString, GraphQLScalarType, ValueNode,
 } from 'graphql';
 import { Kind } from 'graphql/language';
-import { Obj } from 'mishmash';
-
-import { keysToObject } from './utils';
+import { keysToObject, Obj } from 'mishmash';
 
 const parseLiteral = (ast: ValueNode, kinds: { [key: string]: boolean } | null) => {
   if (ast.kind === Kind.STRING && (!kinds || kinds[Kind.STRING])) return ast.value;

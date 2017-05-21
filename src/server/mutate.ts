@@ -1,6 +1,6 @@
-import { Obj } from 'mishmash';
+import { keysToObject, Obj } from 'mishmash';
 
-import { fieldIs, keysToObject } from '../core';
+import { fieldIs } from '../core';
 
 import { DataType } from './typings';
 

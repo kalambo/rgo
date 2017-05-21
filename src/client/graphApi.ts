@@ -1,8 +1,8 @@
 import { DocumentNode, print } from 'graphql';
-import { Obj } from 'mishmash';
+import { keysToObject, Obj } from 'mishmash';
 import * as throttle from 'lodash/throttle';
 
-import { Field, fieldIs, keysToObject, mapArray, scalars } from '../core';
+import { Field, fieldIs, mapArray, scalars } from '../core';
 
 import loadSchema from './loadSchema';
 
