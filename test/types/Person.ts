@@ -4,7 +4,7 @@ import buildType from '../buildType';
 
 export default function Person(db: Db) {
   return buildType(
-    db.collection('hub_people'),
+    db.collection('test_hub_people'),
     {
       firstName: {
         scalar: 'String',

@@ -10,6 +10,7 @@
     "clean": "rimraf lib/*",
     "build": "yarn run clean && tsc --p tsconfig.server.json && tsc --p tsconfig.client.json",
     "db": "mongod --dbpath data",
+    "build-test": "rimraf test/lib/* && tsc --p tsconfig.test.json",
     "test": "jest --forceExit",
     "prepublish": "yarn run test && yarn run build"
   },

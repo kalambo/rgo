@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Tests",
+      "program": "${workspaceRoot}/test/index.ts",
+      "preLaunchTask": "compile",
+      "outFiles": ["${workspaceRoot}/test/lib/**/*"]
+    }
+  ]
+}

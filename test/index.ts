@@ -5,14 +5,11 @@ import { buildSchema } from '../src';
 
 import types from './types';
 
-it('server', async () => {
+(async () => {
 
   const db = await MongoClient.connect('mongodb://localhost:27017/test');
-
   const schema = buildSchema(keysToObject(Object.keys(types), type => types[type](db)));
 
-  const schemaResult = await schema('{ SCHEMA }');
+  console.log(await schema('{ SCHEMA }'));
 
-  expect(schemaResult).toBe('');
-
-});
+})();
