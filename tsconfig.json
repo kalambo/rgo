@@ -3,7 +3,7 @@
     "target": "es2017",
     "lib": ["dom", "esnext"],
     "module": "commonjs",
-    "declaration": true,
+    "declaration": false,
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

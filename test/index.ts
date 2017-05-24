@@ -12,4 +12,6 @@ import types from './types';
 
   console.log(await schema('{ SCHEMA }'));
 
+  console.log((await schema('{ Person { id, firstName, lastName } }')).data!.Person.slice(0, 5));
+
 })();

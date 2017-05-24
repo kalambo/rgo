@@ -1,6 +1,6 @@
 import { Collection } from 'mongodb';
 import { keysToObject, Obj } from 'mishmash';
-import flatten from 'flat';
+import * as flatten from 'flat';
 
 import { mapArray } from '../../core';
 

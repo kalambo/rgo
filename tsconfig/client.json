@@ -4,13 +4,13 @@
     "lib": ["dom", "esnext"],
     "module": "commonjs",
     "declaration": true,
-    "rootDir": "src",
-    "outDir": "lib",
+    "rootDir": "../src",
+    "outDir": "../lib",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitAny": false,
     "downlevelIteration": true
   },
-  "include": ["src/client/index.ts"]
+  "include": ["../src/client/index.ts"]
 }

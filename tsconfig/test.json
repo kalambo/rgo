@@ -4,13 +4,13 @@
     "lib": ["dom", "esnext"],
     "module": "commonjs",
     "sourceMap": true,
-    "rootDir": "",
-    "outDir": "test/lib",
+    "rootDir": "../",
+    "outDir": "../test/lib",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitAny": false,
     "downlevelIteration": true
   },
-  "include": ["test/index.ts"]
+  "include": ["../test/index.ts"]
 }
