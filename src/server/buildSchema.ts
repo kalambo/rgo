@@ -1,14 +1,14 @@
 import {
-  ExecutionResult, graphql, GraphQLID, GraphQLInputObjectType, GraphQLInt, GraphQLList,
-  GraphQLNonNull, GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, GraphQLString,
+  ExecutionResult, graphql, GraphQLInputObjectType, GraphQLInt, GraphQLList, GraphQLNonNull,
+  GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, GraphQLString,
 } from 'graphql';
 import { keysToObject, Obj } from 'mishmash';
 
-import { fieldIs, parseArgs, scalars } from '../core';
+import { Field, fieldIs, parseArgs, scalars } from '../core';
 
 import batch from './batch';
 import mutate from './mutate';
-import { DataType } from './typings';
+import { DataType, QueryConfig } from './typings';
 
 const argTypes = {
   filter: { type: GraphQLString },
@@ -21,90 +21,85 @@ export default function buildSchema(types: Obj<DataType>) {
 
   const typeNames = Object.keys(types);
 
-  const baseFields = {
-    id: { type: new GraphQLNonNull(GraphQLID) },
-    createdAt: { type: scalars.Date.type },
-    modifiedAt: { type: scalars.Date.type },
+  const baseFields: Obj<Field> = {
+    id: {
+      scalar: 'ID',
+    },
+    createdAt: {
+      scalar: 'Date',
+    },
+    modifiedAt: {
+      scalar: 'Date',
+    },
   };
+
+  const typeFields = keysToObject(typeNames, type => ({ ...baseFields, ...types[type].fields }));
 
   const queryTypes = keysToObject(typeNames, type => new GraphQLObjectType({
     name: type,
-    fields: () => ({
+    fields: () => keysToObject(Object.keys(typeFields[type]), f => {
 
-      ...baseFields,
+      const field = typeFields[type][f];
 
-      ...keysToObject(Object.keys(types[type].fields), f => {
+      if (fieldIs.scalar(field)) {
+        const scalar = scalars[field.scalar].type;
+        return { type: field.isList ? new GraphQLList(scalar) : scalar };
+      }
 
-        const field = types[type].fields[f];
+      const relQueryType = queryTypes[field.relation.type];
+      return {
+        type: (fieldIs.foreignRelation(field) || field.isList) ?
+          new GraphQLList(relQueryType) : relQueryType,
+        args: argTypes,
+        resolve: batch(async (
+          roots: any[], args, { userId }: { userId: string | null }, info: GraphQLResolveInfo,
+        ) => {
 
-        if (fieldIs.scalar(field)) {
-          const scalar = scalars[field.scalar].type;
-          return { type: field.isList ? new GraphQLList(scalar) : scalar };
-        }
+          const rootField = fieldIs.relation(field) ? f : 'id';
+          const relField = fieldIs.relation(field) ? 'id' : field.relation.field;
 
-        const relQueryType = queryTypes[field.relation.type];
-        return {
-          type: (fieldIs.foreignRelation(field) || field.isList) ?
-            new GraphQLList(relQueryType) : relQueryType,
-          args: argTypes,
-          resolve: batch(async (
-            roots: any[], args, { userId }: { userId: string | null }, info: GraphQLResolveInfo,
-          ) => {
+          const queryArgs = parseArgs(args, userId, typeFields[field.relation.type], info);
+          queryArgs.fields = [relField, ...(queryArgs.fields || [])];
+          queryArgs.filter = {
+            ...queryArgs.filter,
+            [relField]: { $in: roots.reduce((res, root) => res.concat(root[rootField]), []) },
+          };
 
-            const { fields, connector, auth } = types[field.relation.type];
+          const auth = types[field.relation.type].auth;
+          const authArgs = auth.query ? await auth.query(userId, queryArgs) : queryArgs;
 
-            const rootField = fieldIs.relation(field) ? f : 'id';
-            const relField = fieldIs.relation(field) ? 'id' : field.relation.field;
+          const results = await types[field.relation.type].connector.query(authArgs);
 
-            const queryArgs = parseArgs(args, userId, fields, info);
-            queryArgs.fields = [relField, ...(queryArgs.fields || [])];
-            queryArgs.filter = {
-              ...queryArgs.filter,
-              [relField]: { $in: roots.reduce((res, root) => res.concat(root[rootField]), []) },
-            };
-            const authArgs = auth.query ? await auth.query(userId, queryArgs) : queryArgs;
+          return roots.map(root => {
+            if (fieldIs.relation(field)) {
+              if (!field.isList) return results.find(res => res.id === root[f]);
+              return root[f] && root[f].map(id => results.find(res => res.id === id));
+            }
+            return results.filter(res =>
+              Array.isArray(res[relField]) ? res[relField].includes(root.id) :
+                res[relField] === root.id
+            );
+          });
 
-            const results = await connector.query(authArgs);
-
-            return roots.map(root => {
-              if (fieldIs.relation(field)) {
-                if (!field.isList) return results.find(res => res.id === root[f]);
-                return root[f] && root[f].map(id => results.find(res => res.id === id));
-              }
-              return results.filter(res =>
-                Array.isArray(res[relField]) ? res[relField].includes(root.id) :
-                  res[relField] === root.id
-              );
-            });
-
-          }),
-        };
-
-      }),
-
+        }),
+      };
     }),
   }));
 
   const inputTypes = keysToObject(typeNames, type => new GraphQLInputObjectType({
     name: `${type}Input`,
-    fields: ({
+    fields: keysToObject(Object.keys(typeFields[type]), f => {
 
-      ...baseFields,
+      const field = typeFields[type][f];
 
-      ...keysToObject(Object.keys(types[type].fields), f => {
+      if (fieldIs.scalar(field)) {
+        const scalar = scalars[field.scalar].type;
+        return { type: field.isList ? new GraphQLList(scalar) : scalar };
+      }
 
-        const field = types[type].fields[f];
-
-        if (fieldIs.scalar(field) && field.isList) {
-          const scalar = scalars[field.scalar].type;
-          return { type: field.isList ? new GraphQLList(scalar) : scalar };
-        }
-
-        if (fieldIs.relation(field)) {
-          return { type: field.isList ? new GraphQLList(scalars.ID.type) : scalars.ID.type, };
-        }
-
-      }),
+      if (fieldIs.relation(field)) {
+        return { type: field.isList ? new GraphQLList(scalars.ID.type) : scalars.ID.type, };
+      }
 
     }),
   }));
@@ -121,21 +116,18 @@ export default function buildSchema(types: Obj<DataType>) {
             _root: any, args, { userId }: { userId: string | null }, info: GraphQLResolveInfo,
           ) {
 
-            const { fields, connector, auth } = types[type];
+            const queryArgs = parseArgs(args, userId, typeFields[type], info);
 
-            const queryArgs = parseArgs(args, userId, fields, info);
+            const auth = types[type].auth;
             const authArgs = auth.query ? await auth.query(userId, queryArgs) : queryArgs;
 
-            return connector.query(authArgs);
+            return types[type].connector.query(authArgs);
 
           },
         })),
         SCHEMA: {
           type: scalars.JSON.type,
-          resolve: () => JSON.stringify(
-            keysToObject(typeNames, type => types[type].fields),
-            (_, v) => typeof v === 'function' ? true : v,
-          ),
+          resolve: () => JSON.stringify(typeFields, (_, v) => typeof v === 'function' ? true : v),
         },
       },
     }),
@@ -162,8 +154,15 @@ export default function buildSchema(types: Obj<DataType>) {
 
   });
 
-  return async (query: string, context?: any, variables?: any): Promise<ExecutionResult> => (
-    graphql(schema, query, null, { ...context, rootQuery: query }, variables)
+  const runQuery = async (config: QueryConfig, context: any) => (
+    graphql(schema, config.query, null, { ...context, rootQuery: config.query }, config.variables)
+  );
+
+  return async (
+    config: QueryConfig | QueryConfig[], context?: any
+  ): Promise<ExecutionResult | ExecutionResult[]> => (
+    Array.isArray(config) ?
+      Promise.all(config.map(c => runQuery(c, context))) : runQuery(config, context)
   );
 
 }

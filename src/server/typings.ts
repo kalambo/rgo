@@ -37,3 +37,8 @@ export interface FieldDbMap {
   toDb: (value: any) => any;
   fromDb: (value: any) => any;
 };
+
+export interface QueryConfig {
+  query: string;
+  variables?: any
+};

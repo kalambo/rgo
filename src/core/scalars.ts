@@ -1,5 +1,6 @@
 import {
-  GraphQLID, GraphQLBoolean, GraphQLInt, GraphQLFloat, GraphQLString, GraphQLScalarType, ValueNode,
+  GraphQLID, GraphQLBoolean, GraphQLInt, GraphQLFloat, GraphQLNonNull, GraphQLString,
+  GraphQLScalarType, ValueNode,
 } from 'graphql';
 import { Kind } from 'graphql/language';
 import { keysToObject, Obj } from 'mishmash';
@@ -25,7 +26,7 @@ interface ScalarConfig {
 }
 
 export interface Scalar {
-  type: GraphQLScalarType,
+  type: GraphQLNonNull<GraphQLScalarType> | GraphQLScalarType,
   decode?: (value: any) => any;
   encode?: (value: any) => any;
 }
@@ -51,7 +52,7 @@ const buildScalarTypes = (types: Obj<ScalarConfig>) => keysToObject(
 );
 
 export default {
-  ID: { type: GraphQLID },
+  ID: { type: new GraphQLNonNull(GraphQLID) },
   Boolean: { type: GraphQLBoolean },
   Int: { type: GraphQLInt },
   Float: { type: GraphQLFloat },

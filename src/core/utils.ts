@@ -1,6 +1,6 @@
 import { Obj } from 'mishmash';
-import get from 'lodash/fp/get';
-import set from 'lodash/fp/set';
+import * as get from 'lodash/fp/get';
+import * as set from 'lodash/fp/set';
 
 import { DataKey } from './typings';
 
@@ -20,7 +20,7 @@ export const dataSet = (data: any, key: DataKey, value: any) => (
 );
 
 export interface MapConfig {
-  valueMaps?: Obj<(value: any) => any>;
+  valueMaps?: Obj<((value: any) => any) | true>;
   newKeys?: Obj<string>;
   flat?: boolean;
   continue?: (value: any) => boolean;
@@ -34,7 +34,7 @@ export const mapObject = (obj: any, config: MapConfig, activeField?: string) => 
 
   if (activeField && !(config.continue && config.continue(obj))) {
     const map = (config.valueMaps && config.valueMaps[activeField])!;
-    return map(obj);
+    return map === true ? obj : map(obj);
   }
 
   if (!obj) return obj;

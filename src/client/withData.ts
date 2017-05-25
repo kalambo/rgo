@@ -1,7 +1,7 @@
 import { branch, ComponentEnhancer, compose, withProps } from 'recompose';
 import * as most from 'most';
 import { keysToObject, mapPropsStream, withStore } from 'mishmash';
-import merge from 'lodash/fp/merge';
+import * as merge from 'lodash/fp/merge';
 
 import { dataGet, DataKey, dataSet, isValid, undefToNull } from '../core';
 

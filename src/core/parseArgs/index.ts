@@ -36,7 +36,7 @@ export default function parseArgs(
       filter: mapObject(parseFilter(args.filter || '', user), {
         valueMaps: keysToObject(Object.keys(fields), k => {
           const field = fields[k];
-          return typeMaps[fieldIs.scalar(field) ? field.scalar : ''];
+          return typeMaps[fieldIs.scalar(field) ? field.scalar : ''] || true;
         }),
         continue: v => isObject(v) && Object.keys(v).some(k => k[0] === '$'),
       }),

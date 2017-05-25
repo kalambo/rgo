@@ -8,7 +8,9 @@ export interface QueryOptions {
   variables?: (props: any) => any;
 }
 
-export default function withQuery(query: string, { name = 'data', variables }: QueryOptions = {}) {
+export default function withQuery(query: string, options?: QueryOptions) {
+
+  const { name = 'data', variables } = options || {} as QueryOptions;
 
   const preparedQuery = prepareQuery(query);
 

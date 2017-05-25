@@ -8,6 +8,9 @@ export default async function loadSchema(url: string) {
   const schema: Obj<Obj<Field>> = JSON.parse(
     (await (await fetch(url, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ query: '{ SCHEMA }' }),
     })).json()).data.SCHEMA
   );
