@@ -1,12 +1,16 @@
 import { DocumentNode, print } from 'graphql';
 import { keysToObject, Obj } from 'mishmash';
 import * as throttle from 'lodash/throttle';
+import * as most from 'most';
 
 import { Field, fieldIs, mapArray, scalars } from '../core';
 
 import loadSchema from './loadSchema';
 
-export type AuthFetch = (url: string, body: any[]) => Promise<any[] | null>;
+export interface Auth {
+  user$: most.Stream<string | null>;
+  fetch: (url: string, body: any[]) => Promise<any[] | null>;
+};
 
 const allKeys = (objects: any[]) => (
   Array.from(new Set(objects.reduce((res, o) => [...res, ...Object.keys(o)], []))) as string[]
@@ -17,7 +21,7 @@ const isReadonly = (field: Field) => {
   return fieldIs.foreignRelation(field);
 }
 
-export default async function graphApi(url: string, authFetch: AuthFetch) {
+export default async function graphApi(url: string, auth: Auth) {
 
   const { schema, normalize } = await loadSchema(url);
 
@@ -25,7 +29,7 @@ export default async function graphApi(url: string, authFetch: AuthFetch) {
   const processQueue = throttle(async () => {
     const batch = requestQueue;
     requestQueue = [];
-    const results = await authFetch(url, batch.map(b => b.body));
+    const results = await auth.fetch(url, batch.map(b => b.body));
     batch.forEach((b, i) => b.resolve(results && results[i] || null));
   }, 100, { leading: false });
 

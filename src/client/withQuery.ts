@@ -1,5 +1,5 @@
-import { ComponentEnhancer, compose } from 'recompose';
-import { connectStores, mapPropsStream, streamState } from 'mishmash';
+import { compose, pure } from 'recompose';
+import { connectStores, HOC, mapPropsStream, streamState } from 'mishmash';
 
 import prepareQuery from './prepareQuery';
 
@@ -25,25 +25,23 @@ export default function withQuery(query: string, options?: QueryOptions) {
 
       let previousResult: any = null;
 
-      const mappedProps$ = props$.map(({ stores: { data: { read, query } }, ...props }) => ({
-        ...props,
-        [dataName]: name ? read(preparedQuery, getVariables(props), previousResult) : null,
-        runDataQuery: () => query(preparedQuery, getVariables(props)),
-      })).tap(props => previousResult = props[dataName]);
-
       const { state$: done$, setState: setDone } = streamState(false);
 
-      mappedProps$.take(1).observe(({ runDataQuery }) => {
-        runDataQuery().then(() => setDone(true));
+      props$.take(1).observe(async ({ stores: { data: { query } }, ...props }) => {
+        await query(preparedQuery, getVariables(props));
+        setDone(true);
       });
 
-      return mappedProps$.combine(({ runDataQuery: _, ...props }, done) => ({
+      return props$.combine(({ stores: { data: { read } }, ...props }, done) => ({
         ...props,
-        [dataName]: done ? props[dataName] : 'loading',
-      }), done$);
+        [dataName]: !done ? 'loading' :
+          (name ? read(preparedQuery, getVariables(props), previousResult) : null),
+      }), done$).tap(props => previousResult = props[dataName]);
 
     }),
 
-  ) as ComponentEnhancer<any, any>;
+    pure,
+
+  ) as HOC;
 
 }

@@ -1,7 +1,2 @@
-import buildSchema from './buildSchema';
-import connectors from './connectors';
-
-export {
-  buildSchema,
-  connectors,
-};
+export { default as buildSchema } from './buildSchema';
+export { default as connectors } from './connectors';

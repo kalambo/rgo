@@ -1,11 +1,11 @@
-import { branch, ComponentEnhancer, compose, withProps } from 'recompose';
+import { branch, compose, withProps } from 'recompose';
 import * as most from 'most';
-import { keysToObject, mapPropsStream, withStore } from 'mishmash';
+import { HOC, keysToObject, mapPropsStream, withStore } from 'mishmash';
 import * as merge from 'lodash/fp/merge';
 
 import { dataGet, DataKey, dataSet, isValid, undefToNull } from '../core';
 
-import graphApi, { AuthFetch } from './graphApi';
+import graphApi, { Auth } from './graphApi';
 import read from './read';
 
 const getStateValue = (state: { server: any, client: any }, key: DataKey) => {
@@ -33,13 +33,13 @@ const withCombined = ({ server, client }) => ({ server, client,
   ),
 });
 
-export default function withData(url: string, authFetch: AuthFetch, log?: boolean) {
+export default function withData(url: string, auth: Auth, log?: boolean) {
 
   return compose(
 
     mapPropsStream(props$ => {
-      const api$ = most.fromPromise<any>(graphApi(url, authFetch)).startWith(null);
-      return props$.combine((props, api) => ({ ...props, api }), api$);
+      const api$ = most.fromPromise<any>(graphApi(url, auth)).startWith(null);
+      return props$.combine((props, api, user) => ({ ...props, api, user }), api$, auth.user$);
     }),
 
     withProps(({ api }) => ({
@@ -58,13 +58,21 @@ export default function withData(url: string, authFetch: AuthFetch, log?: boolea
         },
         read: ({ getState, getProps }, query, variables, previousResult) => read(
           getProps().api.schema, query, variables, getState().combined, previousResult,
-          getProps().auth,
+          getProps().user,
         ),
         editing: ({ getState }, key) => (
-          key ? dataGet(getState().client, key) !== undefined :
+          key ? (dataGet(getState().client, key) !== undefined) :
             (Object.keys(getState().client).length > 0)
         ),
 
+        * init({ getState }, keys) {
+          yield withCombined({
+            server: getState().server,
+            client: keys.reduce(
+              (res, key) => dataSet(res, key, getStateValue(getState(), key)), getState().client,
+            ),
+          });
+        },
         * set({ getState }, key, value) {
           yield withCombined({
             server: getState().server,
@@ -85,7 +93,7 @@ export default function withData(url: string, authFetch: AuthFetch, log?: boolea
         },
         async * query({ getState, getProps }, query, variables) {
 
-          const result = await getProps().api.query(query, variables, getProps().auth);
+          const result = await getProps().api.query(query, variables);
 
           yield withCombined({
             server: merge(getState().server, result || {}),
@@ -96,14 +104,14 @@ export default function withData(url: string, authFetch: AuthFetch, log?: boolea
         async * mutate({ getState, getProps }, keys) {
 
           const mutationData = !keys ? getState().client :
-            keys.reduce((res, k) => dataSet(res, k, dataGet(getState().client, k)), {});
+            keys.reduce((res, k) => dataSet(res, k, getStateValue(getState(), k)), {});
 
           yield withCombined({
             server: merge(getState().server, mutationData),
             client: keys ? getState().client : {},
           });
 
-          const result = await getProps().api.mutate(mutationData, getProps().auth);
+          const result = await getProps().api.mutate(mutationData);
 
           const clearedData = !keys ? {} :
             keys.reduce((res, k) => dataSet(res, k, undefined), getState().client);
@@ -118,5 +126,5 @@ export default function withData(url: string, authFetch: AuthFetch, log?: boolea
       }, { server: {}, client: {}, combined: {} }, log),
     ),
 
-  ) as ComponentEnhancer<any, any>;
+  ) as HOC;
 }

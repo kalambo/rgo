@@ -3,9 +3,9 @@ import graphql from 'graphql-anywhere';
 import resolver from './resolver';
 import preserveRefs from './preserveRefs';
 
-export default function read(schema, query, variables, data, previousResult, auth) {
+export default function read(schema, query, variables, data, previousResult, user) {
 
-  const context = { schema, data, user: auth && auth.user || null, previousResult };
+  const context = { schema, data, user, previousResult };
 
   return graphql(resolver, query, null, context, variables, {
 
