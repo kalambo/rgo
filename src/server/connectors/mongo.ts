@@ -2,7 +2,7 @@ import { Collection } from 'mongodb';
 import { keysToObject, Obj } from 'mishmash';
 import * as flatten from 'flat';
 
-import { mapArray } from '../../core';
+import { mapArray, mapObject } from '../../core';
 
 import { Connector, FieldDbMap } from '../typings';
 
@@ -24,24 +24,29 @@ const mongoFilter = (filter: any) => {
 }
 
 export default function mongoConnector(
-  collection: Collection, fieldDbKeys: Obj<string>, fieldMaps: Obj<FieldDbMap>,
+  collection: Collection, fieldDbKeys: Obj<string>, fieldMaps: Obj<FieldDbMap | null>,
 ): Connector {
 
-  const reverseFieldDbKeys = keysToObject(Object.keys(fieldDbKeys), k => k, k => fieldDbKeys[k]);
-
-  const toDb = (obj, config: { flat?: boolean, ignoreValues?: boolean } = {}) => {
-    return keysToObject(
-      Object.keys(obj),
-      k => (!config.ignoreValues && fieldMaps[k]) ? mapArray(obj[k], fieldMaps[k].toDb) : obj[k],
-      k => fieldDbKeys[k] || k,
-    );
+  const toDbMaps = {
+    base: keysToObject(Object.keys(fieldMaps), k => fieldMaps[k] && fieldMaps[k]!.toDb || true),
+    ignoreValues: keysToObject<string, true>(Object.keys(fieldMaps), () => true),
   };
+  const toDb = (obj, config: { flat?: boolean, ignoreValues?: boolean } = {}) => {
+    return mapObject(obj, {
+      valueMaps: config.ignoreValues ? toDbMaps.ignoreValues : toDbMaps.base,
+      newKeys: fieldDbKeys,
+      flat: config.flat,
+      continue: v => isObject(v) && Object.keys(v).some(k => k[0] === '$'),
+    });
+  };
+
+  const reverseFieldDbKeys = keysToObject(Object.keys(fieldDbKeys), k => k, k => fieldDbKeys[k]);
   const fromDb = (doc: any) => {
     if (!doc) return doc;
     const flat = flatten(doc, { safe: true });
     return keysToObject(
       Object.keys(flat).map(k => ({ k: reverseFieldDbKeys[k] || k, dbKey: k })),
-      ({ k, dbKey }) => fieldMaps[k] ? mapArray(flat[dbKey], fieldMaps[k].fromDb) : flat[dbKey],
+      ({ k, dbKey }) => fieldMaps[k] ? mapArray(flat[dbKey], fieldMaps[k]!.fromDb) : flat[dbKey],
       ({ k }) => k,
     );
   };

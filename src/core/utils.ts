@@ -6,9 +6,7 @@ import { DataKey } from './typings';
 
 export const undefToNull = (v: any) => v === undefined ? null : v;
 
-export const isObject = (v) => (
-  Object.prototype.toString.call(v) === '[object Object]' && !v._bsontype
-);
+export const isObject = (v) => Object.prototype.toString.call(v) === '[object Object]';
 
 export const mapArray = (v: any, map: (x: any) => any) => Array.isArray(v) ? v.map(map) : map(v);
 
@@ -44,7 +42,7 @@ export const mapObject = (obj: any, config: MapConfig, activeField?: string) => 
   if (isObject(obj)) {
     return Object.keys(obj).reduce((res, k) => flatSet(
       res,
-      config.newKeys ? config.newKeys[k] : k,
+      config.newKeys && config.newKeys[k] || k,
       mapObject(
         obj[k], config, activeField || ((config.valueMaps && config.valueMaps[k]) ? k : undefined),
       ),

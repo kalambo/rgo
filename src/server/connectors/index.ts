@@ -7,7 +7,6 @@ import mongo from './mongo';
 
 export default {
   mongo: mongo as (
-    collection: Collection, fieldDbKeys: Obj<string>, fieldMaps: Obj<FieldDbMap>,
+    collection: Collection, fieldDbKeys: Obj<string>, fieldMaps: Obj<FieldDbMap | null>,
   ) => Connector,
 };
-

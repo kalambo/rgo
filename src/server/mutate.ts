@@ -8,15 +8,15 @@ export default async function mutate(
   types: Obj<DataType>, args, { userId }: { userId: string | null },
 ) {
 
-  const typeNames = Object.keys(types);
+  const typeNames = Object.keys(args);
 
-  const newIds = {
+  const newIds = keysToObject(Object.keys(types), type => ({
     $user: userId || '',
-    ...keysToObject(typeNames, type => keysToObject(
+    ...(args[type] && keysToObject(
       args[type].map(m => m.id).filter(id => id[0] === '$'),
       types[type].newId,
     )),
-  };
+  }));
 
   const mutations = keysToObject(typeNames, () => [] as any[]);
   for (const type of typeNames) {
@@ -27,10 +27,10 @@ export default async function mutate(
       const mId = newIds[type][id] || id;
 
       for (const f of Object.keys(fields)) {
-        if (Array.isArray(mutation[f])) {
-          mutation[f] = mutation[f].map(v => newIds[type][v] || v);
-        } else if (mutation[f]) {
-          mutation[f] = newIds[type][mutation[f]] || mutation[f];
+        const field = fields[f];
+        if (fieldIs.relation(field) && mutation[f]) {
+          if (field.isList) mutation[f] = mutation[f].map(v => newIds[type][v] || v);
+          else mutation[f] = newIds[type][mutation[f]] || mutation[f];
         }
       }
 
@@ -86,11 +86,12 @@ export default async function mutate(
         else await connector.insert(id, fullData);
         results[type].push({ id, ...prev, ...fullData });
 
+      } else {
+
+        await connector.delete(id);
+        results[type].push({ id });
+
       }
-
-      await connector.delete(id);
-      results[type].push({ id });
-
     }
   }
 
