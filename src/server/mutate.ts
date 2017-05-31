@@ -82,12 +82,25 @@ export default async function mutate(
           ...formulae,
         };
 
-        if (prev) await connector.update(id, fullData);
-        else await connector.insert(id, fullData);
+        if (prev) {
+          console.log(
+            `kalambo-mutate-update, ${type}:${id}, ` +
+            `old: ${JSON.stringify(prev)}, new: ${JSON.stringify(fullData)}`
+          );
+          await connector.update(id, fullData);
+        } else {
+          console.log(
+            `kalambo-mutate-insert, ${type}:${id}, new: ${JSON.stringify(fullData)}`
+          );
+          await connector.insert(id, fullData);
+        }
         results[type].push({ id, ...prev, ...fullData });
 
       } else {
 
+        console.log(
+          `kalambo-mutate-delete, ${type}:${id}, old: ${JSON.stringify(prev)}`
+        );
         await connector.delete(id);
         results[type].push({ id });
 

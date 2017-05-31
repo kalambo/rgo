@@ -30,7 +30,9 @@ export default async function graphApi(url: string, auth: Auth) {
     const batch = requestQueue;
     requestQueue = [];
     const results = await auth.fetch(url, batch.map(b => b.body));
-    batch.forEach((b, i) => b.resolve(results && results[i] || null));
+    batch.forEach((b, i) =>
+      b.resolve((results && results[i] && !results[i].errors) ? results[i].data : null)
+    );
   }, 100, { leading: false });
 
   const batchFetch = async (body: any) => {
@@ -45,9 +47,8 @@ export default async function graphApi(url: string, auth: Auth) {
     schema,
 
     async query(query: DocumentNode, variables: any) {
-
       const result = await batchFetch({ query: print(query), variables });
-      return result ? normalize(result.data) : null;
+      return result ? normalize(result) : null;
     },
 
     async mutate (data: any) {
@@ -78,7 +79,7 @@ export default async function graphApi(url: string, auth: Auth) {
       `;
 
       const result = await batchFetch({ query, variables: mutations })
-      return result ? normalize(result.data.mutate) : null;
+      return result ? normalize(result.mutate) : null;
     },
 
   };

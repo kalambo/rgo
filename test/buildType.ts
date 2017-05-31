@@ -25,11 +25,12 @@ export default function buildType(
         ...fieldDbKeys,
       },
       {
+        id: null,
         createdAt: typeMaps.Date,
         modifiedAt: typeMaps.Date,
         ...keysToObject(Object.keys(fields), k => {
           const field = fields[k];
-          return fieldIs.scalar(field) ? typeMaps[field.scalar] : undefined;
+          return fieldIs.scalar(field) && typeMaps[field.scalar] || null;
         }),
       },
     ),

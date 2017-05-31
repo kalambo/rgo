@@ -1,6 +1,6 @@
 import { Obj } from 'mishmash';
 
-export type ScalarName = 'ID' | 'Boolean' | 'Int' | 'Float' | 'String' | 'Date' | 'File' | 'JSON';
+export type ScalarName = 'Boolean' | 'Int' | 'Float' | 'String' | 'Date' | 'File' | 'JSON';
 
 export interface QueryArgs {
   filter: any;

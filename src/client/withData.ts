@@ -1,37 +1,66 @@
 import { branch, compose, withProps } from 'recompose';
 import * as most from 'most';
-import { HOC, keysToObject, mapPropsStream, withStore } from 'mishmash';
+import { HOC, keysToObject, mapPropsStream, Obj, withStore } from 'mishmash';
+import * as get from 'lodash/fp/get';
+import * as set from 'lodash/fp/set';
 import * as merge from 'lodash/fp/merge';
 
-import { dataGet, DataKey, dataSet, isValid, undefToNull } from '../core';
+import { DataKey, isValid } from '../core';
 
 import graphApi, { Auth } from './graphApi';
 import read from './read';
 
-const getStateValue = (state: { server: any, client: any }, key: DataKey) => {
-  const clientValue = dataGet(state.client, key);
-  return undefToNull(clientValue !== undefined ? clientValue : dataGet(state.server, key));
+interface DataState {
+  server: Obj<Obj<Obj<any>>>;
+  client: Obj<Obj<Obj<any>>>;
+  combined: Obj<Obj<Obj<any>>>;
+  arrays: Obj<Obj<any>[]>;
 }
 
-const withCombined = ({ server, client }) => ({ server, client,
-  combined: keysToObject(
-    Array.from(new Set([...Object.keys(server), ...Object.keys(client)])),
-    type => {
+const keyToArray = (key: DataKey) => [key.type, key.id, key.field];
 
-      const serverData = Object.keys(server[type] || []).map(id => ({ id, ...server[type][id] }));
-      const clientData = Object.keys(client[type] || []).map(id => ({ id, ...client[type][id] }));
+const dataToArrays = (data: Obj<Obj<Obj<any>>>): Obj<Obj<any>[]> => keysToObject(
+  Object.keys(data), type => Object.keys(data[type]).map(id => ({ id, ...data[type][id] })),
+);
 
-      const result = [...serverData];
-      for (const obj of clientData) {
-        const index = result.findIndex(o => o.id === obj.id);
-        if (index !== -1) result[index] = { ...result[index], ...obj };
-        else result.push(obj);
-      }
-
-      return result;
+const clientSet = (state: DataState, key: DataKey, value: any): DataState => {
+  const index = state.arrays[key.type].findIndex(({ id }) => id === key.id);
+  return {
+    server: state.server,
+    client: set(keyToArray(key), value, state.client),
+    combined: set(keyToArray(key), value, state.combined),
+    arrays: {
+      ...state.arrays,
+      [key.type]: index === -1 ?
+        [
+          ...state.arrays[key.type],
+          { id: key.id, [key.field]: value },
+        ] :
+        [
+          ...state.arrays[key.type].slice(0, index),
+          { ...state.arrays[key.type][index], [key.field]: value },
+          ...state.arrays[key.type].slice(index + 1),
+        ],
     },
-  ),
+  };
+};
+
+const clientInit = (state: DataState, key: DataKey) => ({
+  server: state.server,
+  client: set(keyToArray(key), get(keyToArray(key), state.combined), state.client),
+  combined: state.combined,
+  arrays: state.arrays,
 });
+
+const fromServerClient = (server: Obj<Obj<Obj<any>>>, client: Obj<Obj<Obj<any>>>) => {
+  const combined = merge(server, client);
+  return {
+    server,
+    client,
+    combined,
+    arrays: dataToArrays(combined),
+  };
+};
 
 export default function withData(url: string, auth: Auth, log?: boolean) {
 
@@ -50,80 +79,58 @@ export default function withData(url: string, auth: Auth, log?: boolean) {
       ({ dataReady }) => dataReady,
       withStore('data', {
 
-        value: ({ getState }, key) => getStateValue(getState(), key),
+        value: ({ getState }, key) => get(keyToArray(key), getState().combined),
+        object: ({ getState }, { type, id }) => get([type, id], getState().combined),
         schema: ({ getProps }, { type, field }) => getProps().api.schema[type][field],
         valid: ({ getState, getProps }, { type, id, field }) => {
           const { scalar, rules } = getProps().api.schema[type][field];
-          return isValid(scalar, rules, getStateValue(getState(), { type, id, field }));
+          return isValid(scalar, rules, get([type, id, field], getState().combined));
         },
         read: ({ getState, getProps }, query, variables, previousResult) => read(
-          getProps().api.schema, query, variables, getState().combined, previousResult,
+          getProps().api.schema, query, variables, getState().arrays, previousResult,
           getProps().user,
         ),
         editing: ({ getState }, key) => (
-          key ? (dataGet(getState().client, key) !== undefined) :
+          key ? (get(keyToArray(key), getState().client) !== undefined) :
             (Object.keys(getState().client).length > 0)
         ),
 
         * init({ getState }, keys) {
-          yield withCombined({
-            server: getState().server,
-            client: keys.reduce(
-              (res, key) => dataSet(res, key, getStateValue(getState(), key)), getState().client,
-            ),
-          });
+          yield keys.reduce((res, k) => clientInit(res, k), getState());
         },
         * set({ getState }, key, value) {
-          yield withCombined({
-            server: getState().server,
-            client: dataSet(getState().client, key, value),
-          });
+          yield clientSet(getState(), key, value);
         },
         * setMany({ getState }, values) {
-          yield withCombined({
-            server: getState().server,
-            client: values.reduce((res, [k, v]) => dataSet(res, k, v), getState().client),
-          });
+          yield values.reduce((res, [k, v]) => clientSet(res, k, v), getState());
         },
         * clear({ getState }) {
-          yield withCombined({
-            server: getState().server,
-            client: {},
-          });
+          yield fromServerClient(getState().server, {});
         },
         async * query({ getState, getProps }, query, variables) {
-
           const result = await getProps().api.query(query, variables);
-
-          yield withCombined({
-            server: merge(getState().server, result || {}),
-            client: getState().client,
-          });
-
+          yield fromServerClient(merge(getState().server, result || {}), getState().client);
         },
         async * mutate({ getState, getProps }, keys) {
 
-          const mutationData = !keys ? getState().client :
-            keys.reduce((res, k) => dataSet(res, k, getStateValue(getState(), k)), {});
+          const mutationData = !keys ?
+            getState().client :
+            keys.reduce(
+              (res, k) => set(keyToArray(k), get(keyToArray(k), getState().combined), res), {},
+            );
 
-          yield withCombined({
-            server: merge(getState().server, mutationData),
-            client: keys ? getState().client : {},
-          });
+          const clearedClient = !keys ? {} :
+            keys.reduce((res, k) => set(keyToArray(k), undefined, res), getState().client);
+
+          const prevServer = getState().server;
+          yield fromServerClient(merge(getState().server, mutationData), clearedClient);
 
           const result = await getProps().api.mutate(mutationData);
-
-          const clearedData = !keys ? {} :
-            keys.reduce((res, k) => dataSet(res, k, undefined), getState().client);
-
-          yield withCombined({
-            server: merge(getState().server, result || {}),
-            client: clearedData,
-          });
+          yield fromServerClient(result ? merge(prevServer, result) : prevServer, clearedClient);
 
         },
 
-      }, { server: {}, client: {}, combined: {} }, log),
+      }, { server: {}, client: {}, combined: {}, arrays: {} }, log),
     ),
 
   ) as HOC;

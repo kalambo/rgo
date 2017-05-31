@@ -17,13 +17,14 @@ const getFields = (obj: any): string[] => {
   return [];
 }
 
-export default function prepareQuery(query: string) {
+export default function prepareQuery(query: string, idsOnly?: boolean) {
 
-  const prepared = visit(parse(query), {
+  const apiQuery = visit(parse(query), {
     Argument() {
       return false;
     },
     Field(node: FieldNode) {
+
       const sels = node.selectionSet && node.selectionSet.selections;
       if (sels) {
 
@@ -67,5 +68,38 @@ export default function prepareQuery(query: string) {
     },
   });
 
-  return prepared;
+  const readQuery = visit(parse(query), {
+    Argument() {
+      return false;
+    },
+    Field(node: FieldNode) {
+
+      const sels = node.selectionSet && node.selectionSet.selections;
+      if (sels) {
+
+        if (!sels.some(s => s.kind === 'Field' && s.name.value === 'id')) {
+          return {
+            ...node,
+            selectionSet: {
+              ...node.selectionSet,
+              selections: [
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+                ...sels,
+              ],
+            },
+          } as FieldNode;
+        }
+
+      } else {
+
+        if (idsOnly && node.name.value !== 'id') {
+          return null;
+        }
+
+      }
+
+    },
+  });
+
+  return { apiQuery, readQuery };
 }

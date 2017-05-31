@@ -10,8 +10,9 @@ import types from './types';
   const db = await MongoClient.connect('mongodb://localhost:27017/test');
   const schema = buildSchema(keysToObject(Object.keys(types), type => types[type](db)));
 
-  console.log(await schema('{ SCHEMA }'));
+  console.log(await schema({ query: '{ SCHEMA }' }));
 
-  console.log((await schema('{ Person { id, firstName, lastName } }')).data!.Person.slice(0, 5));
+  const result = await schema({ query: '{ Person { id, firstName, lastName } }' }) as any;
+  console.log(result.data!.Person.slice(0, 5));
 
 })();

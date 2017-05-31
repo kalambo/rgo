@@ -1,21 +1,11 @@
 import { Obj } from 'mishmash';
-import * as get from 'lodash/fp/get';
 import * as set from 'lodash/fp/set';
-
-import { DataKey } from './typings';
 
 export const undefToNull = (v: any) => v === undefined ? null : v;
 
 export const isObject = (v) => Object.prototype.toString.call(v) === '[object Object]';
 
 export const mapArray = (v: any, map: (x: any) => any) => Array.isArray(v) ? v.map(map) : map(v);
-
-export const dataGet = (data: any, key: DataKey) => (
-  get([key.type, key.id, key.field], data)
-);
-export const dataSet = (data: any, key: DataKey, value: any) => (
-  set([key.type, key.id, key.field], value, data)
-);
 
 export interface MapConfig {
   valueMaps?: Obj<((value: any) => any) | true>;

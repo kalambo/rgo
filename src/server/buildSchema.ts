@@ -1,6 +1,6 @@
 import {
-  ExecutionResult, graphql, GraphQLInputObjectType, GraphQLInt, GraphQLList, GraphQLNonNull,
-  GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, GraphQLString,
+  ExecutionResult, graphql, GraphQLInputObjectType, GraphQLID, GraphQLInt, GraphQLList,
+  GraphQLNonNull, GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, GraphQLString,
 } from 'graphql';
 import { keysToObject, Obj } from 'mishmash';
 
@@ -21,9 +21,9 @@ export default function buildSchema(types: Obj<DataType>) {
 
   const typeNames = Object.keys(types);
 
-  const baseFields: Obj<Field> = {
+  const typeFields = keysToObject<string, Obj<Field>>(typeNames, type => ({
     id: {
-      scalar: 'ID',
+      scalar: 'String',
     },
     createdAt: {
       scalar: 'Date',
@@ -31,9 +31,8 @@ export default function buildSchema(types: Obj<DataType>) {
     modifiedAt: {
       scalar: 'Date',
     },
-  };
-
-  const typeFields = keysToObject(typeNames, type => ({ ...baseFields, ...types[type].fields }));
+    ...types[type].fields,
+  }));
 
   const queryTypes = keysToObject(typeNames, type => new GraphQLObjectType({
     name: type,
@@ -42,7 +41,7 @@ export default function buildSchema(types: Obj<DataType>) {
       const field = typeFields[type][f];
 
       if (fieldIs.scalar(field)) {
-        const scalar = scalars[field.scalar].type;
+        const scalar = f === 'id' ? new GraphQLNonNull(GraphQLID) : scalars[field.scalar].type;
         return { type: field.isList ? new GraphQLList(scalar) : scalar };
       }
 
@@ -93,12 +92,12 @@ export default function buildSchema(types: Obj<DataType>) {
       const field = typeFields[type][f];
 
       if (fieldIs.scalar(field)) {
-        const scalar = scalars[field.scalar].type;
+        const scalar = f === 'id' ? new GraphQLNonNull(GraphQLID) : scalars[field.scalar].type;
         return { type: field.isList ? new GraphQLList(scalar) : scalar };
       }
 
       if (fieldIs.relation(field)) {
-        return { type: field.isList ? new GraphQLList(scalars.ID.type) : scalars.ID.type, };
+        return { type: field.isList ? new GraphQLList(GraphQLID) : GraphQLID, };
       }
 
     }),
