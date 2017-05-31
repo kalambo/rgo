@@ -1,5 +1,5 @@
 import sift from 'sift';
-import * as orderBy from 'lodash/fp/orderby';
+import * as orderBy from 'lodash/fp/orderBy';
 import { Obj } from 'mishmash';
 
 import { Field, fieldIs, parseArgs } from '../../core';
