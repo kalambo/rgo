@@ -3,7 +3,6 @@ import { Obj } from 'mishmash';
 import { Field, QueryArgs } from '../core';
 
 export interface Connector {
-
   query: (args: QueryArgs) => Promise<any[]>;
 
   findById: (id: string) => Promise<any>;
@@ -14,16 +13,29 @@ export interface Connector {
 
   dump: () => Promise<any[]>;
   restore: (data: any[]) => Promise<void>;
-
 }
 
 export interface TypeAuth {
-  query?: (userId: string | null, args: QueryArgs) => QueryArgs | Promise<QueryArgs>;
-  insert?: (userId: string | null, id: string, data: any) => boolean | Promise<boolean>;
-  update?: (
-    userId: string | null, id: string, data: any, prev: any,
+  query?: (
+    userId: string | null,
+    args: QueryArgs,
+  ) => QueryArgs | Promise<QueryArgs>;
+  insert?: (
+    userId: string | null,
+    id: string,
+    data: any,
   ) => boolean | Promise<boolean>;
-  delete?: (userId: string | null, id: string, prev: any) => boolean | Promise<boolean>;
+  update?: (
+    userId: string | null,
+    id: string,
+    data: any,
+    prev: any,
+  ) => boolean | Promise<boolean>;
+  delete?: (
+    userId: string | null,
+    id: string,
+    prev: any,
+  ) => boolean | Promise<boolean>;
 }
 
 export interface DataType {
@@ -36,9 +48,9 @@ export interface DataType {
 export interface FieldDbMap {
   toDb: (value: any) => any;
   fromDb: (value: any) => any;
-};
+}
 
 export interface QueryConfig {
   query: string;
-  variables?: any
-};
+  variables?: any;
+}

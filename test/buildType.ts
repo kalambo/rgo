@@ -3,8 +3,10 @@ import { keysToObject, Obj } from 'mishmash';
 
 import { connectors, Field, fieldIs } from '../src';
 
-const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-const randomChar = () => characters[Math.floor(Math.random() * characters.length)]
+const characters =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const randomChar = () =>
+  characters[Math.floor(Math.random() * characters.length)];
 
 const typeMaps = {
   Date: {
@@ -14,7 +16,9 @@ const typeMaps = {
 };
 
 export default function buildType(
-  collection: Collection, fields: Obj<Field>, fieldDbKeys?: Obj<string>,
+  collection: Collection,
+  fields: Obj<Field>,
+  fieldDbKeys?: Obj<string>,
 ) {
   return {
     fields,
@@ -30,7 +34,7 @@ export default function buildType(
         modifiedAt: typeMaps.Date,
         ...keysToObject(Object.keys(fields), k => {
           const field = fields[k];
-          return fieldIs.scalar(field) && typeMaps[field.scalar] || null;
+          return (fieldIs.scalar(field) && typeMaps[field.scalar]) || null;
         }),
       },
     ),

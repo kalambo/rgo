@@ -10,11 +10,12 @@ let schema: any;
 
 beforeAll(async () => {
   db = await MongoClient.connect('mongodb://localhost:27017/test');
-  schema = buildSchema(keysToObject(Object.keys(types), type => types[type](db)));
+  schema = buildSchema(
+    keysToObject(Object.keys(types), type => types[type](db)),
+  );
 });
 
 test('server', async () => {
-
   const schemaResult = await schema({ query: '{ SCHEMA }' });
 
   expect(schemaResult).toEqual({
@@ -32,9 +33,8 @@ test('server', async () => {
           },
           ...types[type](db).fields,
         })),
-        (_, v) => typeof v === 'function' ? true : v,
-      )
+        (_, v) => (typeof v === 'function' ? true : v),
+      ),
     },
   });
-
 });

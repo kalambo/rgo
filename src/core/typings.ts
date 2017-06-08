@@ -1,6 +1,13 @@
 import { Obj } from 'mishmash';
 
-export type ScalarName = 'Boolean' | 'Int' | 'Float' | 'String' | 'Date' | 'File' | 'JSON';
+export type ScalarName =
+  | 'Boolean'
+  | 'Int'
+  | 'Float'
+  | 'String'
+  | 'Date'
+  | 'File'
+  | 'JSON';
 
 export interface QueryArgs {
   filter: any;
@@ -10,7 +17,10 @@ export interface QueryArgs {
   fields: string[] | null;
 }
 
-export type Formula = (obj: any, query: (args: QueryArgs) => Promise<any[]>) => Promise<any> | any;
+export type Formula = (
+  obj: any,
+  query: (args: QueryArgs) => Promise<any[]>,
+) => Promise<any> | any;
 
 export interface ScalarField {
   scalar: ScalarName;
@@ -23,7 +33,7 @@ export interface RelationField {
   isList?: true;
 }
 export interface ForeignRelationField {
-  relation: { type: string, field: string };
+  relation: { type: string; field: string };
 }
 export type Field = ScalarField | RelationField | ForeignRelationField;
 
@@ -32,10 +42,16 @@ export const fieldIs = {
     return !!(field as ScalarField).scalar;
   },
   relation: (field: Field): field is RelationField => {
-    return !!(field as RelationField).relation && !(field as ForeignRelationField).relation.field;
+    return (
+      !!(field as RelationField).relation &&
+      !(field as ForeignRelationField).relation.field
+    );
   },
   foreignRelation: (field: Field): field is ForeignRelationField => {
-    return !!(field as RelationField).relation && !!(field as ForeignRelationField).relation.field;
+    return (
+      !!(field as RelationField).relation &&
+      !!(field as ForeignRelationField).relation.field
+    );
   },
 };
 

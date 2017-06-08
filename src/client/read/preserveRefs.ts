@@ -1,9 +1,9 @@
 export default function preserveRefs(prev: any, next: any): any {
-
   if (prev === next) return prev;
 
   if (
-    (typeof prev !== 'object' || prev === null) ||
+    typeof prev !== 'object' ||
+    prev === null ||
     (typeof next !== 'object' || next === null)
   ) {
     return next;
@@ -13,7 +13,6 @@ export default function preserveRefs(prev: any, next: any): any {
   let changed = false;
 
   for (const k of Object.keys(next)) {
-
     if (!Object.prototype.hasOwnProperty.call(prev, k)) changed = true;
 
     if (Array.isArray(prev[k]) && Array.isArray(next[k])) {
@@ -23,9 +22,7 @@ export default function preserveRefs(prev: any, next: any): any {
     }
 
     if (result[k] !== prev[k]) changed = true;
-
   }
 
   return changed ? result : prev;
-
 }

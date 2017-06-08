@@ -26,7 +26,6 @@ whiteSpace
 `).parse;
 
 export default function parseSort(s: string) {
-
   const sort = parser(`${s},`);
   if (!sort.createdAt) sort.createdAt = -1;
   if (!sort.id) sort.id = 1;

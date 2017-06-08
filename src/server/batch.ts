@@ -13,10 +13,17 @@ interface Batch {
   callbacks: BatchCallbacks[];
 }
 
-export type BatchResolveFunc =
-  (sources: any[], args: any, context: any, info: GraphQLResolveInfo) => any[] | Promise<any[]>;
+export type BatchResolveFunc = (
+  sources: any[],
+  args: any,
+  context: any,
+  info: GraphQLResolveInfo,
+) => any[] | Promise<any[]>;
 
-const resolveBatches = async (batchResolveFn: BatchResolveFunc, batches: Batch[]) => {
+const resolveBatches = async (
+  batchResolveFn: BatchResolveFunc,
+  batches: Batch[],
+) => {
   for (const { sources, args, context, info, callbacks } of batches) {
     try {
       const values = await batchResolveFn(sources, args, context, info);
@@ -28,10 +35,9 @@ const resolveBatches = async (batchResolveFn: BatchResolveFunc, batches: Batch[]
       callbacks.forEach(({ reject }) => reject(error));
     }
   }
-}
+};
 
 class Batcher {
-
   private batchResolveFn: BatchResolveFunc;
   private batches = new Map<string, Batch>();
   private hasScheduledResolve: boolean = false;
@@ -42,10 +48,13 @@ class Batcher {
   }
 
   public add(
-    source: any, args: any, context: any, info: GraphQLResolveInfo,
-    resolve: (value?: any | PromiseLike<any>) => void, reject: (reason?: any) => void,
+    source: any,
+    args: any,
+    context: any,
+    info: GraphQLResolveInfo,
+    resolve: (value?: any | PromiseLike<any>) => void,
+    reject: (reason?: any) => void,
   ) {
-
     const batchKey = `${context.rootQuery}:${JSON.stringify(info.fieldNodes)}`;
 
     let batch = this.batches.get(batchKey);
@@ -71,7 +80,8 @@ class Batcher {
 
 export default function batchResolve(batchResolveFn: BatchResolveFunc) {
   const batcher = new Batcher(batchResolveFn);
-  return (source: any, args: any, context: any, info: GraphQLResolveInfo) => (
-    new Promise<any>((res, rej) => batcher.add(source, args, context, info, res, rej))
-  );
+  return (source: any, args: any, context: any, info: GraphQLResolveInfo) =>
+    new Promise<any>((res, rej) =>
+      batcher.add(source, args, context, info, res, rej),
+    );
 }

@@ -6,32 +6,42 @@ import { mapArray, mapObject } from '../../core';
 
 import { Connector, FieldDbMap } from '../typings';
 
-const isObject = (v) => (
-  Object.prototype.toString.call(v) === '[object Object]' && !v._bsontype
-);
+const isObject = v =>
+  Object.prototype.toString.call(v) === '[object Object]' && !v._bsontype;
 const mongoFilter = (filter: any) => {
   if (Array.isArray(filter)) return filter.map(mongoFilter);
   if (isObject(filter)) {
     return keysToObject(Object.keys(filter), k => {
       if (k === '$or') {
         const k2 = Object.keys(filter[k][0])[0];
-        if (filter[k][0][k2].$eq === null) return [...filter[k], { [k2]: { $exists: false } }];
+        if (filter[k][0][k2].$eq === null)
+          return [...filter[k], { [k2]: { $exists: false } }];
       }
       return mongoFilter(filter[k]);
     });
   }
   return filter;
-}
+};
 
 export default function mongoConnector(
-  collection: Collection, fieldDbKeys: Obj<string>, fieldMaps: Obj<FieldDbMap | null>,
+  collection: Collection,
+  fieldDbKeys: Obj<string>,
+  fieldMaps: Obj<FieldDbMap | null>,
 ): Connector {
-
   const toDbMaps = {
-    base: keysToObject(Object.keys(fieldMaps), k => fieldMaps[k] && fieldMaps[k]!.toDb || true),
-    ignoreValues: keysToObject<string, true>(Object.keys(fieldMaps), () => true),
+    base: keysToObject(
+      Object.keys(fieldMaps),
+      k => (fieldMaps[k] && fieldMaps[k]!.toDb) || true,
+    ),
+    ignoreValues: keysToObject<string, true>(
+      Object.keys(fieldMaps),
+      () => true,
+    ),
   };
-  const toDb = (obj, config: { flat?: boolean, ignoreValues?: boolean } = {}) => {
+  const toDb = (
+    obj,
+    config: { flat?: boolean; ignoreValues?: boolean } = {},
+  ) => {
     return mapObject(obj, {
       valueMaps: config.ignoreValues ? toDbMaps.ignoreValues : toDbMaps.base,
       newKeys: fieldDbKeys,
@@ -40,26 +50,40 @@ export default function mongoConnector(
     });
   };
 
-  const reverseFieldDbKeys = keysToObject(Object.keys(fieldDbKeys), k => k, k => fieldDbKeys[k]);
+  const reverseFieldDbKeys = keysToObject(
+    Object.keys(fieldDbKeys),
+    k => k,
+    k => fieldDbKeys[k],
+  );
   const fromDb = (doc: any) => {
     if (!doc) return doc;
     const flat = flatten(doc, { safe: true });
     return keysToObject(
       Object.keys(flat).map(k => ({ k: reverseFieldDbKeys[k] || k, dbKey: k })),
-      ({ k, dbKey }) => fieldMaps[k] ? mapArray(flat[dbKey], fieldMaps[k]!.fromDb) : flat[dbKey],
+      ({ k, dbKey }) =>
+        fieldMaps[k]
+          ? mapArray(flat[dbKey], fieldMaps[k]!.fromDb)
+          : flat[dbKey],
       ({ k }) => k,
     );
   };
 
   return {
-
-    async query({ filter = {}, sort = {}, skip = 0, show = null, fields = null }) {
-
+    async query({
+      filter = {},
+      sort = {},
+      skip = 0,
+      show = null,
+      fields = null,
+    }) {
       if (show === 0) return [];
 
       const cursor = collection.find(
         toDb(mongoFilter(filter), { flat: true }),
-        toDb(keysToObject(fields || [], () => true), { flat: true, ignoreValues: true }),
+        toDb(keysToObject(fields || [], () => true), {
+          flat: true,
+          ignoreValues: true,
+        }),
       );
 
       cursor.sort(toDb(sort, { flat: true, ignoreValues: true }));
@@ -68,7 +92,6 @@ export default function mongoConnector(
       if (show) cursor.limit(show);
 
       return (await cursor.toArray()).map(fromDb);
-
     },
 
     async findById(id) {
@@ -99,7 +122,5 @@ export default function mongoConnector(
         await collection.insertMany(data.map(toDb));
       }
     },
-
   };
-
 }

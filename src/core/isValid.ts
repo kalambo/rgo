@@ -4,10 +4,15 @@ const formats = {
   email: /^[a-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&''*+\/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i,
 };
 
-const isEmail = (value: any) => (typeof value === 'string') && formats.email.test(value);
+const isEmail = (value: any) =>
+  typeof value === 'string' && formats.email.test(value);
 
-export default function isValid(scalar: string = '', rules: any = {}, value: any, obj: any = {}) {
-
+export default function isValid(
+  scalar: string = '',
+  rules: any = {},
+  value: any,
+  obj: any = {},
+) {
   if (value === null) return false;
 
   if (scalar === 'File') {
@@ -28,8 +33,8 @@ export default function isValid(scalar: string = '', rules: any = {}, value: any
 
   if (rules.maxWords) {
     if (
-      (typeof value !== 'string') ||
-      ((value.match(/\S+/gi) || []).length > rules.maxWords)
+      typeof value !== 'string' ||
+      (value.match(/\S+/gi) || []).length > rules.maxWords
     ) {
       return false;
     }
@@ -49,14 +54,13 @@ export default function isValid(scalar: string = '', rules: any = {}, value: any
 
   if (rules.lt) {
     const otherValue = undefToNull(obj[rules.lt]);
-    if ((otherValue !== null) && (value >= otherValue)) return false;
+    if (otherValue !== null && value >= otherValue) return false;
   }
 
   if (rules.gt) {
     const otherValue = undefToNull(obj[rules.gt]);
-    if ((otherValue !== null) && (value <= otherValue)) return false;
+    if (otherValue !== null && value <= otherValue) return false;
   }
 
   return true;
-
-};
+}
