@@ -7,7 +7,9 @@
       "name": "Launch Tests",
       "program": "${workspaceRoot}/test/index.ts",
       "preLaunchTask": "compile",
-      "outFiles": ["${workspaceRoot}/test/lib/**/*"]
+      "outFiles": [
+        "${workspaceRoot}/test/lib/**/*"
+      ]
     }
   ]
 }

@@ -5,7 +5,7 @@ import * as get from 'lodash/fp/get';
 import * as set from 'lodash/fp/set';
 import * as merge from 'lodash/fp/merge';
 
-import { DataKey, isValid } from '../core';
+import { DataKey, isValid, undefToNull } from '../core';
 
 import graphApi, { Auth } from './graphApi';
 import read from './read';
@@ -24,7 +24,8 @@ const dataToArrays = (data: Obj<Obj<Obj<any>>>): Obj<Obj<any>[]> => keysToObject
 );
 
 const clientSet = (state: DataState, key: DataKey, value: any): DataState => {
-  const index = state.arrays[key.type].findIndex(({ id }) => id === key.id);
+  const typeArray = state.arrays[key.type] || [];
+  const index = typeArray.findIndex(({ id }) => id === key.id);
   return {
     server: state.server,
     client: set(keyToArray(key), value, state.client),
@@ -33,13 +34,13 @@ const clientSet = (state: DataState, key: DataKey, value: any): DataState => {
       ...state.arrays,
       [key.type]: index === -1 ?
         [
-          ...state.arrays[key.type],
+          ...typeArray,
           { id: key.id, [key.field]: value },
         ] :
         [
-          ...state.arrays[key.type].slice(0, index),
-          { ...state.arrays[key.type][index], [key.field]: value },
-          ...state.arrays[key.type].slice(index + 1),
+          ...typeArray.slice(0, index),
+          { ...typeArray[index], [key.field]: value },
+          ...typeArray.slice(index + 1),
         ],
     },
   };
@@ -79,8 +80,8 @@ export default function withData(url: string, auth: Auth, log?: boolean) {
       ({ dataReady }) => dataReady,
       withStore('data', {
 
-        value: ({ getState }, key) => get(keyToArray(key), getState().combined),
-        object: ({ getState }, { type, id }) => get([type, id], getState().combined),
+        value: ({ getState }, key) => undefToNull(get(keyToArray(key), getState().combined)),
+        object: ({ getState }, { type, id }) => undefToNull(get([type, id], getState().combined)),
         schema: ({ getProps }, { type, field }) => getProps().api.schema[type][field],
         valid: ({ getState, getProps }, { type, id, field }) => {
           const { scalar, rules } = getProps().api.schema[type][field];

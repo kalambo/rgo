@@ -33,9 +33,9 @@
   version "0.9.1"
   resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.9.1.tgz#b04ebe84bc997cc60dbea2ed4d0d4342c737f99d"
 
-"@types/jest@^19.2.3":
-  version "19.2.3"
-  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-19.2.3.tgz#61748040e8589a891dfc2ec1d16a2dd74482980e"
+"@types/jest@^19.2.4":
+  version "19.2.4"
+  resolved "https://registry.yarnpkg.com/@types/jest/-/jest-19.2.4.tgz#543651712535962b7dc615e18e4a381fc2687442"
 
 "@types/mongodb@^2.2.2":
   version "2.2.2"
@@ -45,8 +45,8 @@
     "@types/node" "*"
 
 "@types/node@*":
-  version "7.0.22"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.22.tgz#4593f4d828bdd612929478ea40c67b4f403ca255"
+  version "7.0.27"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-7.0.27.tgz#ba5e1a87aca2b4f5817289615ffe56472927687e"
 
 "@types/pegjs@^0.10.0":
   version "0.10.0"
@@ -58,13 +58,13 @@
   dependencies:
     "@types/react" "*"
 
-"@types/react@*", "@types/react@^15.0.23", "@types/react@^15.0.24":
-  version "15.0.25"
-  resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.25.tgz#d396949cccc9a90b61755def9781e5aced9b2261"
+"@types/react@*", "@types/react@^15.0.26":
+  version "15.0.26"
+  resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.26.tgz#19d8969edcabb2aa6d10ccfba807e67a93a0a8f4"
 
-"@types/recompose@^0.22.0":
-  version "0.22.0"
-  resolved "https://registry.yarnpkg.com/@types/recompose/-/recompose-0.22.0.tgz#2ecdbd6d0295fee23d978b02067c6c7f16715073"
+"@types/recompose@^0.23.0":
+  version "0.23.0"
+  resolved "https://registry.yarnpkg.com/@types/recompose/-/recompose-0.23.0.tgz#98360d8db7e164329fbca4332ac7846b517d0834"
   dependencies:
     "@types/react" "*"
 
@@ -351,8 +351,8 @@ babel-types@^6.18.0, babel-types@^6.24.1:
     to-fast-properties "^1.0.1"
 
 babylon@^6.11.0, babylon@^6.13.0, babylon@^6.15.0:
-  version "6.17.1"
-  resolved "https://registry.yarnpkg.com/babylon/-/babylon-6.17.1.tgz#17f14fddf361b695981fe679385e4f1c01ebd86f"
+  version "6.17.2"
+  resolved "https://registry.yarnpkg.com/babylon/-/babylon-6.17.2.tgz#201d25ef5f892c41bae49488b08db0dd476e9f5c"
 
 balanced-match@^0.4.1:
   version "0.4.2"
@@ -683,6 +683,10 @@ domutils@1.5.1, domutils@^1.5.1:
     dom-serializer "0"
     domelementtype "1"
 
+double-ended-queue@^2.1.0-0:
+  version "2.1.0-0"
+  resolved "https://registry.yarnpkg.com/double-ended-queue/-/double-ended-queue-2.1.0-0.tgz#103d3527fd31528f40188130c841efdd78264e5c"
+
 ecc-jsbn@~0.1.1:
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/ecc-jsbn/-/ecc-jsbn-0.1.1.tgz#0fc73a9ed5f0d53c38193398523ef7e543777505"
@@ -989,9 +993,9 @@ graceful-fs@^4.1.11, graceful-fs@^4.1.2, graceful-fs@^4.1.6:
   version "4.1.11"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.1.11.tgz#0e8bdfe4d1ddb8854d64e04ea7c00e2a026e5658"
 
-graphql-anywhere@^3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/graphql-anywhere/-/graphql-anywhere-3.0.1.tgz#73531db861174c8f212eafb9f8e84944b38b4e5a"
+graphql-anywhere@^3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/graphql-anywhere/-/graphql-anywhere-3.1.0.tgz#3ea0d8e8646b5cee68035016a9a7557c15c21e96"
 
 graphql@^0.10.1:
   version "0.10.1"
@@ -1050,18 +1054,18 @@ hawk@~3.1.3:
     sntp "1.x.x"
 
 hex-color-regex@^1.0.1:
-  version "1.0.3"
-  resolved "https://registry.yarnpkg.com/hex-color-regex/-/hex-color-regex-1.0.3.tgz#2175693bc292fe06711b04faee9004790926f9b0"
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/hex-color-regex/-/hex-color-regex-1.1.0.tgz#4c06fccb4602fe2602b3c93df82d7e7dbf1a8a8e"
 
-highstyle@^0.2.4:
-  version "0.2.4"
-  resolved "https://registry.yarnpkg.com/highstyle/-/highstyle-0.2.4.tgz#bf52f90d497555655d501cc63ddc848c541a0a07"
+highstyle@^0.2.5:
+  version "0.2.5"
+  resolved "https://registry.yarnpkg.com/highstyle/-/highstyle-0.2.5.tgz#bdcce1d3664eeca0788ae8d92b669ad5d6f3ad94"
   dependencies:
-    "@types/react" "^15.0.23"
-    "@types/recompose" "^0.22.0"
+    "@types/react" "^15.0.26"
+    "@types/recompose" "^0.23.0"
     css-shorthand-expand "^1.1.0"
     object-path-immutable "^0.5.1"
-    recompose "^0.23.1"
+    recompose "^0.23.4"
 
 hoek@2.x.x:
   version "2.16.3"
@@ -1829,14 +1833,14 @@ minimist@^1.1.1:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.0.tgz#a35008b20f41383eec1fb914f4cd5df79a264284"
 
-mishmash@^0.2.5:
-  version "0.2.5"
-  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.2.5.tgz#95b84082cc1e10c29009d0a1d9e3c87ba19a4a86"
+mishmash@^0.2.6:
+  version "0.2.6"
+  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.2.6.tgz#bc5da7e4a22a77ff55504e315af356ca767f2c33"
   dependencies:
-    "@types/react" "^15.0.24"
-    "@types/recompose" "^0.22.0"
-    highstyle "^0.2.4"
-    most "^1.3.0"
+    "@types/react" "^15.0.26"
+    "@types/recompose" "^0.23.0"
+    highstyle "^0.2.5"
+    most "^1.4.0"
     recompose "^0.23.4"
 
 mkdirp@^0.5.1:
@@ -1845,22 +1849,22 @@ mkdirp@^0.5.1:
   dependencies:
     minimist "0.0.8"
 
-mongodb-core@2.1.11:
-  version "2.1.11"
-  resolved "https://registry.yarnpkg.com/mongodb-core/-/mongodb-core-2.1.11.tgz#1c38776ceb174997a99c28860eed9028da9b3e1a"
+mongodb-core@2.1.12:
+  version "2.1.12"
+  resolved "https://registry.yarnpkg.com/mongodb-core/-/mongodb-core-2.1.12.tgz#1531192511bc16ef160ac6ae0cc46776ffd8451d"
   dependencies:
     bson "~1.0.4"
     require_optional "~1.0.0"
 
-mongodb@^2.2.27:
-  version "2.2.27"
-  resolved "https://registry.yarnpkg.com/mongodb/-/mongodb-2.2.27.tgz#34122034db66d983bcf6ab5adb26a24a70fef6e6"
+mongodb@^2.2.28:
+  version "2.2.28"
+  resolved "https://registry.yarnpkg.com/mongodb/-/mongodb-2.2.28.tgz#d8ff45754366e03973fa259bf4f11447858da657"
   dependencies:
     es6-promise "3.2.1"
-    mongodb-core "2.1.11"
+    mongodb-core "2.1.12"
     readable-stream "2.2.7"
 
-most@^1.3.0, most@^1.4.0:
+most@^1.4.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/most/-/most-1.4.0.tgz#da6e4a098ccad6e8268ee6837ada50d01101c4fc"
   dependencies:
@@ -1877,8 +1881,8 @@ natural-compare@^1.4.0:
   resolved "https://registry.yarnpkg.com/natural-compare/-/natural-compare-1.4.0.tgz#4abebfeed7541f2c27acfb29bdbbd15c8d5ba4f7"
 
 node-fetch@^1.0.1:
-  version "1.7.0"
-  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-1.7.0.tgz#3ff6c56544f9b7fb00682338bb55ee6f54a8a0ef"
+  version "1.7.1"
+  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-1.7.1.tgz#899cb3d0a3c92f952c47f1b876f4c8aeabd400d5"
   dependencies:
     encoding "^0.1.11"
     is-stream "^1.0.1"
@@ -2143,6 +2147,10 @@ preserve@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/preserve/-/preserve-0.2.0.tgz#815ed1f6ebc65926f865b310c0713bcb3315ce4b"
 
+prettier@^1.4.4:
+  version "1.4.4"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.4.4.tgz#a8d1447b14c9bf67e6d420dcadd10fb9a4fad65a"
+
 pretty-format@^20.0.3:
   version "20.0.3"
   resolved "https://registry.yarnpkg.com/pretty-format/-/pretty-format-20.0.3.tgz#020e350a560a1fe1a98dc3beb6ccffb386de8b14"
@@ -2261,7 +2269,7 @@ readable-stream@2.2.7, readable-stream@^2.0.2:
     string_decoder "~1.0.0"
     util-deprecate "~1.0.1"
 
-recompose@^0.23.1, recompose@^0.23.4:
+recompose@^0.23.4:
   version "0.23.4"
   resolved "https://registry.yarnpkg.com/recompose/-/recompose-0.23.4.tgz#af09e4e08424effa449c9b793037166f7b30644a"
   dependencies:
@@ -2376,8 +2384,8 @@ rimraf@^2.6.1:
     glob "^7.0.5"
 
 safe-buffer@^5.0.1:
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/safe-buffer/-/safe-buffer-5.0.1.tgz#d263ca54696cd8a306b5ca6551e92de57918fbe7"
+  version "5.1.0"
+  resolved "https://registry.yarnpkg.com/safe-buffer/-/safe-buffer-5.1.0.tgz#fe4c8460397f9eaaaa58e73be46273408a45e223"
 
 sane@~1.6.0:
   version "1.6.0"
@@ -2568,8 +2576,10 @@ test-exclude@^4.1.1:
     require-main-filename "^1.0.1"
 
 throat@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/throat/-/throat-3.0.0.tgz#e7c64c867cbb3845f10877642f7b60055b8ec0d6"
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/throat/-/throat-3.1.0.tgz#ef22d8855963b3fdc626d043508f24c4cdf7d3c3"
+  dependencies:
+    double-ended-queue "^2.1.0-0"
 
 tmpl@1.0.x:
   version "1.0.4"
@@ -2641,8 +2651,8 @@ ua-parser-js@^0.7.9:
   resolved "https://registry.yarnpkg.com/ua-parser-js/-/ua-parser-js-0.7.12.tgz#04c81a99bdd5dc52263ea29d24c6bf8d4818a4bb"
 
 uglify-js@^2.6:
-  version "2.8.27"
-  resolved "https://registry.yarnpkg.com/uglify-js/-/uglify-js-2.8.27.tgz#47787f912b0f242e5b984343be8e35e95f694c9c"
+  version "2.8.28"
+  resolved "https://registry.yarnpkg.com/uglify-js/-/uglify-js-2.8.28.tgz#e335032df9bb20dcb918f164589d5af47f38834a"
   dependencies:
     source-map "~0.5.1"
     yargs "~3.10.0"
