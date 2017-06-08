@@ -58,7 +58,7 @@
   dependencies:
     "@types/react" "*"
 
-"@types/react@*", "@types/react@^15.0.26":
+"@types/react@*", "@types/react@^15.0.27":
   version "15.0.27"
   resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.27.tgz#d64ad424aa24a101fd50cdeae6eab3d53e65513d"
 
@@ -676,9 +676,16 @@ domhandler@^2.3.0:
   dependencies:
     domelementtype "1"
 
-domutils@1.5.1, domutils@^1.5.1:
+domutils@1.5.1:
   version "1.5.1"
   resolved "https://registry.yarnpkg.com/domutils/-/domutils-1.5.1.tgz#dcd8488a26f563d61079e48c9f7b7e32373682cf"
+  dependencies:
+    dom-serializer "0"
+    domelementtype "1"
+
+domutils@^1.5.1:
+  version "1.6.2"
+  resolved "https://registry.yarnpkg.com/domutils/-/domutils-1.6.2.tgz#1958cc0b4c9426e9ed367fb1c8e854891b0fa3ff"
   dependencies:
     dom-serializer "0"
     domelementtype "1"
@@ -1057,15 +1064,15 @@ hex-color-regex@^1.0.1:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/hex-color-regex/-/hex-color-regex-1.1.0.tgz#4c06fccb4602fe2602b3c93df82d7e7dbf1a8a8e"
 
-highstyle@^0.2.5:
-  version "0.2.5"
-  resolved "https://registry.yarnpkg.com/highstyle/-/highstyle-0.2.5.tgz#bdcce1d3664eeca0788ae8d92b669ad5d6f3ad94"
+highstyle@^0.2.6:
+  version "0.2.6"
+  resolved "https://registry.yarnpkg.com/highstyle/-/highstyle-0.2.6.tgz#b2040a8d9ca7a7e49f4af8c641692d0dd160e3b4"
   dependencies:
-    "@types/react" "^15.0.26"
+    "@types/react" "^15.0.27"
     "@types/recompose" "^0.23.0"
     css-shorthand-expand "^1.1.0"
     object-path-immutable "^0.5.1"
-    recompose "^0.23.4"
+    recompose "^0.23.5"
 
 hoek@2.x.x:
   version "2.16.3"
@@ -1827,15 +1834,15 @@ minimist@^1.1.1:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.0.tgz#a35008b20f41383eec1fb914f4cd5df79a264284"
 
-mishmash@^0.2.6:
-  version "0.2.6"
-  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.2.6.tgz#bc5da7e4a22a77ff55504e315af356ca767f2c33"
+mishmash@^0.2.7:
+  version "0.2.7"
+  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.2.7.tgz#29f8a197b7d7ad8d78b945a594f4c30dee255696"
   dependencies:
-    "@types/react" "^15.0.26"
+    "@types/react" "^15.0.27"
     "@types/recompose" "^0.23.0"
-    highstyle "^0.2.5"
-    most "^1.4.0"
-    recompose "^0.23.4"
+    highstyle "^0.2.6"
+    most "^1.4.1"
+    recompose "^0.23.5"
 
 mkdirp@^0.5.1:
   version "0.5.1"
@@ -1858,7 +1865,7 @@ mongodb@^2.2.28:
     mongodb-core "2.1.12"
     readable-stream "2.2.7"
 
-most@^1.4.0, most@^1.4.1:
+most@^1.4.1:
   version "1.4.1"
   resolved "https://registry.yarnpkg.com/most/-/most-1.4.1.tgz#b513b5fb683bd59d6b1dcf8741503e62f072b291"
   dependencies:
@@ -2263,7 +2270,7 @@ readable-stream@2.2.7, readable-stream@^2.0.2:
     string_decoder "~1.0.0"
     util-deprecate "~1.0.1"
 
-recompose@^0.23.4, recompose@^0.23.5:
+recompose@^0.23.5:
   version "0.23.5"
   resolved "https://registry.yarnpkg.com/recompose/-/recompose-0.23.5.tgz#72ac8261246bec378235d187467d02a721e8b1de"
   dependencies:

@@ -81,11 +81,8 @@ export default {
       kinds: [Kind.INT, Kind.STRING],
     },
     File: {
-      decode: value => {
-        const [fileId, fileName] = value.split(/\:(.+)$/);
-        return { fileId, fileName };
-      },
-      encode: value => `${value.fileId}:${value.fileName}`,
+      decode: value => value,
+      encode: value => value,
       kinds: [Kind.STRING],
     },
     JSON: {
