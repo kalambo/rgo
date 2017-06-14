@@ -36,19 +36,19 @@
     "enzyme": "^2.8.2",
     "jest": "^20.0.4",
     "prettier": "^1.4.4",
-    "react": "^15.5.4",
-    "react-dom": "^15.5.4",
+    "react": "^15.6.0",
+    "react-dom": "^15.6.0",
     "react-test-renderer": "^15.5.4",
     "rimraf": "^2.6.1",
-    "ts-jest": "^20.0.5",
-    "typescript": "^2.3.4"
+    "ts-jest": "^20.0.6",
+    "typescript": "2.3.4"
   },
   "peerDependencies": {
     "react": "^15.0.0"
   },
   "dependencies": {
     "@types/graphql": "^0.9.1",
-    "@types/mongodb": "^2.2.4",
+    "@types/mongodb": "^2.2.5",
     "@types/pegjs": "^0.10.0",
     "@types/recompose": "^0.23.0",
     "flat": "^2.0.1",
