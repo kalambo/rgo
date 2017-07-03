@@ -1,10 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2017",
-    "lib": [
-      "dom",
-      "esnext"
-    ],
+    "lib": ["dom", "esnext"],
     "module": "commonjs",
     "sourceMap": true,
     "rootDir": "../",
@@ -15,7 +12,5 @@
     "noImplicitAny": false,
     "downlevelIteration": true
   },
-  "include": [
-    "../test/index.ts"
-  ]
+  "include": ["../test/index.ts"]
 }

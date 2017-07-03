@@ -52,17 +52,19 @@ export default function buildSchema(types: Obj<DataType>) {
             const field = typeFields[type][f];
 
             if (fieldIs.scalar(field)) {
-              const scalar = f === 'id'
-                ? new GraphQLNonNull(GraphQLID)
-                : scalars[field.scalar].type;
+              const scalar =
+                f === 'id'
+                  ? new GraphQLNonNull(GraphQLID)
+                  : scalars[field.scalar].type;
               return { type: field.isList ? new GraphQLList(scalar) : scalar };
             }
 
             const relQueryType = queryTypes[field.relation.type];
             return {
-              type: fieldIs.foreignRelation(field) || field.isList
-                ? new GraphQLList(relQueryType)
-                : relQueryType,
+              type:
+                fieldIs.foreignRelation(field) || field.isList
+                  ? new GraphQLList(relQueryType)
+                  : relQueryType,
               args: argTypes,
               resolve: batch(
                 async (
@@ -134,9 +136,10 @@ export default function buildSchema(types: Obj<DataType>) {
           const field = typeFields[type][f];
 
           if (fieldIs.scalar(field)) {
-            const scalar = f === 'id'
-              ? new GraphQLNonNull(GraphQLID)
-              : scalars[field.scalar].type;
+            const scalar =
+              f === 'id'
+                ? new GraphQLNonNull(GraphQLID)
+                : scalars[field.scalar].type;
             return { type: field.isList ? new GraphQLList(scalar) : scalar };
           }
 

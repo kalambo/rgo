@@ -119,7 +119,7 @@ export default function mongoConnector(
         await collection.drop();
       } catch (error) {}
       if (data.length > 0) {
-        await collection.insertMany(data.map(toDb));
+        await collection.insertMany(data.map(toDb as any));
       }
     },
   };

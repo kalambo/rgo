@@ -15,9 +15,10 @@ export default function read(
 
   return graphql(resolver, query, null, context, variables, {
     resultMapper: (resultFields, resultRoot) => {
-      const prev = resultRoot === null
-        ? previousResult
-        : resultRoot && resultRoot.__previous;
+      const prev =
+        resultRoot === null
+          ? previousResult
+          : resultRoot && resultRoot.__previous;
       return preserveRefs(prev, resultFields);
     },
   });

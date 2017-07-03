@@ -33,13 +33,14 @@ const clientSet = (state: DataState, key: DataKey, value: any): DataState => {
     combined: set(keyToArray(key), value, state.combined),
     arrays: {
       ...state.arrays,
-      [key.type]: index === -1
-        ? [...typeArray, { id: key.id, [key.field]: value }]
-        : [
-            ...typeArray.slice(0, index),
-            { ...typeArray[index], [key.field]: value },
-            ...typeArray.slice(index + 1),
-          ],
+      [key.type]:
+        index === -1
+          ? [...typeArray, { id: key.id, [key.field]: value }]
+          : [
+              ...typeArray.slice(0, index),
+              { ...typeArray[index], [key.field]: value },
+              ...typeArray.slice(index + 1),
+            ],
     },
   };
 };
@@ -171,7 +172,7 @@ export default function withData(url: string, auth: Auth, log?: boolean) {
         },
         { server: {}, client: {}, combined: {}, arrays: {} },
         log,
-      ),
+      ) as any,
     ),
   ) as HOC;
 }

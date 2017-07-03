@@ -41,9 +41,10 @@ export default async function loadSchema(url: string) {
       if (!fieldIs.scalar(field)) {
         const relEntity = entities[field.relation.type][0];
         entities[type][0].define({
-          [f]: fieldIs.foreignRelation(field) || field.isList
-            ? [relEntity]
-            : relEntity,
+          [f]:
+            fieldIs.foreignRelation(field) || field.isList
+              ? [relEntity]
+              : relEntity,
         });
       }
     }

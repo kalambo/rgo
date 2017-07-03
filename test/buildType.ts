@@ -26,7 +26,7 @@ export default function buildType(
       collection,
       {
         id: '_id',
-        ...fieldDbKeys,
+        ...fieldDbKeys!,
       },
       {
         id: null,
@@ -40,5 +40,5 @@ export default function buildType(
     ),
     newId: () => Array.from({ length: 17 }, randomChar).join(''),
     auth: {},
-  };
+  } as any;
 }

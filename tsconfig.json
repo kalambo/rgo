@@ -1,10 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2017",
-    "lib": [
-      "dom",
-      "esnext"
-    ],
+    "lib": ["dom", "esnext"],
     "module": "commonjs",
     "declaration": true,
     "strict": true,
@@ -13,8 +10,5 @@
     "noImplicitAny": false,
     "downlevelIteration": true
   },
-  "include": [
-    "src/**/*",
-    "test/**/*"
-  ]
+  "include": ["src/**/*", "test/**/*"]
 }
