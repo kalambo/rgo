@@ -18,14 +18,21 @@ export default function createStore() {
   function get(type: string): Obj<Obj<any>>;
   function get(type: string, id: string): Obj<any>;
   function get(type: string, id: string, field: string): any;
-  function get(type: string, listener: ((value) => void)): void;
-  function get(type: string, id: string, listener: ((value) => void)): void;
+  function get(
+    type: string,
+    listener: (value: Obj<Obj<any>>) => void,
+  ): () => void;
+  function get(
+    type: string,
+    id: string,
+    listener: (value: Obj<any>) => void,
+  ): () => void;
   function get(
     type: string,
     id: string,
     field: string,
-    listener: ((value) => void),
-  ): void;
+    listener: (value: any) => void,
+  ): () => void;
   function get(...args) {
     if (typeof args[args.length - 1] === 'string') {
       const key = args.join('.');
@@ -49,13 +56,39 @@ export default function createStore() {
 
   function read(
     schema: Obj<Obj<Field>>,
-    query: DocumentNode,
+    queryDoc: DocumentNode,
     variables: Obj<any>,
     user: string | null,
-  ) {
+  ): Obj<any>;
+  function read(
+    schema: Obj<Obj<Field>>,
+    queryDoc: DocumentNode,
+    variables: Obj<any>,
+    user: string | null,
+    listener: (value: Obj<any>) => void,
+  ): () => void;
+  function read(...args) {
+    const [schema, queryDoc, variables, user, listener] = args as [
+      Obj<Obj<Field>>,
+      DocumentNode,
+      Obj<any>,
+      string | null,
+      ((value: Obj<any>) => void) | undefined
+    ];
+    if (listener) {
+      listener(
+        graphql(
+          resolver,
+          queryDoc,
+          null,
+          { schema, user, data: state.combined },
+          variables,
+        ),
+      );
+    }
     return graphql(
       resolver,
-      query,
+      queryDoc,
       null,
       { schema, user, data: state.combined },
       variables,
