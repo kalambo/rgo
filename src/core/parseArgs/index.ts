@@ -26,13 +26,13 @@ const typeMaps = {
 
 export default function parseArgs(
   args: Args,
-  user: string | null,
+  userId: string | null,
   fields: Obj<Field>,
   info?: GraphQLResolveInfo,
 ): QueryArgs {
   try {
     return {
-      filter: mapObject(parseFilter(args.filter || '', user), {
+      filter: mapObject(parseFilter(args.filter || '', userId), {
         valueMaps: keysToObject(Object.keys(fields), k => {
           const field = fields[k];
           return typeMaps[fieldIs.scalar(field) ? field.scalar : ''] || true;

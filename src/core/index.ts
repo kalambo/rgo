@@ -5,8 +5,11 @@ export {
   DataKey,
   Field,
   fieldIs,
+  ForeignRelationField,
   Formula,
   QueryArgs,
+  RelationField,
+  ScalarField,
   ScalarName,
 } from './typings';
 export { isObject, mapArray, mapObject, noUndef } from './utils';

@@ -10,7 +10,7 @@ import createStore from './store';
 
 export default async function client(url: string, authFetch: AuthFetch) {
   const api = await graphApi(url, authFetch);
-  const store = createStore();
+  const store = createStore(api.schema);
 
   function query(
     queryString: string,
@@ -37,20 +37,14 @@ export default async function client(url: string, authFetch: AuthFetch) {
       api.query(apiQuery, variables).then(data => {
         store.setServer(data);
         if (!unlisten)
-          unlisten = store.read(
-            api.schema,
-            readQuery,
-            variables,
-            null,
-            listener,
-          );
+          unlisten = store.read(readQuery, variables, null, listener);
       });
       return () =>
         typeof unlisten === 'function' ? unlisten() : (unlisten = true);
     } else {
       return api.query(apiQuery, variables).then(data => {
         store.setServer(data);
-        return store.read(api.schema, readQuery, variables, null);
+        return store.read(readQuery, variables, null);
       });
     }
   }

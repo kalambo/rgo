@@ -29,7 +29,7 @@ export interface ScalarField {
   formula?: Formula | true;
 }
 export interface RelationField {
-  relation: { type: string };
+  relation: { type: string; field?: string };
   isList?: true;
 }
 export interface ForeignRelationField {

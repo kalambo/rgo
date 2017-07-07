@@ -65,7 +65,8 @@ export default function buildSchema(types: Obj<DataType>) {
                 fieldIs.foreignRelation(field) || field.isList
                   ? new GraphQLList(relQueryType)
                   : relQueryType,
-              args: argTypes,
+              args:
+                fieldIs.relation(field) && !field.isList ? undefined : argTypes,
               resolve: batch(
                 async (
                   roots: any[],

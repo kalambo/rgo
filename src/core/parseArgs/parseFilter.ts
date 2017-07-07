@@ -60,6 +60,6 @@ whiteSpace
 
 `).parse;
 
-export default function parseFilter(s: string, user: string | null) {
-  return parser(s.replace(/\$user/g, user || '').replace(/OR/g, '|'));
+export default function parseFilter(s: string, userId: string | null) {
+  return parser(s.replace(/\$user/g, userId || '').replace(/OR/g, '|'));
 }

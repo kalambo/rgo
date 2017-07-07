@@ -1,13 +1,42 @@
 import { Obj } from 'mishmash';
 import * as _ from 'lodash';
+import * as orderBy from 'lodash/fp/orderBy';
 import { DocumentNode } from 'graphql';
 import graphql from 'graphql-anywhere';
 
-import { Field, noUndef } from '../../core';
+import {
+  Field,
+  fieldIs,
+  ForeignRelationField,
+  noUndef,
+  parseArgs,
+  RelationField,
+} from '../core';
 
-import resolver from './resolver';
+const toArray = x => (Array.isArray(x) ? x : [x]);
 
-export default function createStore() {
+const filterRecord = (filter: any, record: any) => {
+  const key = Object.keys(filter)[0];
+
+  if (key === '$and')
+    return (filter[key] as any[]).every(b => filterRecord(b, record));
+  if (key === '$or')
+    return (filter[key] as any[]).some(b => filterRecord(b, record));
+
+  const op = Object.keys(filter[key])[0];
+
+  if (op === '$eq') return record[key] === filter[key][op];
+  if (op === '$ne') return record[key] !== filter[key][op];
+  if (op === '$lt') return record[key] < filter[key][op];
+  if (op === '$lte') return record[key] <= filter[key][op];
+  if (op === '$gt') return record[key] > filter[key][op];
+  if (op === '$gte') return record[key] >= filter[key][op];
+  if (op === '$in') return filter[key][op].includes(record[key]);
+
+  return false;
+};
+
+export default function createStore(schema: Obj<Obj<Field>>) {
   const state = {
     server: {} as any,
     client: {} as any,
@@ -54,45 +83,77 @@ export default function createStore() {
     };
   }
 
+  function getData(
+    field: ForeignRelationField | RelationField | string,
+    args: any,
+    userId: string | null,
+    values: { id: string; field: any },
+  ) {
+    const type = typeof field === 'string' ? field : field.relation.type;
+
+    const { filter, sort, skip, show } = parseArgs(args, userId, schema[type]);
+    const relationFilters = typeof field !== 'string' && [
+      { id: { $in: toArray(values.field) } },
+      ...(field.relation.field
+        ? [{ [field.relation.field]: { $eq: values.id } }]
+        : []),
+    ];
+    const sorted = orderBy(
+      Object.keys(sort),
+      Object.keys(sort).map(k => (sort[k] === 1 ? 'asc' : 'desc')),
+      Object.keys(state.combined[type])
+        .map(id => state.combined[type][id])
+        .filter(x =>
+          filterRecord(
+            field ? { $and: [filter, { $or: relationFilters }] } : filter,
+            x,
+          ),
+        ),
+    ) as any[];
+
+    const result = sorted.map(x => ({ __typename: type, ...x }));
+    const isList =
+      typeof field === 'string' ||
+      fieldIs.foreignRelation(field) ||
+      field.isList;
+    return isList
+      ? result.slice(skip, show === null ? undefined : skip + show)
+      : result[0] || null;
+  }
+  function resolver(
+    fieldName: string,
+    root: any,
+    args: any,
+    { userId }: { userId: string | null },
+  ) {
+    const field = root ? schema[root.__typename][fieldName] : null;
+    if (field && fieldIs.scalar(field)) return root[fieldName];
+    return getData(field || fieldName, args, userId, {
+      id: root.id,
+      field: root[fieldName],
+    });
+  }
   function read(
-    schema: Obj<Obj<Field>>,
     queryDoc: DocumentNode,
     variables: Obj<any>,
-    user: string | null,
+    userId: string | null,
   ): Obj<any>;
   function read(
-    schema: Obj<Obj<Field>>,
     queryDoc: DocumentNode,
     variables: Obj<any>,
-    user: string | null,
+    userId: string | null,
     listener: (value: Obj<any>) => void,
   ): () => void;
   function read(...args) {
-    const [schema, queryDoc, variables, user, listener] = args as [
-      Obj<Obj<Field>>,
+    const [queryDoc, variables, userId, listener] = args as [
       DocumentNode,
       Obj<any>,
       string | null,
       ((value: Obj<any>) => void) | undefined
     ];
-    if (listener) {
-      listener(
-        graphql(
-          resolver,
-          queryDoc,
-          null,
-          { schema, user, data: state.combined },
-          variables,
-        ),
-      );
-    }
-    return graphql(
-      resolver,
-      queryDoc,
-      null,
-      { schema, user, data: state.combined },
-      variables,
-    );
+    const result = graphql(resolver, queryDoc, null, { userId }, variables);
+    if (!listener) return result;
+    listener(result);
   }
 
   function emitChanges(changes: Obj<Obj<Obj<true>>>) {

@@ -46,6 +46,18 @@ export default async function loadSchema(url: string) {
               ? [relEntity]
               : relEntity,
         });
+        if (fieldIs.relation(field) && !field.relation.field) {
+          field.relation.field = Object.keys(
+            schema[field.relation.type],
+          ).find(f => {
+            const foreignField = schema[field.relation.type][f];
+            return (
+              fieldIs.foreignRelation(foreignField) &&
+              foreignField.relation.type === type &&
+              foreignField.relation.field === f
+            );
+          });
+        }
       }
     }
   }
