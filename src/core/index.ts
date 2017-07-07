@@ -9,4 +9,4 @@ export {
   QueryArgs,
   ScalarName,
 } from './typings';
-export { isObject, mapArray, mapObject, undefToNull } from './utils';
+export { isObject, mapArray, mapObject, noUndef } from './utils';

@@ -1,7 +1,8 @@
 import { Obj } from 'mishmash';
 import * as set from 'lodash/fp/set';
 
-export const undefToNull = (v: any) => (v === undefined ? null : v);
+export const noUndef = (v: any, replacer: any = null) =>
+  v === undefined ? replacer : v;
 
 export const isObject = v =>
   Object.prototype.toString.call(v) === '[object Object]';

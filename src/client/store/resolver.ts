@@ -1,57 +1,68 @@
-import sift from 'sift';
 import * as orderBy from 'lodash/fp/orderBy';
 import { Obj } from 'mishmash';
 
 import { Field, fieldIs, parseArgs } from '../../core';
 
-export interface ResolverContext {
-  schema: Obj<Obj<Field>>;
-  data: Obj<any[]>;
-  user: string | null;
-  previousResult: any;
-}
-
 const toArray = x => (Array.isArray(x) ? x : [x]);
+
+const runFilter = (block: any, obj: any) => {
+  const key = Object.keys(block)[0];
+
+  if (key === '$and')
+    return (block[key] as any[]).every(b => runFilter(b, obj));
+  if (key === '$or') return (block[key] as any[]).some(b => runFilter(b, obj));
+
+  const op = Object.keys(block[key])[0];
+
+  if (op === '$eq') return obj[key] === block[key][op];
+  if (op === '$ne') return obj[key] !== block[key][op];
+  if (op === '$lt') return obj[key] < block[key][op];
+  if (op === '$lte') return obj[key] <= block[key][op];
+  if (op === '$gt') return obj[key] > block[key][op];
+  if (op === '$gte') return obj[key] >= block[key][op];
+  if (op === '$in') return block[key][op].includes(obj[key]);
+
+  return false;
+};
 
 const getData = (
   type: string,
   args: any,
   schema: Obj<Obj<Field>>,
-  data: Obj<any[]>,
+  data: Obj<Obj<Obj<any>>>,
   user: string | null,
-  previousResult?: any[],
   extraFilter?: any,
 ) => {
   const { filter, sort } = parseArgs(args, user || '', schema[type]);
 
+  const fullFilter = { ...filter, ...extraFilter || {} };
   const sorted = orderBy(
     Object.keys(sort),
     Object.keys(sort).map(k => (sort[k] === 1 ? 'asc' : 'desc')),
-    sift({ ...filter, ...extraFilter || {} }, data[type]),
+    Object.keys(data[type])
+      .map(id => data[type][id])
+      .filter(x => runFilter(fullFilter, x)),
   );
 
-  return sorted.map((x, i) => ({
-    __typename: type,
-    __previous: previousResult && toArray(previousResult)[i],
-    ...x,
-  }));
+  return sorted.map(x => ({ __typename: type, ...x }));
 };
 
 export default function resolver(
   field: string,
   root: any,
   args: any,
-  { schema, data, user, previousResult }: ResolverContext,
+  {
+    schema,
+    user,
+    data,
+  }: {
+    schema: Obj<Obj<Field>>;
+    data: Obj<Obj<Obj<any>>>;
+    user: string | null;
+  },
 ) {
   if (!root) {
-    return getData(
-      field,
-      args || {},
-      schema,
-      data,
-      user,
-      previousResult && previousResult[field],
-    );
+    return getData(field, args || {}, schema, data, user);
   }
 
   const schemaField = schema[root.__typename][field];
@@ -70,19 +81,17 @@ export default function resolver(
           foreignSchemaField.relation.field === field
         );
       });
-      if (foreignField) filters.push({ [foreignField]: root.id });
+      if (foreignField) filters.push({ [foreignField]: { $eq: root.id } });
     } else {
-      filters.push({ [schemaField.relation.field]: root.id });
+      filters.push({ [schemaField.relation.field]: { $eq: root.id } });
     }
 
-    const prev = root.__previous && root.__previous[field];
     const result = getData(
       schemaField.relation.type,
       args || {},
       schema,
       data,
       user,
-      prev,
       { $or: filters },
     );
 

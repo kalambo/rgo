@@ -17,9 +17,8 @@ export interface Args {
   show?: number;
 }
 
-const booleanMap = { true: true, false: false };
 const typeMaps = {
-  Boolean: v => mapArray(v, x => booleanMap[x] || null),
+  Boolean: v => mapArray(v, x => ({ true: true, false: false }[x] || null)),
   Int: v => mapArray(v, x => parseInt(x, 10)),
   Float: v => mapArray(v, x => parseFloat(x)),
   Date: v => mapArray(v, x => parseDateString(x)),

@@ -2,16 +2,17 @@ import * as peg from 'pegjs';
 
 const parser = peg.generate(String.raw`
 
+
 start
   = _ main:or _ { return main[0]; }
   / _ { return {}; }
 
 or
-  = lhs:and __ ('OR' / 'or') __ rhs:or2 { return [{ $or: lhs.concat(rhs) }]; }
+  = lhs:and _ '|' _ rhs:or2 { return [{ $or: lhs.concat(rhs) }]; }
   / and
 
 or2
-  = lhs:block __ ('OR' / 'or') __ rhs:or2 { return lhs.concat(rhs); }
+  = lhs:block _ '|' _ rhs:or2 { return lhs.concat(rhs); }
   / and
 
 and
@@ -47,7 +48,7 @@ op
 expr
   = '\'' t:[^']* '\'' { return t.join('').trim(); }
   / '"' t:[^"]i* '"' { return t.join('').trim(); }
-  / t:[^'",()]* { return t.join('').trim(); }
+  / t:[^'",|()]* { return t.join('').trim(); }
 
 _
   = whiteSpace*
@@ -60,5 +61,5 @@ whiteSpace
 `).parse;
 
 export default function parseFilter(s: string, user: string | null) {
-  return parser(s.replace(/\$user/g, user || ''));
+  return parser(s.replace(/\$user/g, user || '').replace(/OR/g, '|'));
 }

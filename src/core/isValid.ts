@@ -1,4 +1,4 @@
-import { undefToNull } from './utils';
+import { noUndef } from './utils';
 
 const formats = {
   email: /^[a-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&''*+\/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i,
@@ -53,12 +53,12 @@ export default function isValid(
   }
 
   if (rules.lt) {
-    const otherValue = undefToNull(obj[rules.lt]);
+    const otherValue = noUndef(obj[rules.lt]);
     if (otherValue !== null && value >= otherValue) return false;
   }
 
   if (rules.gt) {
-    const otherValue = undefToNull(obj[rules.gt]);
+    const otherValue = noUndef(obj[rules.gt]);
     if (otherValue !== null && value <= otherValue) return false;
   }
 

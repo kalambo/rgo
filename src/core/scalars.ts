@@ -35,8 +35,8 @@ const parseLiteral = (
 };
 
 interface ScalarConfig {
-  decode: (value: any) => any;
-  encode: (value: any) => any;
+  decode?: (value: any) => any;
+  encode?: (value: any) => any;
   kinds?: string[];
 }
 
@@ -47,27 +47,17 @@ export interface Scalar {
 }
 
 const buildScalarTypes = (types: Obj<ScalarConfig>) =>
-  keysToObject(
-    Object.keys(types).map(name => ({
-      name,
-      ...types[name],
-      kinds: types[name].kinds
-        ? keysToObject(types[name].kinds!, () => true)
-        : null,
-    })),
-    ({ name, decode, encode, kinds }) => ({
-      type: new GraphQLScalarType({
-        name,
-        description: `${name} custom scalar type`,
-        parseValue: value => decode(value),
-        serialize: value => encode(value),
-        parseLiteral: ast => parseLiteral(ast, kinds),
-      }),
-      decode,
-      encode,
-    }),
-    ({ name }) => name,
-  );
+  keysToObject(Object.keys(types), name => ({
+    name,
+    description: `${name} custom scalar type`,
+    serialize: types[name].encode || (value => value),
+    parseValue: types[name].decode || (value => value),
+    parseLiteral: ast =>
+      parseLiteral(
+        ast,
+        types[name].kinds ? keysToObject(types[name].kinds!, () => true) : null,
+      ),
+  }));
 
 export default {
   Boolean: { type: GraphQLBoolean },
@@ -76,18 +66,13 @@ export default {
   String: { type: GraphQLString },
   ...buildScalarTypes({
     Date: {
-      decode: value => new Date(value),
       encode: value => (value ? new Date(value).getTime() : null),
+      decode: value => new Date(value),
       kinds: [Kind.INT, Kind.STRING],
     },
     File: {
-      decode: value => value,
-      encode: value => value,
       kinds: [Kind.STRING],
     },
-    JSON: {
-      decode: value => value,
-      encode: value => value,
-    },
+    JSON: {},
   }),
 } as Obj<Scalar>;

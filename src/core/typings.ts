@@ -57,6 +57,6 @@ export const fieldIs = {
 
 export interface DataKey {
   type: string;
-  field: string;
   id: string;
+  field?: string;
 }
