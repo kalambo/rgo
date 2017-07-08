@@ -1,49 +1,36 @@
 import { Obj } from 'mishmash';
 import * as _ from 'lodash';
-import * as orderBy from 'lodash/fp/orderBy';
 import { DocumentNode } from 'graphql';
-import graphql from 'graphql-anywhere';
 
-import {
-  Field,
-  fieldIs,
-  ForeignRelationField,
-  noUndef,
-  parseArgs,
-  RelationField,
-} from '../core';
+import { Field, noUndef } from '../core';
 
-const toArray = x => (Array.isArray(x) ? x : [x]);
+import readData from './read';
 
-const filterRecord = (filter: any, record: any) => {
-  const key = Object.keys(filter)[0];
-
-  if (key === '$and')
-    return (filter[key] as any[]).every(b => filterRecord(b, record));
-  if (key === '$or')
-    return (filter[key] as any[]).some(b => filterRecord(b, record));
-
-  const op = Object.keys(filter[key])[0];
-
-  if (op === '$eq') return record[key] === filter[key][op];
-  if (op === '$ne') return record[key] !== filter[key][op];
-  if (op === '$lt') return record[key] < filter[key][op];
-  if (op === '$lte') return record[key] <= filter[key][op];
-  if (op === '$gt') return record[key] > filter[key][op];
-  if (op === '$gte') return record[key] >= filter[key][op];
-  if (op === '$in') return filter[key][op].includes(record[key]);
-
-  return false;
+const createListeners = () => {
+  const listeners: Obj<((value: any) => void)[]> = {};
+  return {
+    add(key: string, listener: (value: any) => void) {
+      if (!listeners[key]) listeners[key] = [];
+      listeners[key].push(listener);
+      return () => {
+        listeners[key] = listeners[key].filter(l => l !== listener);
+        if (listeners[key].length === 0) delete listeners[key];
+      };
+    },
+    emit(key: string, value: any) {
+      if (listeners[key]) listeners[key].forEach(l => l(value));
+    },
+  };
 };
 
 export default function createStore(schema: Obj<Obj<Field>>) {
   const state = {
-    server: {} as any,
-    client: {} as any,
-    combined: {} as any,
+    server: {} as Obj<Obj<Obj<any>>>,
+    client: {} as Obj<Obj<Obj<any>>>,
+    combined: {} as Obj<Obj<Obj<any>>>,
   };
 
-  const listeners = {} as Obj<((value) => void)[]>;
+  const getListeners = createListeners();
   function get(type: string): Obj<Obj<any>>;
   function get(type: string, id: string): Obj<any>;
   function get(type: string, id: string, field: string): any;
@@ -69,70 +56,12 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     }
     const listener = args.pop();
     const key = args.join('.');
-
     listener(
       noUndef(_.get(state.combined, key), args.length === 3 ? null : {}),
     );
-
-    if (!listeners[key]) listeners[key] = [];
-    listeners[key].push(listener);
-
-    return () => {
-      listeners[key] = listeners[key].filter(l => l !== listener);
-      if (listeners[key].length === 0) delete listeners[key];
-    };
+    return getListeners.add(key, listener);
   }
 
-  function getData(
-    field: ForeignRelationField | RelationField | string,
-    args: any,
-    userId: string | null,
-    values: { id: string; field: any },
-  ) {
-    const type = typeof field === 'string' ? field : field.relation.type;
-
-    const { filter, sort, skip, show } = parseArgs(args, userId, schema[type]);
-    const relationFilters = typeof field !== 'string' && [
-      { id: { $in: toArray(values.field) } },
-      ...(field.relation.field
-        ? [{ [field.relation.field]: { $eq: values.id } }]
-        : []),
-    ];
-    const sorted = orderBy(
-      Object.keys(sort),
-      Object.keys(sort).map(k => (sort[k] === 1 ? 'asc' : 'desc')),
-      Object.keys(state.combined[type])
-        .map(id => state.combined[type][id])
-        .filter(x =>
-          filterRecord(
-            field ? { $and: [filter, { $or: relationFilters }] } : filter,
-            x,
-          ),
-        ),
-    ) as any[];
-
-    const result = sorted.map(x => ({ __typename: type, ...x }));
-    const isList =
-      typeof field === 'string' ||
-      fieldIs.foreignRelation(field) ||
-      field.isList;
-    return isList
-      ? result.slice(skip, show === null ? undefined : skip + show)
-      : result[0] || null;
-  }
-  function resolver(
-    fieldName: string,
-    root: any,
-    args: any,
-    { userId }: { userId: string | null },
-  ) {
-    const field = root ? schema[root.__typename][fieldName] : null;
-    if (field && fieldIs.scalar(field)) return root[fieldName];
-    return getData(field || fieldName, args, userId, {
-      id: root.id,
-      field: root[fieldName],
-    });
-  }
   function read(
     queryDoc: DocumentNode,
     variables: Obj<any>,
@@ -151,7 +80,12 @@ export default function createStore(schema: Obj<Obj<Field>>) {
       string | null,
       ((value: Obj<any>) => void) | undefined
     ];
-    const result = graphql(resolver, queryDoc, null, { userId }, variables);
+    const result = readData(queryDoc, {
+      schema,
+      data: state.combined,
+      userId,
+      variables,
+    });
     if (!listener) return result;
     listener(result);
   }
@@ -159,13 +93,13 @@ export default function createStore(schema: Obj<Obj<Field>>) {
   function emitChanges(changes: Obj<Obj<Obj<true>>>) {
     for (const type of Object.keys(changes)) {
       const v1 = state.combined[type];
-      listeners[type].forEach(l => l(v1));
+      getListeners.emit(type, v1);
       for (const id of Object.keys(changes[type])) {
         const v2 = v1[id];
-        listeners[`${type}.${id}`].forEach(l => l(v2));
+        getListeners.emit(`${type}.${id}`, v2);
         for (const field of Object.keys(changes[type][id])) {
           const v3 = v2[field];
-          listeners[`${type}.${id}.${field}`].forEach(l => l(v3));
+          getListeners.emit(`${type}.${id}.${field}`, v3);
         }
       }
     }
@@ -182,7 +116,7 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     const types = args.length > 1 ? [args[0] as string] : Object.keys(v1);
     for (const type of types) {
       state.client[type] = state.client[type] || {};
-      state.combined[type] = state.combined[type] || {};
+      state.combined[type] = state.combined[type] || { __typename: type };
       changes[type] = changes[type] || {};
       const v2 = args.length <= 1 ? v1[type] : v1;
       const ids = args.length > 2 ? [args[1] as string] : Object.keys(v2);
@@ -210,7 +144,7 @@ export default function createStore(schema: Obj<Obj<Field>>) {
 
     for (const type of Object.keys(value)) {
       state.server[type] = state.server[type] || {};
-      state.combined[type] = state.combined[type] || {};
+      state.combined[type] = state.combined[type] || { __typename: type };
       changes[type] = changes[type] || {};
       for (const id of Object.keys(value[type])) {
         state.server[type][id] = state.server[type][id] || {};
