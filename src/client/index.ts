@@ -14,21 +14,21 @@ export default async function client(url: string, authFetch: AuthFetch) {
 
   function query(
     queryString: string,
-    variables: Obj<any>,
+    variables: Obj,
     idsOnly: boolean,
-  ): Promise<Obj<any>>;
+  ): Promise<Obj>;
   function query(
     queryString: string,
-    variables: Obj<any>,
+    variables: Obj,
     idsOnly: boolean,
-    listener: (value: Obj<any>) => void,
+    listener: (value: Obj) => void,
   ): () => void;
   function query(...args) {
     const [queryString, variables, idsOnly, listener] = args as [
       string,
-      Obj<any>,
+      Obj,
       boolean,
-      ((value: Obj<any>) => void) | undefined
+      ((value: Obj) => void) | undefined
     ];
 
     const { apiQuery, readQuery } = prepareQuery(queryString, idsOnly);

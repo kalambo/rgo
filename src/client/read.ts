@@ -1,5 +1,4 @@
 import { keysToObject, Obj } from 'mishmash';
-import * as orderBy from 'lodash/fp/orderBy';
 import {
   DocumentNode,
   FieldNode,
@@ -19,28 +18,19 @@ import {
 
 export interface ReadContext {
   schema: Obj<Obj<Field>>;
-  data: Obj<Obj<Obj<any>>>;
   userId: string | null;
-  variables: Obj<any>;
+  variables: Obj;
 }
 
-const getFields = (fieldNodes: FieldNode[], variables: Obj<any>) =>
-  fieldNodes.map(
-    ({ name: { value: field }, selectionSet, arguments: args }) => ({
-      field,
-      nested: selectionSet && {
-        fieldNodes: selectionSet.selections as FieldNode[],
-        args: keysToObject(
-          args || [],
-          ({ value }) => {
-            if (value.kind === 'Variable') return variables[value.name.value];
-            return (value as IntValueNode | StringValueNode).value;
-          },
-          ({ name }) => name.value,
-        ),
-      },
-    }),
-  );
+const toArray = x => (Array.isArray(x) ? x : [x]);
+
+const compareValues = (a, b) => {
+  if (a === b) return 0;
+  if (a === null) return -1;
+  if (typeof a === 'string') return a.localeCompare(b);
+  if (a < b) return -1;
+  return 1;
+};
 
 const filterRecord = (filter: any, record: any) => {
   const key = Object.keys(filter)[0];
@@ -51,7 +41,6 @@ const filterRecord = (filter: any, record: any) => {
     return (filter[key] as any[]).some(b => filterRecord(b, record));
 
   const op = Object.keys(filter[key])[0];
-
   if (op === '$eq') return record[key] === filter[key][op];
   if (op === '$ne') return record[key] !== filter[key][op];
   if (op === '$lt') return record[key] < filter[key][op];
@@ -63,94 +52,116 @@ const filterRecord = (filter: any, record: any) => {
   return false;
 };
 
-const filterData = (
-  field: ForeignRelationField | RelationField | string,
-  args: Obj<any>,
-  values: { id?: string; field?: any },
-  context: ReadContext,
-) => {
-  const type = typeof field !== 'string' ? field.relation.type : field;
-  const { filter, sort, skip, show } = parseArgs(
-    args,
-    context.userId,
-    context.schema[type],
-  );
-  const relationFilters = typeof field !== 'string' && [
-    {
-      id: { $in: Array.isArray(values.field) ? values.field : [values.field] },
-    },
-    ...(field.relation.field
-      ? [{ [field.relation.field]: { $eq: values.id } }]
-      : []),
-  ];
-  const isList =
-    typeof field === 'string' || fieldIs.foreignRelation(field) || field.isList;
-
-  const filteredData = Object.keys(context.data[type])
-    .map(id => context.data[type][id])
-    .filter(x =>
-      filterRecord(
-        typeof field !== 'string'
-          ? { $and: [filter, { $or: relationFilters }] }
-          : filter,
-        x,
-      ),
-    );
-  const sortedData = orderBy(
-    Object.keys(sort),
-    Object.keys(sort).map(k => (sort[k] === 1 ? 'asc' : 'desc')),
-    filteredData,
-  ) as any[];
-  return isList
-    ? sortedData.slice(skip, show === null ? undefined : skip + show)
-    : sortedData[0] || null;
-};
-
-const readLayer = (
-  rootType: string,
-  root: Obj<any> | Obj<any>[],
+function createResolver(
+  type: string | null,
   fieldNodes: FieldNode[],
   context: ReadContext,
-) => {
-  const fields = getFields(fieldNodes, context.variables);
-  const mapRecord = (record: Obj<any>) =>
-    keysToObject(
-      fields,
-      ({ field, nested }) => {
-        if (!nested) return noUndef(record[field]);
-        const fieldSchema = context.schema[rootType][field] as
-          | ForeignRelationField
-          | RelationField;
-        const nestedRoot = filterData(
-          fieldSchema,
-          nested!.args,
-          { id: record.id, field: noUndef(record[field]) },
-          context,
-        );
-        return readLayer(
-          fieldSchema.relation.type,
-          nestedRoot,
-          nested!.fieldNodes,
-          context,
-        );
-      },
-      ({ field }) => field,
-    );
-  return Array.isArray(root) ? root.map(mapRecord) : mapRecord(root);
-};
+  initialData: Obj<Obj<Obj>>,
+) {
+  const dataFilters = keysToObject(
+    fieldNodes.filter(({ selectionSet }) => selectionSet),
+    ({ name: { value: fieldName }, selectionSet, arguments: args }) => {
+      const field = type
+        ? context.schema[type][fieldName] as
+            | ForeignRelationField
+            | RelationField
+        : null;
+      const relationType = field ? field.relation.type : fieldName;
+      const { filter, sort, skip, show } = parseArgs(
+        keysToObject(
+          args || [],
+          ({ value }) => {
+            if (value.kind === 'Variable')
+              return context.variables[value.name.value];
+            return (value as IntValueNode | StringValueNode).value;
+          },
+          ({ name }) => name.value,
+        ),
+        context.userId,
+        context.schema[relationType],
+      );
+      const sortKeys = Object.keys(sort);
+      const sortIds = (id1: string, id2: string) => {
+        for (const k of sortKeys) {
+          const comp = compareValues(
+            noUndef(initialData[relationType][id1][k]),
+            noUndef(initialData[relationType][id2][k]),
+          );
+          if (comp) return sort[k] === 1 ? comp : -1;
+        }
+        return 0;
+      };
+      const recordIds = Object.keys(initialData[relationType])
+        .filter(id => filterRecord(filter, initialData[relationType][id]))
+        .sort(sortIds);
+      const resolver = createResolver(
+        relationType,
+        selectionSet!.selections as FieldNode[],
+        context,
+        initialData,
+      );
+      if (!type)
+        return (_root: Obj, data: Obj<Obj<Obj>>, changes: Obj<Obj<Obj>>) =>
+          recordIds
+            .map(id => initialData[relationType][id])
+            .map(r => resolver(r, data, changes));
+      return (root: Obj, data: Obj<Obj<Obj>>, changes: Obj<Obj<Obj>>) => {
+        const fieldValue = toArray(noUndef(root[fieldName]));
+        const filterId = id => {
+          const record = initialData[relationType][id];
+          return (
+            fieldValue.includes(record.id) ||
+            (field!.relation.field &&
+              record[field!.relation.field!] === root.id) ||
+            false
+          );
+        };
+        return !field || fieldIs.foreignRelation(field) || field.isList
+          ? recordIds
+              .filter(filterId)
+              .slice(skip, show === null ? undefined : skip + show)
+              .map(id => initialData[relationType][id])
+              .map(r => resolver(r, data, changes))
+          : resolver(
+              initialData[relationType][recordIds.find(filterId)!],
+              data,
+              changes,
+            );
+      };
+    },
+    ({ name }) => name.value,
+  );
 
-export default function read(queryDoc: DocumentNode, context: ReadContext) {
-  const types = getFields(
+  return (
+    root: Obj | null = null,
+    data: Obj<Obj<Obj>>,
+    changes: Obj<Obj<Obj>>,
+  ) =>
+    root &&
+    keysToObject(
+      fieldNodes,
+      ({ name: { value: fieldName } }) => {
+        if (!dataFilters[fieldName]) return noUndef(root![fieldName]);
+        return dataFilters[fieldName](root, data, changes);
+      },
+      ({ name }) => name.value,
+    );
+}
+
+export default function read(
+  queryDoc: DocumentNode,
+  context: ReadContext,
+  initialData: Obj<Obj<Obj>>,
+  listener: (value) => any,
+) {
+  const resolver = createResolver(
+    null,
     (queryDoc.definitions[0] as OperationDefinitionNode).selectionSet
       .selections as FieldNode[],
-    context.variables,
+    context,
+    initialData,
   );
-  return keysToObject(
-    types,
-    ({ field, nested }) => {
-      const root = filterData(field, nested!.args, {}, context);
-      return readLayer(field, root, nested!.fieldNodes, context);
-    },
-    ({ field }) => field,
-  );
+  const result = resolver({}, initialData, {});
+  if (!listener) return result;
+  listener(result);
 }

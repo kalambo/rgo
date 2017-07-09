@@ -25,23 +25,20 @@ const createListeners = () => {
 
 export default function createStore(schema: Obj<Obj<Field>>) {
   const state = {
-    server: {} as Obj<Obj<Obj<any>>>,
-    client: {} as Obj<Obj<Obj<any>>>,
-    combined: {} as Obj<Obj<Obj<any>>>,
+    server: {} as Obj<Obj<Obj>>,
+    client: {} as Obj<Obj<Obj>>,
+    combined: {} as Obj<Obj<Obj>>,
   };
 
   const getListeners = createListeners();
-  function get(type: string): Obj<Obj<any>>;
-  function get(type: string, id: string): Obj<any>;
+  function get(type: string): Obj<Obj>;
+  function get(type: string, id: string): Obj;
   function get(type: string, id: string, field: string): any;
-  function get(
-    type: string,
-    listener: (value: Obj<Obj<any>>) => void,
-  ): () => void;
+  function get(type: string, listener: (value: Obj<Obj>) => void): () => void;
   function get(
     type: string,
     id: string,
-    listener: (value: Obj<any>) => void,
+    listener: (value: Obj) => void,
   ): () => void;
   function get(
     type: string,
@@ -64,21 +61,21 @@ export default function createStore(schema: Obj<Obj<Field>>) {
 
   function read(
     queryDoc: DocumentNode,
-    variables: Obj<any>,
+    variables: Obj,
     userId: string | null,
-  ): Obj<any>;
+  ): Obj;
   function read(
     queryDoc: DocumentNode,
-    variables: Obj<any>,
+    variables: Obj,
     userId: string | null,
-    listener: (value: Obj<any>) => void,
+    listener: (value: Obj) => void,
   ): () => void;
   function read(...args) {
     const [queryDoc, variables, userId, listener] = args as [
       DocumentNode,
-      Obj<any>,
+      Obj,
       string | null,
-      ((value: Obj<any>) => void) | undefined
+      ((value: Obj) => void) | undefined
     ];
     const result = readData(queryDoc, {
       schema,
@@ -105,9 +102,9 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     }
   }
 
-  function set(value: Obj<Obj<Obj<any>>>): void;
-  function set(type: string, value: Obj<Obj<any>>): void;
-  function set(type: string, id: string, value: Obj<any>): void;
+  function set(value: Obj<Obj<Obj>>): void;
+  function set(type: string, value: Obj<Obj>): void;
+  function set(type: string, id: string, value: Obj): void;
   function set(type: string, id: string, field: string, value: any): void;
   function set(...args) {
     const changes = {} as Obj<Obj<Obj<true>>>;
@@ -139,7 +136,7 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     emitChanges(changes);
   }
 
-  function setServer(value: Obj<Obj<Obj<any>>>) {
+  function setServer(value: Obj<Obj<Obj>>) {
     const changes = {} as Obj<Obj<Obj<true>>>;
 
     for (const type of Object.keys(value)) {
