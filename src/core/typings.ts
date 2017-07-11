@@ -29,11 +29,12 @@ export interface ScalarField {
   formula?: Formula | true;
 }
 export interface RelationField {
-  relation: { type: string; field?: string };
+  type: string;
   isList?: true;
 }
 export interface ForeignRelationField {
-  relation: { type: string; field: string };
+  type: string;
+  foreign: string;
 }
 export type Field = ScalarField | RelationField | ForeignRelationField;
 
@@ -43,14 +44,14 @@ export const fieldIs = {
   },
   relation: (field: Field): field is RelationField => {
     return (
-      !!(field as RelationField).relation &&
-      !(field as ForeignRelationField).relation.field
+      !!(field as RelationField).type &&
+      !(field as ForeignRelationField).foreign
     );
   },
   foreignRelation: (field: Field): field is ForeignRelationField => {
     return (
-      !!(field as RelationField).relation &&
-      !!(field as ForeignRelationField).relation.field
+      !!(field as RelationField).type &&
+      !!(field as ForeignRelationField).foreign
     );
   },
 };

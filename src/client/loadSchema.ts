@@ -39,25 +39,13 @@ export default async function loadSchema(url: string) {
     for (const f of Object.keys(schema[type])) {
       const field = schema[type][f];
       if (!fieldIs.scalar(field)) {
-        const relEntity = entities[field.relation.type][0];
+        const relEntity = entities[field.type][0];
         entities[type][0].define({
           [f]:
             fieldIs.foreignRelation(field) || field.isList
               ? [relEntity]
               : relEntity,
         });
-        if (fieldIs.relation(field) && !field.relation.field) {
-          field.relation.field = Object.keys(
-            schema[field.relation.type],
-          ).find(f => {
-            const foreignField = schema[field.relation.type][f];
-            return (
-              fieldIs.foreignRelation(foreignField) &&
-              foreignField.relation.type === type &&
-              foreignField.relation.field === f
-            );
-          });
-        }
       }
     }
   }

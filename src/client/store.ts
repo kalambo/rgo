@@ -77,14 +77,17 @@ export default function createStore(schema: Obj<Obj<Field>>) {
       string | null,
       ((value: Obj) => void) | undefined
     ];
-    const result = readData(queryDoc, {
-      schema,
-      data: state.combined,
-      userId,
-      variables,
-    });
+    const result = readData(
+      queryDoc,
+      {
+        schema,
+        userId,
+        variables,
+      },
+      state.combined,
+      listener,
+    );
     if (!listener) return result;
-    listener(result);
   }
 
   function emitChanges(changes: Obj<Obj<Obj<true>>>) {

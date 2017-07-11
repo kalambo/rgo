@@ -59,7 +59,7 @@ export default function buildSchema(types: Obj<DataType>) {
               return { type: field.isList ? new GraphQLList(scalar) : scalar };
             }
 
-            const relQueryType = queryTypes[field.relation.type];
+            const relQueryType = queryTypes[field.type];
             return {
               type:
                 fieldIs.foreignRelation(field) || field.isList
@@ -77,12 +77,12 @@ export default function buildSchema(types: Obj<DataType>) {
                   const rootField = fieldIs.relation(field) ? f : 'id';
                   const relField = fieldIs.relation(field)
                     ? 'id'
-                    : field.relation.field;
+                    : field.foreign;
 
                   const queryArgs = parseArgs(
                     args,
                     userId,
-                    typeFields[field.relation.type],
+                    typeFields[field.type],
                     info,
                   );
                   queryArgs.fields = [relField, ...(queryArgs.fields || [])];
@@ -96,14 +96,14 @@ export default function buildSchema(types: Obj<DataType>) {
                     },
                   };
 
-                  const auth = types[field.relation.type].auth;
+                  const auth = types[field.type].auth;
                   const authArgs = auth.query
                     ? await auth.query(userId, queryArgs)
                     : queryArgs;
 
-                  const results = await types[
-                    field.relation.type
-                  ].connector.query(authArgs);
+                  const results = await types[field.type].connector.query(
+                    authArgs,
+                  );
 
                   return roots.map(root => {
                     if (fieldIs.relation(field)) {
