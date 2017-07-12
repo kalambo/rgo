@@ -11,7 +11,7 @@ export type ScalarName =
 
 export interface QueryArgs {
   filter: any;
-  sort: any;
+  sort: Obj<1 | -1>;
   skip: number;
   show: number | null;
   fields: string[] | null;

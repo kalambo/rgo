@@ -5,29 +5,13 @@ import { DocumentNode } from 'graphql';
 import { Field, noUndef } from '../core';
 
 import readData from './read';
-
-const createListeners = () => {
-  const listeners: Obj<((value: any) => void)[]> = {};
-  return {
-    add(key: string, listener: (value: any) => void) {
-      if (!listeners[key]) listeners[key] = [];
-      listeners[key].push(listener);
-      return () => {
-        listeners[key] = listeners[key].filter(l => l !== listener);
-        if (listeners[key].length === 0) delete listeners[key];
-      };
-    },
-    emit(key: string, value: any) {
-      if (listeners[key]) listeners[key].forEach(l => l(value));
-    },
-  };
-};
+import { createListeners, Data } from './utils';
 
 export default function createStore(schema: Obj<Obj<Field>>) {
   const state = {
-    server: {} as Obj<Obj<Obj>>,
-    client: {} as Obj<Obj<Obj>>,
-    combined: {} as Obj<Obj<Obj>>,
+    server: {} as Data,
+    client: {} as Data,
+    combined: {} as Data,
   };
 
   const getListeners = createListeners();
@@ -80,11 +64,11 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     const result = readData(
       queryDoc,
       {
+        data: state.combined,
         schema,
         userId,
         variables,
       },
-      state.combined,
       listener,
     );
     if (!listener) return result;
@@ -105,7 +89,7 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     }
   }
 
-  function set(value: Obj<Obj<Obj>>): void;
+  function set(value: Data): void;
   function set(type: string, value: Obj<Obj>): void;
   function set(type: string, id: string, value: Obj): void;
   function set(type: string, id: string, field: string, value: any): void;
@@ -139,7 +123,7 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     emitChanges(changes);
   }
 
-  function setServer(value: Obj<Obj<Obj>>) {
+  function setServer(value: Data) {
     const changes = {} as Obj<Obj<Obj<true>>>;
 
     for (const type of Object.keys(value)) {

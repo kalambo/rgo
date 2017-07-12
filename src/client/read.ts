@@ -3,213 +3,213 @@ import {
   ArgumentNode,
   DocumentNode,
   FieldNode,
-  IntValueNode,
   OperationDefinitionNode,
-  StringValueNode,
 } from 'graphql';
 
 import {
-  Field,
   fieldIs,
   ForeignRelationField,
   noUndef,
   parseArgs,
   RelationField,
-  QueryArgs,
 } from '../core';
 
-export type Data = Obj<Obj<Obj>>;
+import {
+  buildArgs,
+  compareValues,
+  Data,
+  findForeign,
+  ReadContext,
+  runFilter,
+  toArray,
+  unique,
+} from './utils';
 
-export interface ReadContext {
-  schema: Obj<Obj<Field>>;
-  userId: string | null;
-  variables: Obj;
-}
+function manageField(
+  rootType: string | null,
+  field: string,
+  type: string,
+  isList: boolean,
+  foreign: string | null,
+  args: ArgumentNode[] = [],
+  selections: FieldNode[],
+  context: ReadContext,
+  roots: Obj<Obj>,
+  updater: (cb: (changes: Data) => void) => () => void,
+) {
+  // const isList = fieldIs.foreignRelation(field) || field.isList;
+  // const foreign = findForeign(field, context.schema);
+  const { filter: parsedFilter, sort, skip, show } = parseArgs(
+    buildArgs(args, context.variables),
+    context.userId,
+    context.schema[type],
+  );
+  const scalarFields = keysToObject(
+    selections
+      .filter(({ selectionSet }) => !selectionSet)
+      .map(({ name }) => name.value),
+    () => true,
+  );
 
-const toArray = x => (Array.isArray(x) ? x : [x]);
-
-const compareValues = (a, b) => {
-  if (a === b) return 0;
-  if (a === null) return -1;
-  if (typeof a === 'string') return a.localeCompare(b) as 0 | 1 | -1;
-  if (a < b) return -1;
-  return 1;
-};
-
-const runFilter = (filter: any, record: any) => {
-  const key = Object.keys(filter)[0];
-
-  if (key === '$and')
-    return (filter[key] as any[]).every(b => runFilter(b, record));
-  if (key === '$or')
-    return (filter[key] as any[]).some(b => runFilter(b, record));
-
-  const op = Object.keys(filter[key])[0];
-  if (op === '$eq') return record[key] === filter[key][op];
-  if (op === '$ne') return record[key] !== filter[key][op];
-  if (op === '$lt') return record[key] < filter[key][op];
-  if (op === '$lte') return record[key] <= filter[key][op];
-  if (op === '$gt') return record[key] > filter[key][op];
-  if (op === '$gte') return record[key] >= filter[key][op];
-  if (op === '$in') return filter[key][op].includes(record[key]);
-
-  return false;
-};
-
-class Resolver {
-  private field: { type: string; isList?: true; foreign?: string };
-  private args: QueryArgs;
-
-  private data: Data;
-  private baseIds: string[];
-
-  private fieldNames: string[];
-  private resolvers: Obj<Resolver>;
-
-  constructor(
-    field: ForeignRelationField | RelationField,
-    args: ArgumentNode[] = [],
-    selections: FieldNode[],
-    context: ReadContext,
-    initialData: Data,
-  ) {
-    this.field = {
-      type: field.type,
-      isList: fieldIs.foreignRelation(field) || field.isList,
-      foreign: fieldIs.foreignRelation(field)
-        ? field.foreign
-        : Object.keys(context.schema[field.type]).find(f => {
-            const foreignField = context.schema[field.type][f];
-            return (
-              fieldIs.foreignRelation(foreignField) &&
-              foreignField.type === field.type &&
-              foreignField.foreign === f
-            );
-          }),
-    };
-
-    this.args = parseArgs(
-      keysToObject(
-        args,
-        ({ value }) => {
-          if (value.kind === 'Variable')
-            return context.variables[value.name.value];
-          return (value as IntValueNode | StringValueNode).value;
-        },
-        ({ name }) => name.value,
-      ),
-      context.userId,
-      context.schema[field.type],
-    );
-
-    this.data = initialData;
-    this.baseIds = Object.keys(initialData[field.type])
-      .filter(this.baseFilter)
-      .sort(this.compare);
-
-    this.fieldNames = selections.map(({ name }) => name.value);
-    this.resolvers = keysToObject(
-      selections.filter(({ selectionSet }) => selectionSet),
-      node => {
-        return new Resolver(
-          context.schema[field.type][node.name.value] as
-            | ForeignRelationField
-            | RelationField,
-          node.arguments,
-          node.selectionSet!.selections as FieldNode[],
-          context,
-          initialData,
-        );
-      },
-      ({ name: { value: fieldName } }) => fieldName,
-    );
-  }
-
-  private compare(id1: string, id2: string) {
-    for (const k of Object.keys(this.args.sort)) {
+  const filter = (id: string) =>
+    runFilter(parsedFilter, context.data[type][id]);
+  const compare = (id1: string, id2: string) => {
+    for (const k of Object.keys(sort)) {
       const comp = compareValues(
-        noUndef(this.data[this.field.type][id1][k]),
-        noUndef(this.data[this.field.type][id2][k]),
+        noUndef(context.data[type][id1][k]),
+        noUndef(context.data[type][id2][k]),
       );
-      if (comp) return this.args.sort[k] === 1 ? comp : -1;
+      if (comp) return sort[k] === 1 ? comp : -1;
     }
     return 0;
-  }
+  };
+  const slice = (ids: string[]) =>
+    ids.slice(skip, show === null ? undefined : skip + show);
 
-  private baseFilter(id: string) {
-    return runFilter(this.args.filter, this.data[this.field.type][id]);
-  }
+  const allIds = Object.keys(context.data[type]);
+  const baseIdsObj = keysToObject(allIds, filter);
+  const baseIdsList = allIds.filter(id => baseIdsObj[id]).sort(compare);
 
-  private rootFilter(root: { id?: string; value?: any }) {
-    const arrayValue = toArray(noUndef(root.value));
-    return id => {
-      const record = this.data[this.field.type][id];
-      return (
-        arrayValue.includes(record.id) ||
-        (this.field.foreign && record[this.field.foreign] === root.id) ||
-        false
-      );
-    };
-  }
+  const idsForRoot = (rootId: string) => {
+    if (!rootType) return slice(baseIdsList);
+    const arrayValue = toArray(noUndef(context.data[rootType][rootId][field]));
+    const filter = (id: string) =>
+      arrayValue.includes(id) ||
+      (foreign && context.data[type][id][foreign] === rootId) ||
+      false;
+    if (isList) return slice(baseIdsList.filter(filter));
+    const id = baseIdsList.find(filter);
+    return id ? [id] : [];
+  };
+  const createRecord = (id: string) =>
+    keysToObject(
+      Object.keys(scalarFields),
+      f => (f === 'id' ? id : context.data[type][id][f]),
+    );
 
-  private resolveRecord(id: string | null = null, changes: Data) {
-    if (id === null) return null;
-    const record = this.data[this.field.type][id];
-    return keysToObject(this.fieldNames, fieldName => {
-      const value = noUndef(record[fieldName]);
-      if (!this.resolvers[fieldName]) return value;
-      return this.resolvers[fieldName].run(
-        { id: record[fieldName].id, value },
-        this.data,
-        changes,
+  const rootIds = rootType ? Object.keys(roots) : [''];
+  const recordIds = keysToObject(rootIds, idsForRoot);
+  const uniqueIds = unique(
+    rootIds.reduce((res, rootId) => [...res, ...recordIds[rootId]], []),
+  );
+  const records = keysToObject(uniqueIds, createRecord);
+  const values = keysToObject(
+    rootIds,
+    rootId =>
+      isList
+        ? recordIds[rootId].map(id => records[id])
+        : records[recordIds[rootId][0]] || null,
+  );
+  if (rootType) roots[field] = values[''];
+  else rootIds.forEach(rootId => (roots[rootId][field] = values[rootId]));
+
+  const unsubscribes = selections
+    .filter(({ selectionSet }) => selectionSet)
+    .map(node => {
+      const fieldSchema = context.schema[type][node.name.value] as
+        | ForeignRelationField
+        | RelationField;
+      return manageField(
+        type,
+        node.name.value,
+        fieldSchema.type,
+        fieldIs.foreignRelation(fieldSchema) || fieldSchema.isList || false,
+        findForeign(fieldSchema, context.schema),
+        node.arguments,
+        node.selectionSet!.selections as FieldNode[],
+        context,
+        records,
+        updater,
       );
     });
-  }
 
-  public run(root: { id?: string; value?: any }, data: Data, changes: Data) {
-    this.data = data;
-    if (!root.value && !this.field.foreign) {
-      return this.baseIds.map(id => this.resolveRecord(id, changes));
-    }
-    return this.field.isList
-      ? this.baseIds
-          .filter(this.rootFilter(root))
-          .slice(
-            this.args.skip,
-            this.args.show === null
-              ? undefined
-              : this.args.skip + this.args.show,
-          )
-          .map(id => this.resolveRecord(id, changes))
-      : this.resolveRecord(this.baseIds.find(this.rootFilter(root)), changes);
-  }
+  unsubscribes.push(
+    updater(changes => {
+      // let baseChanged = false;
+      // for (const id of Object.keys(changes[field.type] || {})) {
+      //   baseIdsObj[id] = baseIdsObj[id] || false;
+      //   if (filter(id) !== baseIdsObj[id]) {
+      //     baseChanged = true;
+      //     if (baseIdsObj[id]) {
+      //       const index = baseIdsList.indexOf(id);
+      //       baseIdsList.splice(index, 1);
+      //     } else {
+      //       const index = locationOf(id, baseIdsList, compare) + 1;
+      //       baseIdsList.splice(index, 0, id);
+      //     }
+      //     baseIdsObj[id] = !baseIdsObj[id];
+      //   }
+      // }
+
+      for (const id of Object.keys(changes[type] || {})) {
+        if (records[id]) {
+          for (const f of Object.keys(changes[type][id] || {})) {
+            if (scalarFields[f]) {
+              records[id][f] = context.data[type][f];
+            }
+          }
+        }
+      }
+    }),
+  );
+
+  return () => unsubscribes.forEach(u => u());
 }
+
+//   const value = [] as Obj[];
+//   const ids = [] as string[];
+//   const unsubscribe = updater(
+//     (data, _changes, baseIdChanges, compare, getRecord) => {
+//       const locationOf = (id: string, start = 0, end = ids.length) => {
+//         if (ids.length === 0) return -1;
+//         const pivot = (start + end) >> 1;
+//         const c = compare(id, ids[pivot]);
+//         if (end - start <= 1) return c === -1 ? pivot - 1 : pivot;
+//         if (c === 0) return pivot;
+//         return c === 1
+//           ? locationOf(id, pivot, end)
+//           : locationOf(id, start, pivot);
+//       };
+//       for (const id of Object.keys(baseIdChanges)) {
+//         if (baseIdChanges[id]) {
+//           if (this.filter(id, data)) {
+//             const index = locationOf(id) + 1;
+//             value.splice(index, 0, getRecord(id));
+//             ids.splice(index, 0, id);
+//           }
+//         } else {
+//           const index = ids.indexOf(id);
+//           value.splice(index, 1);
+//           ids.splice(index, 1);
+//         }
+//       }
+//     },
+//   );
+//   return { value, unsubscribe };
+// }
 
 export default function read(
   queryDoc: DocumentNode,
   context: ReadContext,
-  initialData: Obj<Obj<Obj>>,
   listener?: (value) => any,
 ) {
   const fieldNodes = (queryDoc.definitions[0] as OperationDefinitionNode)
     .selectionSet.selections as FieldNode[];
-  const types = fieldNodes.map(({ name }) => name.value);
-  const resolvers = keysToObject(
-    fieldNodes,
-    node =>
-      new Resolver(
-        { type: node.name.value, isList: true },
-        node.arguments,
-        node.selectionSet!.selections as FieldNode[],
-        context,
-        initialData,
-      ),
-    ({ name: { value: type } }) => type,
+  const value = {};
+  fieldNodes.forEach(node =>
+    manageField(
+      null,
+      node.name.value,
+      node.name.value,
+      true,
+      null,
+      node.arguments,
+      node.selectionSet!.selections as FieldNode[],
+      context,
+      value,
+      1 as any,
+    ),
   );
-
-  const result = keysToObject(types, type =>
-    resolvers[type].run({}, initialData, {}),
-  );
-  if (!listener) return result;
-  listener(result);
+  if (!listener) return value;
+  listener(value);
 }
