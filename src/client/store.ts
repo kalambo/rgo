@@ -1,11 +1,11 @@
 import { Obj } from 'mishmash';
 import * as _ from 'lodash';
-import { DocumentNode } from 'graphql';
+import { DocumentNode, FieldNode, OperationDefinitionNode } from 'graphql';
 
 import { Field, noUndef } from '../core';
 
-import readData from './read';
-import { createListeners, Data } from './utils';
+import runRelation from './runRelation';
+import { Changes, createEmitter, createEmitterMap, Data } from './utils';
 
 export default function createStore(schema: Obj<Obj<Field>>) {
   const state = {
@@ -14,7 +14,7 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     combined: {} as Data,
   };
 
-  const getListeners = createListeners();
+  const getEmitter = createEmitterMap();
   function get(type: string): Obj<Obj>;
   function get(type: string, id: string): Obj;
   function get(type: string, id: string, field: string): any;
@@ -40,9 +40,10 @@ export default function createStore(schema: Obj<Obj<Field>>) {
     listener(
       noUndef(_.get(state.combined, key), args.length === 3 ? null : {}),
     );
-    return getListeners.add(key, listener);
+    return getEmitter.watch(key, listener);
   }
 
+  const readEmitter = createEmitter<Changes>();
   function read(
     queryDoc: DocumentNode,
     variables: Obj,
@@ -61,32 +62,46 @@ export default function createStore(schema: Obj<Obj<Field>>) {
       string | null,
       ((value: Obj) => void) | undefined
     ];
-    const result = readData(
-      queryDoc,
-      {
-        data: state.combined,
-        schema,
-        userId,
-        variables,
-      },
-      listener,
+    const fieldNodes = (queryDoc.definitions[0] as OperationDefinitionNode)
+      .selectionSet.selections as FieldNode[];
+    const value = {};
+    const stopRelations = fieldNodes.map(node =>
+      runRelation(
+        { record: value },
+        node.name.value,
+        node.name.value,
+        true,
+        null,
+        node.arguments,
+        node.selectionSet!.selections as FieldNode[],
+        {
+          data: state.combined,
+          schema,
+          userId,
+          variables,
+        },
+        listener && readEmitter.watch,
+      ),
     );
-    if (!listener) return result;
+    if (!listener) return value;
+    listener(value);
+    return () => stopRelations.forEach(s => s());
   }
 
   function emitChanges(changes: Obj<Obj<Obj<true>>>) {
     for (const type of Object.keys(changes)) {
       const v1 = state.combined[type];
-      getListeners.emit(type, v1);
+      getEmitter.emit(type, v1);
       for (const id of Object.keys(changes[type])) {
         const v2 = v1[id];
-        getListeners.emit(`${type}.${id}`, v2);
+        getEmitter.emit(`${type}.${id}`, v2);
         for (const field of Object.keys(changes[type][id])) {
           const v3 = v2[field];
-          getListeners.emit(`${type}.${id}.${field}`, v3);
+          getEmitter.emit(`${type}.${id}.${field}`, v3);
         }
       }
     }
+    readEmitter.emit({ changes, rootChanges: { added: [], removed: [] } });
   }
 
   function set(value: Data): void;

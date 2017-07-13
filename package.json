@@ -40,7 +40,7 @@
     "react": "^15.0.0"
   },
   "dependencies": {
-    "@types/graphql": "^0.9.3",
+    "@types/graphql": "^0.9.4",
     "@types/mongodb": "^2.2.7",
     "@types/pegjs": "^0.10.0",
     "@types/recompose": "^0.23.1",

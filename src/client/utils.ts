@@ -12,6 +12,14 @@ export interface ReadContext {
   variables: Obj;
 }
 
+export interface Changes {
+  changes: Data;
+  rootChanges: {
+    added: string[];
+    removed: string[];
+  };
+}
+
 export const toArray = <T>(x: T | T[]) => (Array.isArray(x) ? x : [x]);
 
 export const unique = <T>(x: T[]) => Array.from(new Set(x));
@@ -27,10 +35,22 @@ export const locationOf = (elem, arr, compFn, start = 0, end = arr.length) => {
     : locationOf(elem, arr, compFn, start, pivot);
 };
 
-export const createListeners = () => {
-  const listeners: Obj<((value: any) => void)[]> = {};
+export const createEmitter = <T>() => {
+  const listeners: ((value: T) => void)[] = [];
   return {
-    add(key: string, listener: (value: any) => void) {
+    watch(listener: (value: T) => void) {
+      listeners.push(listener);
+      return () => listeners.filter(l => l !== listener);
+    },
+    emit(value: T) {
+      listeners.forEach(l => l(value));
+    },
+  };
+};
+export const createEmitterMap = <T>() => {
+  const listeners: Obj<((value: T) => void)[]> = {};
+  return {
+    watch(key: string, listener: (value: T) => void) {
       if (!listeners[key]) listeners[key] = [];
       listeners[key].push(listener);
       return () => {
@@ -38,7 +58,7 @@ export const createListeners = () => {
         if (listeners[key].length === 0) delete listeners[key];
       };
     },
-    emit(key: string, value: any) {
+    emit(key: string, value: T) {
       if (listeners[key]) listeners[key].forEach(l => l(value));
     },
   };
