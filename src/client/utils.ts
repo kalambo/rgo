@@ -1,9 +1,15 @@
 import { keysToObject, Obj } from 'mishmash';
 import { ArgumentNode, IntValueNode, StringValueNode } from 'graphql';
 
-import { Field, fieldIs, ForeignRelationField, RelationField } from '../core';
+import {
+  Args,
+  Field,
+  fieldIs,
+  ForeignRelationField,
+  RelationField,
+} from '../core';
 
-export type Data = Obj<Obj<Obj>>;
+export type Data<T = any> = Obj<Obj<Obj<T>>>;
 
 export interface ReadContext {
   data: Data;
@@ -13,16 +19,20 @@ export interface ReadContext {
 }
 
 export interface Changes {
-  changes: Data;
+  changes: Data<true>;
   rootChanges: {
     added: string[];
     removed: string[];
   };
 }
 
-export const toArray = <T>(x: T | T[]) => (Array.isArray(x) ? x : [x]);
+export const isOrIncludes = <T>(value: T | T[], elem: T) =>
+  Array.isArray(value) ? value.includes(elem) : value === elem;
 
 export const unique = <T>(x: T[]) => Array.from(new Set(x));
+
+export const initKey = (key: string, ...objs: Obj[]) =>
+  objs.forEach(o => (o[key] = o[key] || {}));
 
 export const locationOf = (elem, arr, compFn, start = 0, end = arr.length) => {
   if (arr.length === 0) return -1;
@@ -79,7 +89,7 @@ export const findForeign = (
         );
       }) || null;
 
-export const buildArgs = (args: ArgumentNode[], variables: Obj) =>
+export const buildArgs = (args: ArgumentNode[] = [], variables: Obj): Args =>
   keysToObject(
     args,
     ({ value }) => {
@@ -99,6 +109,7 @@ export const compareValues = (a, b) => {
 
 export const runFilter = (filter: any, record: any): boolean => {
   const key = Object.keys(filter)[0];
+  if (!key) return true;
 
   if (key === '$and')
     return (filter[key] as any[]).every(b => runFilter(b, record));

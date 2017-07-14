@@ -1,7 +1,7 @@
 import { GraphQLResolveInfo, FieldNode } from 'graphql';
 import { keysToObject, Obj } from 'mishmash';
 
-import { Field, fieldIs, QueryArgs } from '../typings';
+import { Args, Field, fieldIs, QueryArgs } from '../typings';
 import { isObject, mapArray, mapObject } from '../utils';
 
 import parseDateString from './parseDateString';
@@ -9,13 +9,6 @@ import parseFilter from './parseFilter';
 import parseSort from './parseSort';
 
 export { parseFilter, parseSort };
-
-export interface Args {
-  filter?: string;
-  sort?: string;
-  skip?: number;
-  show?: number;
-}
 
 const typeMaps = {
   Boolean: v => mapArray(v, x => ({ true: true, false: false }[x] || null)),

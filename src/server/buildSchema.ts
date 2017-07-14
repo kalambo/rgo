@@ -107,19 +107,23 @@ export default function buildSchema(types: Obj<DataType>) {
 
                   return roots.map(root => {
                     if (fieldIs.relation(field)) {
-                      if (!field.isList)
-                        return results.find(res => res.id === root[f]);
-                      return (
-                        root[f] &&
-                        root[f].map(id => results.find(res => res.id === id))
-                      );
+                      if (!root[f]) return null;
+                      if (!field.isList) {
+                        return results.find(r => r.id === root[f]);
+                      }
+                      if (args.sort) {
+                        const res = results.filter(r => root[f].includes(r.id));
+                        return res.length > 0 ? res : null;
+                      }
+                      return root[f].map(id => results.find(r => r.id === id));
                     }
-                    return results.filter(
-                      res =>
-                        Array.isArray(res[relField])
-                          ? res[relField].includes(root.id)
-                          : res[relField] === root.id,
+                    const res = results.filter(
+                      r =>
+                        Array.isArray(r[relField])
+                          ? r[relField].includes(root.id)
+                          : r[relField] === root.id,
                     );
+                    return res.length > 0 ? res : null;
                   });
                 },
               ),

@@ -2,6 +2,7 @@ export { default as parseArgs, parseFilter, parseSort } from './parseArgs';
 export { default as isValid } from './isValid';
 export { default as scalars } from './scalars';
 export {
+  Args,
   DataKey,
   Field,
   fieldIs,

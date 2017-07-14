@@ -9,6 +9,13 @@ export type ScalarName =
   | 'File'
   | 'JSON';
 
+export interface Args {
+  filter?: string;
+  sort?: string;
+  skip?: number;
+  show?: number;
+}
+
 export interface QueryArgs {
   filter: any;
   sort: Obj<1 | -1>;

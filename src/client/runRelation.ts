@@ -1,10 +1,10 @@
 import { keysToObject, Obj } from 'mishmash';
-import { ArgumentNode, FieldNode } from 'graphql';
+import { FieldNode } from 'graphql';
 
 import {
+  Args,
   fieldIs,
   ForeignRelationField,
-  noUndef,
   parseArgs,
   RelationField,
 } from '../core';
@@ -14,33 +14,24 @@ import {
   Changes,
   compareValues,
   createEmitter,
-  findForeign,
+  isOrIncludes,
   locationOf,
   ReadContext,
   runFilter,
-  toArray,
-  unique,
 } from './utils';
 
 export default function runRelation(
-  root: { type: string; records: Obj<Obj> } | { record: Obj },
-  field: string,
-  type: string,
-  isList: boolean,
-  foreign: string | null,
-  args: ArgumentNode[] = [],
+  root: { type?: string; field: string; records: Obj<Obj> },
+  field: ForeignRelationField | RelationField,
+  args: Args,
   selections: FieldNode[],
   context: ReadContext,
   onChanges?: (listener: (value: Changes) => void) => () => void,
 ) {
-  const rootType = (root as { type: string }).type || null;
-  const rootRecords = (root as { records: Obj<Obj> }).records || {
-    '': (root as { record: Obj }).record,
-  };
   const { filter: parsedFilter, sort, skip, show } = parseArgs(
-    buildArgs(args, context.variables),
+    args,
     context.userId,
-    context.schema[type],
+    context.schema[field.type],
   );
   const scalarFields = keysToObject(
     selections
@@ -50,12 +41,12 @@ export default function runRelation(
   );
 
   const filter = (id: string) =>
-    runFilter(parsedFilter, context.data[type][id]);
+    runFilter(parsedFilter, context.data[field.type][id]);
   const compare = (id1: string, id2: string) => {
     for (const k of Object.keys(sort)) {
       const comp = compareValues(
-        noUndef(context.data[type][id1][k]),
-        noUndef(context.data[type][id2][k]),
+        context.data[field.type][id1][k],
+        context.data[field.type][id2][k],
       );
       if (comp) return sort[k] === 1 ? comp : -1;
     }
@@ -63,173 +54,279 @@ export default function runRelation(
   };
   const slice = { start: skip, end: show === null ? undefined : skip + show };
 
-  const allIds = Object.keys(context.data[type]);
+  const allIds = Object.keys(context.data[field.type]);
   const baseIdsObj = keysToObject(allIds, filter);
   const baseIdsList = allIds.filter(id => baseIdsObj[id]).sort(compare);
-  const rootIds = Object.keys(rootRecords);
-  const recordIdsMap: Obj<string[]> = {};
   const records: Obj<Obj> = {};
-
-  const rootFilter = (rootId: string) => {
-    if (!rootType) return () => true;
-    const arrayValue = toArray(noUndef(context.data[rootType][rootId][field]));
-    return (id: string) =>
-      arrayValue.includes(id) ||
-      (foreign && context.data[type][id][foreign] === rootId) ||
-      false;
-  };
-  const getRecord = (id?: string) =>
+  const rootIds = Object.keys(root.records);
+  const recordIds: Obj<(string | null)[]> = {};
+  const getRecord = (id: string | null) =>
     id
       ? records[id] ||
         (records[id] = keysToObject(
           Object.keys(scalarFields),
-          f => (f === 'id' ? id : context.data[type][id][f]),
+          f => (f === 'id' ? id : context.data[field.type][id][f]),
         ))
       : null;
   const initRoot = (rootId: string) => {
-    if (!rootType) {
-      recordIdsMap[rootId] = baseIdsList;
-    } else if (isList) {
-      recordIdsMap[rootId] = baseIdsList.filter(rootFilter(rootId));
+    if (!root.type) {
+      recordIds[rootId] = baseIdsList;
     } else {
-      const id = baseIdsList.find(rootFilter(rootId));
-      recordIdsMap[rootId] = id ? [id] : [];
+      const value = context.data[root.type][rootId][root.field];
+      if (fieldIs.relation(field)) {
+        if (field.isList) {
+          if (args.sort) {
+            recordIds[rootId] = baseIdsList.filter(id =>
+              (value || []).includes(id),
+            );
+          } else {
+            recordIds[rootId] = ((value || []) as string[]).map(
+              id => (baseIdsList.includes(id) ? id : null),
+            );
+          }
+        } else {
+          recordIds[rootId] =
+            value && baseIdsList.includes(value) ? [value as string] : [];
+        }
+      } else {
+        recordIds[rootId] = baseIdsList.filter(
+          id =>
+            (value || []).includes(id) ||
+            isOrIncludes(context.data[field.type!][id][field.foreign], rootId),
+        );
+      }
     }
-    rootRecords[rootId][field] = isList
-      ? recordIdsMap[rootId].slice(slice.start, slice.end).map(getRecord)
-      : getRecord(recordIdsMap[rootId][0]);
+    const newIds = recordIds[rootId].filter(id => id && !records[id]);
+    root.records[rootId][root.field] =
+      !(fieldIs.relation(field) && !field.isList) && recordIds[rootId].length
+        ? recordIds[rootId].slice(slice.start, slice.end).map(getRecord)
+        : getRecord(recordIds[rootId][0] || null);
+    return newIds as string[];
   };
   rootIds.forEach(initRoot);
 
   const changesEmitter = createEmitter<Changes>();
   const stopRelations = selections
     .filter(({ selectionSet }) => selectionSet)
-    .map(node => {
-      const fieldSchema = context.schema[type][node.name.value] as
-        | ForeignRelationField
-        | RelationField;
-      return runRelation(
-        { type, records },
-        node.name.value,
-        fieldSchema.type,
-        fieldIs.foreignRelation(fieldSchema) || fieldSchema.isList || false,
-        findForeign(fieldSchema, context.schema),
-        node.arguments,
+    .map(node =>
+      runRelation(
+        { type: field.type, field: node.name.value, records },
+        context.schema[field.type][node.name.value] as
+          | ForeignRelationField
+          | RelationField,
+        buildArgs(node.arguments, context.variables),
         node.selectionSet!.selections as FieldNode[],
         context,
         onChanges && changesEmitter.watch,
-      );
-    });
+      ),
+    );
 
   const stop =
     onChanges &&
     onChanges(({ changes, rootChanges }) => {
-      const baseIdChanges: { added: string[]; removed: string[] } = {
-        added: [],
-        removed: [],
-      };
-      for (const id of Object.keys(changes[type] || {})) {
+      const added: string[] = [];
+      const maybeRemoved: Obj<true> = {};
+      const baseAdded: string[] = [];
+      const baseRemoved: string[] = [];
+      const foreignChanged: string[] = [];
+
+      for (const id of Object.keys(changes[field.type] || {})) {
         baseIdsObj[id] = baseIdsObj[id] || false;
-        if (filter(id) !== baseIdsObj[id]) {
-          if (baseIdsObj[id]) {
-            baseIdChanges.removed.push(id);
-            const index = baseIdsList.indexOf(id);
-            baseIdsList.splice(index, 1);
-          } else {
-            baseIdChanges.added.push(id);
+        const included = filter(id);
+        if (included !== baseIdsObj[id]) {
+          if (included) {
+            baseAdded.push(id);
             const index = locationOf(id, baseIdsList, compare) + 1;
             baseIdsList.splice(index, 0, id);
+
+            if (!root.type) {
+              const i = index - slice.start;
+              if (i >= 0 && (slice.end === undefined || i < slice.end)) {
+                if (slice.end !== undefined && baseIdsList[slice.end]) {
+                  const endId = baseIdsList[slice.end];
+                  baseRemoved.push(endId);
+                  root.records[''][root.field].pop();
+                  delete records[endId];
+                }
+                root.records[''][root.field].splice(i, 0, getRecord(id));
+              }
+            }
+          } else {
+            const index = baseIdsList.indexOf(id);
+            baseIdsList.splice(index, 1);
+            if (records[id]) {
+              baseRemoved.push(id);
+              delete records[id];
+            }
+
+            if (!root.type) {
+              const i = index - slice.start;
+              if (i >= 0 && (slice.end === undefined || i < slice.end)) {
+                if (slice.end !== undefined && baseIdsList[slice.end]) {
+                  const endId = baseIdsList[slice.end];
+                  added.push(endId);
+                  root.records[''][root.field].push(getRecord(endId));
+                }
+                root.records[''][root.field].splice(i, 1);
+              }
+            }
           }
           baseIdsObj[id] = !baseIdsObj[id];
+        } else if (
+          included &&
+          fieldIs.foreignRelation(field) &&
+          ((changes[field.type] && {})[id] || {})[field.foreign]
+        ) {
+          foreignChanged.push(id);
         }
       }
 
-      const prevAllRecordIds = Object.keys(records);
-      for (const rootId of rootIds) {
+      for (let index = rootIds.length - 1; index >= 0; index--) {
+        const rootId = rootIds[index];
         if (rootChanges.removed.includes(rootId)) {
-          rootIds.splice(rootIds.indexOf(rootId), 1);
-          delete recordIdsMap[rootId];
+          recordIds[rootId].forEach(id => id && (maybeRemoved[id] = true));
+          rootIds.splice(index, 1);
+          delete recordIds[rootId];
+        } else if (
+          root.type &&
+          ((changes[root.type] && {})[rootId] || {})[root.field]
+        ) {
+          recordIds[rootId].forEach(id => id && (maybeRemoved[id] = true));
+          added.push(...initRoot(rootId));
         } else {
-          if (
-            rootType &&
-            ((changes[rootType] && {})[rootId] || {})[field] !== undefined
-          ) {
-            initRoot(rootId);
-          } else {
-            for (const id of baseIdChanges.removed) {
-              if (isList) {
-                const index = recordIdsMap[rootId].indexOf(id);
-                if (index !== -1) {
-                  recordIdsMap[rootId].splice(index, 1);
-                  const i = index - slice.start;
-                  if (i >= 0) {
-                    if (slice.end === undefined) {
-                      rootRecords[rootId][field].splice(i, 1);
-                    } else if (i < slice.end) {
-                      if (recordIdsMap[rootId][slice.end]) {
-                        rootRecords[rootId][field].push(
-                          getRecord(recordIdsMap[rootId][slice.end]),
-                        );
-                      }
-                      rootRecords[rootId][field].splice(i, 1);
-                    }
-                  }
+          if (root.type) {
+            const addRecord = (id: string) => {
+              const index = locationOf(id, recordIds[rootId], compare) + 1;
+              const i = index - slice.start;
+              if (i >= 0 && (slice.end === undefined || i < slice.end)) {
+                if (slice.end !== undefined && baseIdsList[slice.end]) {
+                  const endId = baseIdsList[slice.end];
+                  maybeRemoved[endId] = true;
+                  recordIds[rootId].pop();
+                  root.records[rootId][root.field].pop();
                 }
-              } else {
-                if (recordIdsMap[rootId][0] === id) {
-                  recordIdsMap[rootId] = [];
-                  rootRecords[rootId][field] = null;
-                }
+                if (!records[id]) added.push(id);
+                recordIds[rootId].splice(index, 0, id);
+                root.records[rootId][root.field].splice(i, 0, getRecord(id));
               }
-            }
-            for (const id of baseIdChanges.added.filter(rootFilter(rootId))) {
-              if (isList) {
-                const index = locationOf(id, recordIdsMap[rootId], compare) + 1;
-                recordIdsMap[rootId].splice(index, 0, id);
+            };
+            const removeRecord = (id: string) => {
+              const index = recordIds[rootId].indexOf(id);
+              if (index !== -1) {
                 const i = index - slice.start;
-                if (i >= 0) {
-                  if (slice.end === undefined) {
-                    rootRecords[rootId][field].splice(i, 0, getRecord(id));
-                  } else if (i < slice.end) {
-                    if (rootRecords[rootId][field][slice.end]) {
-                      rootRecords[rootId][field].pop();
+                if (i >= 0 && (slice.end === undefined || i < slice.end)) {
+                  if (slice.end !== undefined && recordIds[rootId][slice.end]) {
+                    const endId = recordIds[rootId][slice.end];
+                    if (endId && !records[endId]) added.push(endId);
+                    root.records[rootId][root.field].push(getRecord(endId));
+                  }
+                  recordIds[rootId].splice(index, 1);
+                  root.records[rootId][root.field].splice(i, 1);
+                }
+              }
+            };
+
+            const value = context.data[root.type!][rootId][root.field];
+            baseAdded.forEach(id => {
+              if (fieldIs.relation(field)) {
+                if (field.isList) {
+                  if (args.sort) {
+                    if ((value || []).includes(id)) addRecord(id);
+                  } else {
+                    const index = ((value || []) as string[]).indexOf(id);
+                    if (index !== -1) {
+                      if (!records[id]) added.push(id);
+                      recordIds[rootId][index] = id;
+                      const i = index - slice.start;
+                      if (
+                        i >= 0 &&
+                        (slice.end === undefined || i < slice.end)
+                      ) {
+                        root.records[rootId][root.field][i] = getRecord(id);
+                      }
                     }
-                    rootRecords[rootId][field].splice(i, 0, getRecord(id));
+                  }
+                } else {
+                  if (value === id) {
+                    if (!records[id]) added.push(id);
+                    recordIds[rootId] = [id];
+                    root.records[rootId][root.field] = getRecord(id);
                   }
                 }
               } else {
-                recordIdsMap[rootId] = [id];
-                rootRecords[rootId][field] = getRecord(id);
+                if (
+                  (value || []).includes(id) ||
+                  isOrIncludes(
+                    context.data[root.type!][id][field.foreign],
+                    rootId,
+                  )
+                ) {
+                  addRecord(id);
+                }
               }
+            });
+            baseRemoved.forEach(id => {
+              if (fieldIs.relation(field)) {
+                if (field.isList) {
+                  removeRecord(id);
+                } else {
+                  if (recordIds[rootId][0] === id) {
+                    recordIds[rootId] = [];
+                    root.records[rootId][root.field] = null;
+                  }
+                }
+              } else {
+                removeRecord(id);
+              }
+            });
+            if (fieldIs.foreignRelation(field)) {
+              foreignChanged.forEach(id => {
+                const included =
+                  (value || []).includes(id) ||
+                  isOrIncludes(
+                    context.data[root.type!][id][field.foreign],
+                    rootId,
+                  );
+                const prevIndex = recordIds[rootId].indexOf(id);
+                if (included && prevIndex === -1) {
+                  addRecord(id);
+                }
+                if (!included && prevIndex !== -1) {
+                  maybeRemoved[id] = true;
+                  removeRecord(id);
+                }
+              });
             }
           }
         }
       }
       for (const rootId of rootChanges.added) {
         rootIds.push(rootId);
-        initRoot(rootId);
+        added.push(...initRoot(rootId));
       }
 
-      const allRecordIds = unique(
-        rootIds.reduce((res, rootId) => [...res, ...recordIdsMap[rootId]], []),
-      );
-      const recordChanges = {
-        added: allRecordIds.filter(id => !prevAllRecordIds.includes(id)),
-        removed: prevAllRecordIds.filter(id => !allRecordIds.includes(id)),
-      };
-      recordChanges.removed.forEach(id => delete records[id]);
-
-      for (const id of Object.keys(changes[type] || {})) {
-        if (records[id] && !recordChanges.added.includes(id)) {
-          for (const f of Object.keys(changes[type][id] || {})) {
+      for (const id of Object.keys(changes[field.type] || {})) {
+        if (records[id] && !added.includes(id)) {
+          for (const f of Object.keys(changes[field.type][id] || {})) {
             if (scalarFields[f]) {
-              records[id][f] = context.data[type][f];
+              records[id][f] = context.data[field.type][f];
             }
           }
         }
       }
 
-      changesEmitter.emit({ changes, rootChanges: recordChanges });
+      const extraRemoved = Object.keys(maybeRemoved).filter(id =>
+        rootIds.every(rootId => !recordIds[rootId].includes(id)),
+      );
+      extraRemoved.forEach(id => delete records[id]);
+
+      changesEmitter.emit({
+        changes,
+        rootChanges: {
+          added,
+          removed: [...baseRemoved, ...extraRemoved],
+        },
+      });
     });
 
   return () => {
