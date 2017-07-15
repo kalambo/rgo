@@ -89,7 +89,7 @@
   dependencies:
     "@types/react" "*"
 
-"@types/react@*", "@types/react@^15.0.34":
+"@types/react@*", "@types/react@^15.0.38":
   version "15.0.38"
   resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.38.tgz#6afea31a9fe66304af474106ba372ddaba449995"
 
@@ -2366,14 +2366,14 @@ minimist@~0.0.1:
   version "0.0.10"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-0.0.10.tgz#de3f98543dbf96082be48ad1a0c7cda836301dcf"
 
-mishmash@^0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.3.0.tgz#cd2c4d863615234efe2295a7c0e0355e59430aa7"
+mishmash@^0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.3.1.tgz#737cc95a0237765033e761c26d8b3a2ce8faa79b"
   dependencies:
-    "@types/react" "^15.0.34"
+    "@types/react" "^15.0.38"
     "@types/recompose" "^0.23.1"
     most "^1.5.0"
-    recompose "^0.23.5"
+    recompose "^0.24.0"
     style-transform "^0.1.1"
 
 "mkdirp@>=0.5 0", mkdirp@^0.5.1:
@@ -2881,15 +2881,6 @@ readdirp@^2.0.0:
     minimatch "^3.0.2"
     readable-stream "^2.0.2"
     set-immediate-shim "^1.0.1"
-
-recompose@^0.23.5:
-  version "0.23.5"
-  resolved "https://registry.yarnpkg.com/recompose/-/recompose-0.23.5.tgz#72ac8261246bec378235d187467d02a721e8b1de"
-  dependencies:
-    change-emitter "^0.1.2"
-    fbjs "^0.8.1"
-    hoist-non-react-statics "^1.0.0"
-    symbol-observable "^1.0.4"
 
 recompose@^0.24.0:
   version "0.24.0"

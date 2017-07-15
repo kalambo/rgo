@@ -3,6 +3,7 @@ export { default as isValid } from './isValid';
 export { default as scalars } from './scalars';
 export {
   Args,
+  Data,
   DataKey,
   Field,
   fieldIs,
@@ -13,4 +14,11 @@ export {
   ScalarField,
   ScalarName,
 } from './typings';
-export { isObject, mapArray, mapObject, noUndef } from './utils';
+export {
+  compareValues,
+  isObject,
+  mapArray,
+  mapObject,
+  noUndef,
+  runFilter,
+} from './utils';

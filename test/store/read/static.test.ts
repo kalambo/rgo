@@ -1,10 +1,10 @@
 import { parse } from 'graphql';
 import * as _ from 'lodash';
 
-import createStore from '../../src/client/store';
+import createStore from '../../../src/client/store';
 
-const baseData = require('../data.json');
-const schema = require('../schema.json');
+const baseData = require('../../data.json');
+const schema = require('../../schema.json');
 
 let data;
 const reset = () => {
@@ -12,8 +12,8 @@ const reset = () => {
 };
 beforeEach(reset);
 
-describe('store: read', () => {
-  test('basic reads', () => {
+describe('store: read static', () => {
+  test('read', () => {
     const store = createStore(schema, { client: data });
     expect(store.read(parse('{ Person { firstName } }'), {}, null)).toEqual({
       Person: [
@@ -85,6 +85,12 @@ describe('store: read', () => {
       store.read(parse('{ Person(skip: 1, show: 2) { firstName } }'), {}, null),
     ).toEqual({
       Person: [{ firstName: 'Delphia' }, { firstName: 'Ena' }],
+    });
+  });
+  test('read undefined', () => {
+    const store = createStore(schema, { client: data });
+    expect(store.read(parse('{ U { firstName } }'), {}, null)).toEqual({
+      U: null,
     });
   });
   test('read with non-list relation', () => {

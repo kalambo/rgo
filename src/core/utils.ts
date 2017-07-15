@@ -52,3 +52,35 @@ export const mapObject = (
     );
   }
 };
+
+export const compareValues = (a, b) => {
+  if (a === b) return 0;
+  if (a === null) return -1;
+  if (typeof a === 'string') return a.localeCompare(b) as 0 | 1 | -1;
+  if (a < b) return -1;
+  return 1;
+};
+
+export const runFilter = (filter: any, id: string, record: any): boolean => {
+  if (!record) return false;
+
+  const key = Object.keys(filter)[0];
+  if (!key) return true;
+
+  if (key === '$and')
+    return (filter[key] as any[]).every(b => runFilter(b, id, record));
+  if (key === '$or')
+    return (filter[key] as any[]).some(b => runFilter(b, id, record));
+
+  const op = Object.keys(filter[key])[0];
+  const value = key === 'id' ? id : record[key];
+  if (op === '$eq') return value === filter[key][op];
+  if (op === '$ne') return value !== filter[key][op];
+  if (op === '$lt') return value < filter[key][op];
+  if (op === '$lte') return value <= filter[key][op];
+  if (op === '$gt') return value > filter[key][op];
+  if (op === '$gte') return value >= filter[key][op];
+  if (op === '$in') return filter[key][op].includes(value);
+
+  return false;
+};

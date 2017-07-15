@@ -9,6 +9,8 @@ export type ScalarName =
   | 'File'
   | 'JSON';
 
+export type Data<T = any> = Obj<Obj<Obj<T>>>;
+
 export interface Args {
   filter?: string;
   sort?: string;

@@ -1,18 +1,11 @@
-import { Obj } from 'mishmash';
+import { createEmitter, createEmitterMap, Obj } from 'mishmash';
 import * as _ from 'lodash';
 import { DocumentNode, FieldNode, OperationDefinitionNode } from 'graphql';
 
-import { Field } from '../core';
+import { Data, Field } from '../core';
 
 import runRelation from './runRelation';
-import {
-  buildArgs,
-  Changes,
-  createEmitter,
-  createEmitterMap,
-  Data,
-  initKey,
-} from './utils';
+import { buildArgs, Changes } from './utils';
 
 export default function createStore(
   schema: Obj<Obj<Field>>,
@@ -146,7 +139,8 @@ export default function createStore(
         if (server[type]) combined[type] = _.cloneDeep(server[type]);
         else delete combined[type];
       } else {
-        initKey(type, client, combined);
+        client[type] = client[type] || {};
+        combined[type] = combined[type] || {};
         const v2 = args.length > 1 ? v1 : v1[type];
         const ids = args.length > 2 ? [args[1] as string] : Object.keys(v2);
         for (const id of ids) {
@@ -167,7 +161,8 @@ export default function createStore(
               combined[type][id] = _.cloneDeep(server[type][id]);
             else delete combined[type][id];
           } else {
-            initKey(id, client[type], combined[type]);
+            client[type][id] = client[type][id] || {};
+            combined[type][id] = combined[type][id] || {};
             const v3 = args.length > 2 ? v2 : v2[id];
             const fields =
               args.length > 3 ? [args[2] as string] : Object.keys(v3);
@@ -198,9 +193,11 @@ export default function createStore(
   function setServer(value: Data) {
     const changes: Data<true> = {};
     for (const type of Object.keys(value)) {
-      initKey(type, server, combined);
+      server[type] = server[type] || {};
+      combined[type] = combined[type] || {};
       for (const id of Object.keys(value[type])) {
-        initKey(id, server[type], combined[type]);
+        server[type][id] = server[type][id] || {};
+        combined[type][id] = combined[type][id] || {};
         for (const field of Object.keys(value[type][id])) {
           server[type][id][field] = value[type][id][field];
           if (
