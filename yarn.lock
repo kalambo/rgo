@@ -60,9 +60,9 @@
     "@types/cheerio" "*"
     "@types/react" "*"
 
-"@types/graphql@^0.9.4":
-  version "0.9.4"
-  resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.9.4.tgz#cdeb6bcbef9b6c584374b81aa7f48ecf3da404fa"
+"@types/graphql@^0.10.0":
+  version "0.10.0"
+  resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.10.0.tgz#85c6cddd0de9449af009af9ff61aa5870c59fee3"
 
 "@types/jest@^20.0.2":
   version "20.0.2"
@@ -76,8 +76,8 @@
     "@types/node" "*"
 
 "@types/node@*":
-  version "8.0.11"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.11.tgz#3cf80de7185292c6dab156ece696dffed0cc3502"
+  version "8.0.13"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.13.tgz#530f0f9254209b0335bf5cc6387822594ef47093"
 
 "@types/pegjs@^0.10.0":
   version "0.10.0"
@@ -864,8 +864,8 @@ camelcase@^4.1.0:
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-4.1.0.tgz#d545635be1e33c542649c69173e5de6acfae34dd"
 
 caniuse-lite@^1.0.30000684:
-  version "1.0.30000700"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000700.tgz#6084871ec75c6fa62327de97622514f95d9db26a"
+  version "1.0.30000701"
+  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000701.tgz#9d673cf6b74dcb3d5c21d213176b011ac6a45baa"
 
 caseless@~0.12.0:
   version "0.12.0"
@@ -1443,8 +1443,8 @@ function-bind@^1.0.2, function-bind@^1.1.0:
   resolved "https://registry.yarnpkg.com/function-bind/-/function-bind-1.1.0.tgz#16176714c801798e4e8f2cf7f7529467bb4a5771"
 
 function.prototype.name@^1.0.0:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/function.prototype.name/-/function.prototype.name-1.0.1.tgz#39aeab26bbf8ab669b7142965d50ea0965d93d7b"
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/function.prototype.name/-/function.prototype.name-1.0.2.tgz#b511a1a15d35fb4834cb35464b6b6b03f4e543ea"
   dependencies:
     define-properties "^1.1.2"
     function-bind "^1.1.0"
@@ -1512,9 +1512,9 @@ graceful-fs@^4.1.11, graceful-fs@^4.1.2, graceful-fs@^4.1.4, graceful-fs@^4.1.6:
   version "4.1.11"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.1.11.tgz#0e8bdfe4d1ddb8854d64e04ea7c00e2a026e5658"
 
-graphql@^0.10.3:
-  version "0.10.3"
-  resolved "https://registry.yarnpkg.com/graphql/-/graphql-0.10.3.tgz#c313afd5518e673351bee18fb63e2a0e487407ab"
+graphql@^0.10.4:
+  version "0.10.4"
+  resolved "https://registry.yarnpkg.com/graphql/-/graphql-0.10.4.tgz#55ae6857ae521e3592aec4265587e5e94c477667"
   dependencies:
     iterall "^1.1.0"
 
@@ -2729,9 +2729,9 @@ preserve@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/preserve/-/preserve-0.2.0.tgz#815ed1f6ebc65926f865b310c0713bcb3315ce4b"
 
-prettier@^1.5.2:
-  version "1.5.2"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.5.2.tgz#7ea0751da27b93bfb6cecfcec509994f52d83bb3"
+prettier@^1.5.3:
+  version "1.5.3"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.5.3.tgz#59dadc683345ec6b88f88b94ed4ae7e1da394bfe"
 
 pretty-format@^20.0.3:
   version "20.0.3"

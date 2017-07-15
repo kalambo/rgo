@@ -1,187 +1,273 @@
-import { keysToObject, Obj } from 'mishmash';
-import { parse } from 'graphql';
 import * as _ from 'lodash';
 
 import createStore from '../../src/client/store';
 
 const baseData = require('../data.json');
 const schema = require('../schema.json');
-const store = createStore(schema, baseData);
 
 let data;
-const reset = () => (data = _.cloneDeep(baseData));
+const reset = () => {
+  data = _.cloneDeep(baseData);
+};
 beforeEach(reset);
 
-const setStore = (value: Obj<Obj<Obj>>) => {
-  store.set(value);
-  _.merge(data, value);
-};
-const setCollection = (type: string, value: Obj<Obj>) => {
-  store.set(type, value);
-  _.merge(data[type], value);
-};
-const setRecord = (type: string, id: string, value: Obj) => {
-  store.set(type, id, value);
-  _.merge(data[type][id], value);
-};
-const setValue = (type: string, id: string, field: string, value: any) => {
-  store.set(type, id, field, value);
-  _.merge(data[type][id][field], value);
-};
-
 describe('store: basic', () => {
-  test('get store', () => {
+  test('server: get', () => {
+    const store = createStore(schema, { server: data });
     expect(store.get()).toEqual(data);
-  });
-  test('get collection', () => {
     expect(store.get('Person')).toEqual(data.Person);
-  });
-  test('get record', () => {
     expect(store.get('Person', 'A')).toEqual(data.Person.A);
-  });
-  test('get value', () => {
     expect(store.get('Person', 'A', 'email')).toEqual(data.Person.A.email);
+    expect(store.get('X')).toBe(undefined);
+    expect(store.get('X', 'Y')).toBe(undefined);
+    expect(store.get('X', 'Y', 'Z')).toBe(undefined);
+  });
+  test('client: get', () => {
+    const store = createStore(schema, { client: data });
+    expect(store.get()).toEqual(data);
+    expect(store.get('Person')).toEqual(data.Person);
+    expect(store.get('Person', 'A')).toEqual(data.Person.A);
+    expect(store.get('Person', 'A', 'email')).toEqual(data.Person.A.email);
+    expect(store.get('X')).toBe(undefined);
+    expect(store.get('X', 'Y')).toBe(undefined);
+    expect(store.get('X', 'Y', 'Z')).toBe(undefined);
+  });
+  test('server and client: get', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    expect(store.get()).toEqual(data);
+    expect(store.get('Person')).toEqual(data.Person);
+    expect(store.get('Person', 'A')).toEqual(data.Person.A);
+    expect(store.get('Person', 'A', 'email')).toEqual(data.Person.A.email);
+    expect(store.get('X')).toBe(undefined);
+    expect(store.get('X', 'Y')).toBe(undefined);
+    expect(store.get('X', 'Y', 'Z')).toBe(undefined);
   });
 
-  test('set store', () => {
-    setStore({
+  test('client: set store', () => {
+    const store = createStore(schema, { client: data });
+    store.set({
       Person: { A: { firstName: '1' }, B: { firstName: '2' } },
       Address: { C: { street: '3' }, D: { street: '4' } },
     });
+    data.Person.A.firstName = '1';
+    data.Person.B.firstName = '2';
+    data.Address.C.street = '3';
+    data.Address.D.street = '4';
     expect(store.get()).toEqual(data);
   });
-  test('set collection', () => {
-    setCollection('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
+  test('client: set collection', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
+    data.Person.A.firstName = '1';
+    data.Person.B.firstName = '2';
     expect(store.get()).toEqual(data);
   });
-  test('set record', () => {
-    setRecord('Person', 'A', { firstName: '1' });
+  test('client: set record', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', 'A', { firstName: '1' });
+    data.Person.A.firstName = '1';
     expect(store.get()).toEqual(data);
   });
-  test('set value', () => {
-    setValue('Person', 'A', 'firstName', '1');
+  test('client: set value', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', 'A', 'firstName', '1');
+    data.Person.A.firstName = '1';
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set store with undefined', () => {
+    const store = createStore(schema, { client: data });
+    store.set({
+      Person: { A: { firstName: undefined }, B: undefined },
+      Address: undefined,
+    });
+    delete data.Person.A.firstName;
+    delete data.Person.B;
+    delete data.Address;
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set collection with undefined', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', { A: { firstName: undefined }, B: undefined });
+    delete data.Person.A.firstName;
+    delete data.Person.B;
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set record with undefined', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', 'A', { firstName: undefined });
+    delete data.Person.A.firstName;
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set collection to undefined', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', undefined);
+    delete data.Person;
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set record to undefined', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', 'A', undefined);
+    delete data.Person.A;
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set value to undefined', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', 'A', 'firstName', undefined);
+    delete data.Person.A.firstName;
     expect(store.get()).toEqual(data);
   });
 
-  test('set server', () => {
-    const value = {
-      Person: { A: { firstName: '1' }, B: { firstName: '2' } },
-      Address: { C: { street: '3' }, D: { street: '4' } },
-    };
-    store.setServer(value);
-    _.merge(data, value);
-    expect(store.get()).toEqual(data);
-  });
-
-  test('watch store and set store', () => {
-    let result;
-    store.get(v => (result = v));
-    setStore({
+  test('server: set store', () => {
+    const store = createStore(schema, { server: data });
+    store.set({
       Person: { A: { firstName: '1' }, B: { firstName: '2' } },
       Address: { C: { street: '3' }, D: { street: '4' } },
     });
-    expect(result).toEqual(data);
+    data.Person.A.firstName = '1';
+    data.Person.B.firstName = '2';
+    data.Address.C.street = '3';
+    data.Address.D.street = '4';
+    expect(store.get()).toEqual(data);
   });
-  test('watch store and set collection', () => {
-    let result;
-    store.get(v => (result = v));
-    setCollection('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
-    expect(result).toEqual(data);
+  test('server: set collection', () => {
+    const store = createStore(schema, { server: data });
+    store.set('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
+    data.Person.A.firstName = '1';
+    data.Person.B.firstName = '2';
+    expect(store.get()).toEqual(data);
   });
-  test('watch store and set record', () => {
-    let result;
-    store.get(v => (result = v));
-    setRecord('Person', 'A', { firstName: '1' });
-    expect(result).toEqual(data);
+  test('server: set record', () => {
+    const store = createStore(schema, { server: data });
+    store.set('Person', 'A', { firstName: '1' });
+    data.Person.A.firstName = '1';
+    expect(store.get()).toEqual(data);
   });
-  test('watch store and set value', () => {
-    let result;
-    store.get(v => (result = v));
-    setValue('Person', 'A', 'firstName', '1');
-    expect(result).toEqual(data);
+  test('server: set value', () => {
+    const store = createStore(schema, { server: data });
+    store.set('Person', 'A', 'firstName', '1');
+    data.Person.A.firstName = '1';
+    expect(store.get()).toEqual(data);
+  });
+  test('server: set store with undefined', () => {
+    const store = createStore(schema, { server: data });
+    store.set({
+      Person: { A: { firstName: undefined }, B: undefined },
+      Address: undefined,
+    });
+    expect(store.get()).toEqual(data);
   });
 
-  test('watch collection and set store', () => {
-    let result;
-    store.get('Person', v => (result = v));
-    setStore({
+  test('server and client: set store', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.set({
       Person: { A: { firstName: '1' }, B: { firstName: '2' } },
       Address: { C: { street: '3' }, D: { street: '4' } },
     });
-    expect(result).toEqual(data.Person);
+    data.Person.A.firstName = '1';
+    data.Person.B.firstName = '2';
+    data.Address.C.street = '3';
+    data.Address.D.street = '4';
+    expect(store.get()).toEqual(data);
   });
-  test('watch collection and set collection', () => {
-    let result;
-    store.get('Person', v => (result = v));
-    setCollection('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
-    expect(result).toEqual(data.Person);
+  test('server and client: set collection', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.set('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
+    data.Person.A.firstName = '1';
+    data.Person.B.firstName = '2';
+    expect(store.get()).toEqual(data);
   });
-  test('watch collection and set record', () => {
-    let result;
-    store.get('Person', v => (result = v));
-    setRecord('Person', 'A', { firstName: '1' });
-    expect(result).toEqual(data.Person);
+  test('server and client: set record', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.set('Person', 'A', { firstName: '1' });
+    data.Person.A.firstName = '1';
+    expect(store.get()).toEqual(data);
   });
-  test('watch collection and set value', () => {
-    let result;
-    store.get('Person', v => (result = v));
-    setValue('Person', 'A', 'firstName', '1');
-    expect(result).toEqual(data.Person);
+  test('server and client: set value', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.set('Person', 'A', 'firstName', '1');
+    data.Person.A.firstName = '1';
+    expect(store.get()).toEqual(data);
+  });
+  test('server and client: set store with undefined', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.set({
+      Person: { A: { firstName: undefined }, B: undefined },
+      Address: undefined,
+    });
+    data.Person.A.firstName = baseData.Person.A.firstName;
+    data.Person.B = baseData.Person.B;
+    data.Address = baseData.Address;
+    expect(store.get()).toEqual(data);
   });
 
-  test('watch record and set store', () => {
-    let result;
-    store.get('Person', 'A', v => (result = v));
-    setStore({
+  test('server: set server', () => {
+    const store = createStore(schema, { server: data });
+    store.setServer({
       Person: { A: { firstName: '1' }, B: { firstName: '2' } },
       Address: { C: { street: '3' }, D: { street: '4' } },
     });
-    expect(result).toEqual(data.Person.A);
+    data.Person.A.firstName = '1';
+    data.Person.B.firstName = '2';
+    data.Address.C.street = '3';
+    data.Address.D.street = '4';
+    expect(store.get()).toEqual(data);
   });
-  test('watch record and set collection', () => {
-    let result;
-    store.get('Person', 'A', v => (result = v));
-    setCollection('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
-    expect(result).toEqual(data.Person.A);
-  });
-  test('watch record and set record', () => {
-    let result;
-    store.get('Person', 'A', v => (result = v));
-    setRecord('Person', 'A', { firstName: '1' });
-    expect(result).toEqual(data.Person.A);
-  });
-  test('watch record and set value', () => {
-    let result;
-    store.get('Person', 'A', v => (result = v));
-    setValue('Person', 'A', 'firstName', '1');
-    expect(result).toEqual(data.Person.A);
-  });
-
-  test('watch value and set store', () => {
-    let result;
-    store.get('Person', 'A', 'firstName', v => (result = v));
-    setStore({
+  test('client: set server', () => {
+    const store = createStore(schema, { client: data });
+    store.setServer({
       Person: { A: { firstName: '1' }, B: { firstName: '2' } },
       Address: { C: { street: '3' }, D: { street: '4' } },
+      U: { V: { W: '5' } },
     });
-    expect(result).toEqual(data.Person.A.firstName);
+    data.U = { V: { W: '5' } };
+    expect(store.get()).toEqual(data);
   });
-  test('watch value and set collection', () => {
-    let result;
-    store.get('Person', 'A', 'firstName', v => (result = v));
-    setCollection('Person', { A: { firstName: '1' }, B: { firstName: '2' } });
-    expect(result).toEqual(data.Person.A.firstName);
-  });
-  test('watch value and set record', () => {
-    let result;
-    store.get('Person', 'A', 'firstName', v => (result = v));
-    setRecord('Person', 'A', { firstName: '1' });
-    expect(result).toEqual(data.Person.A.firstName);
-  });
-  test('watch value and set value', () => {
-    let result;
-    store.get('Person', 'A', 'firstName', v => (result = v));
-    setValue('Person', 'A', 'firstName', '1');
-    expect(result).toEqual(data.Person.A.firstName);
+  test('client: set server', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.setServer({
+      Person: { A: { firstName: '1' }, B: { firstName: '2' } },
+      Address: { C: { street: '3' }, D: { street: '4' } },
+      U2: { V: { W: '5' } },
+    });
+    data.Person.B.firstName = '2';
+    data.Address.C.street = '3';
+    data.Address.D.street = '4';
+    data.U2 = { V: { W: '5' } };
+    expect(store.get()).toEqual(data);
   });
 });

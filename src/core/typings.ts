@@ -18,7 +18,7 @@ export interface Args {
 
 export interface QueryArgs {
   filter: any;
-  sort: Obj<1 | -1>;
+  sort: [string, 'asc' | 'desc'][];
   skip: number;
   show: number | null;
   fields: string[] | null;

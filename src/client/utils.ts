@@ -1,5 +1,5 @@
 import { keysToObject, Obj } from 'mishmash';
-import { ArgumentNode, IntValueNode, StringValueNode } from 'graphql';
+import { ArgumentNode, StringValueNode } from 'graphql';
 
 import {
   Args,
@@ -94,7 +94,8 @@ export const buildArgs = (args: ArgumentNode[] = [], variables: Obj): Args =>
     args,
     ({ value }) => {
       if (value.kind === 'Variable') return variables[value.name.value];
-      return (value as IntValueNode | StringValueNode).value;
+      if (value.kind === 'IntValue') return parseInt(value.value, 10);
+      return (value as StringValueNode).value;
     },
     ({ name }) => name.value,
   );
@@ -107,23 +108,24 @@ export const compareValues = (a, b) => {
   return 1;
 };
 
-export const runFilter = (filter: any, record: any): boolean => {
+export const runFilter = (filter: any, id: string, record: any): boolean => {
   const key = Object.keys(filter)[0];
   if (!key) return true;
 
   if (key === '$and')
-    return (filter[key] as any[]).every(b => runFilter(b, record));
+    return (filter[key] as any[]).every(b => runFilter(b, id, record));
   if (key === '$or')
-    return (filter[key] as any[]).some(b => runFilter(b, record));
+    return (filter[key] as any[]).some(b => runFilter(b, id, record));
 
   const op = Object.keys(filter[key])[0];
-  if (op === '$eq') return record[key] === filter[key][op];
-  if (op === '$ne') return record[key] !== filter[key][op];
-  if (op === '$lt') return record[key] < filter[key][op];
-  if (op === '$lte') return record[key] <= filter[key][op];
-  if (op === '$gt') return record[key] > filter[key][op];
-  if (op === '$gte') return record[key] >= filter[key][op];
-  if (op === '$in') return filter[key][op].includes(record[key]);
+  const value = key === 'id' ? id : record[key];
+  if (op === '$eq') return value === filter[key][op];
+  if (op === '$ne') return value !== filter[key][op];
+  if (op === '$lt') return value < filter[key][op];
+  if (op === '$lte') return value <= filter[key][op];
+  if (op === '$gt') return value > filter[key][op];
+  if (op === '$gte') return value >= filter[key][op];
+  if (op === '$in') return filter[key][op].includes(value);
 
   return false;
 };

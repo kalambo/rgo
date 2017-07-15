@@ -71,7 +71,7 @@ export default function mongoConnector(
   return {
     async query({
       filter = {},
-      sort = {},
+      sort = [],
       skip = 0,
       show = null,
       fields = null,
@@ -86,7 +86,12 @@ export default function mongoConnector(
         }),
       );
 
-      cursor.sort(toDb(sort, { flat: true, ignoreValues: true }));
+      cursor.sort(
+        toDb(
+          sort.map(([field, order]) => [fieldDbKeys[field] || field, order]),
+          { flat: true, ignoreValues: true },
+        ),
+      );
 
       if (skip) cursor.skip(skip);
       if (show) cursor.limit(show);

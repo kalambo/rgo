@@ -16,11 +16,11 @@ import {
 
 export default function createStore(
   schema: Obj<Obj<Field>>,
-  initialData: Data = {},
+  initial: { server?: Data; client?: Data } = {},
 ) {
-  const server = initialData;
-  const client = {} as Data;
-  const combined = initialData;
+  const server: Data = _.cloneDeep(initial.server || {});
+  const client: Data = _.cloneDeep(initial.client || {});
+  const combined: Data = _.merge({}, server, client);
 
   const getEmitter = createEmitterMap();
   const readEmitter = createEmitter<Changes>();
@@ -28,10 +28,10 @@ export default function createStore(
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
       for (const type of Object.keys(changes)) {
-        const v1 = combined[type];
+        const v1 = combined[type] || {};
         getEmitter.emit(type, v1);
         for (const id of Object.keys(changes[type])) {
-          const v2 = v1[id];
+          const v2 = v1[id] || {};
           getEmitter.emit(`${type}.${id}`, v2);
           for (const field of Object.keys(changes[type][id])) {
             const v3 = v2[field];
@@ -113,28 +113,81 @@ export default function createStore(
     return () => stopRelations.forEach(s => s());
   }
 
-  function set(value: Data): void;
-  function set(type: string, value: Obj<Obj>): void;
-  function set(type: string, id: string, value: Obj): void;
+  function set(value: Obj<Obj<Obj | undefined> | undefined>): void;
+  function set(type: string, value: Obj<Obj | undefined> | undefined): void;
+  function set(type: string, id: string, value: Obj | undefined): void;
   function set(type: string, id: string, field: string, value: any): void;
   function set(...args) {
     const changes: Data<true> = {};
+    const setChanged = (type: string, id: string, field: string) => {
+      changes[type] = changes[type] || {};
+      changes[type][id] = changes[type][id] || {};
+      changes[type][id][field] = true;
+    };
+
     const v1 = args[args.length - 1];
     const types = args.length > 1 ? [args[0] as string] : Object.keys(v1);
     for (const type of types) {
-      initKey(type, client, combined, changes);
-      const v2 = args.length > 1 ? v1 : v1[type];
-      const ids = args.length > 2 ? [args[1] as string] : Object.keys(v2);
-      for (const id of ids) {
-        initKey(id, client[type], combined[type], changes[type]);
-        const v3 = args.length > 2 ? v2 : v2[id];
-        const fields = args.length > 3 ? [args[2] as string] : Object.keys(v3);
-        for (const field of fields) {
-          const v4 = args.length > 3 ? v3 : v3[field];
-          client[type][id][field] = v4;
-          if (v4 !== combined[type][id][field]) {
-            combined[type][id][field] = v4;
-            changes[type][id][field] = true;
+      if (
+        (args.length < 2 && v1[type] === undefined) ||
+        (args.length === 2 && v1 === undefined)
+      ) {
+        for (const id of Object.keys(client[type] || {})) {
+          for (const field of Object.keys(client[type][id] || {})) {
+            if (
+              client[type][id][field] !==
+              ((server[type] || {})[id] || {})[field]
+            ) {
+              setChanged(type, id, field);
+            }
+          }
+        }
+        delete client[type];
+        if (server[type]) combined[type] = _.cloneDeep(server[type]);
+        else delete combined[type];
+      } else {
+        initKey(type, client, combined);
+        const v2 = args.length > 1 ? v1 : v1[type];
+        const ids = args.length > 2 ? [args[1] as string] : Object.keys(v2);
+        for (const id of ids) {
+          if (
+            (args.length < 3 && v2[id] === undefined) ||
+            (args.length === 3 && v2 === undefined)
+          ) {
+            for (const field of Object.keys(client[type][id] || {})) {
+              if (
+                client[type][id][field] !==
+                ((server[type] || {})[id] || {})[field]
+              ) {
+                setChanged(type, id, field);
+              }
+            }
+            delete client[type][id];
+            if ((server[type] || {})[id])
+              combined[type][id] = _.cloneDeep(server[type][id]);
+            else delete combined[type][id];
+          } else {
+            initKey(id, client[type], combined[type]);
+            const v3 = args.length > 2 ? v2 : v2[id];
+            const fields =
+              args.length > 3 ? [args[2] as string] : Object.keys(v3);
+            for (const field of fields) {
+              const v4 = args.length > 3 ? v3 : v3[field];
+              if (v4 === undefined) delete client[type][id][field];
+              else client[type][id][field] = v4;
+              if (v4 !== combined[type][id][field]) {
+                if (v4 === undefined) {
+                  if (((server[type] || {})[id] || {})[field] !== undefined) {
+                    combined[type][id][field] = server[type][id][field];
+                  } else {
+                    delete combined[type][id][field];
+                  }
+                } else {
+                  combined[type][id][field] = v4;
+                }
+                setChanged(type, id, field);
+              }
+            }
           }
         }
       }
@@ -145,9 +198,9 @@ export default function createStore(
   function setServer(value: Data) {
     const changes: Data<true> = {};
     for (const type of Object.keys(value)) {
-      initKey(type, server, combined, changes);
+      initKey(type, server, combined);
       for (const id of Object.keys(value[type])) {
-        initKey(id, server[type], combined[type], changes[type]);
+        initKey(id, server[type], combined[type]);
         for (const field of Object.keys(value[type][id])) {
           server[type][id][field] = value[type][id][field];
           if (
@@ -155,6 +208,8 @@ export default function createStore(
             undefined
           ) {
             combined[type][id][field] = value[type][id][field];
+            changes[type] = changes[type] || {};
+            changes[type][id] = changes[type][id] || {};
             changes[type][id][field] = true;
           }
         }

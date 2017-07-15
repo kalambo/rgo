@@ -41,14 +41,17 @@ export default function runRelation(
   );
 
   const filter = (id: string) =>
-    runFilter(parsedFilter, context.data[field.type][id]);
+    runFilter(parsedFilter, id, context.data[field.type][id]);
   const compare = (id1: string, id2: string) => {
-    for (const k of Object.keys(sort)) {
-      const comp = compareValues(
-        context.data[field.type][id1][k],
-        context.data[field.type][id2][k],
-      );
-      if (comp) return sort[k] === 1 ? comp : -1;
+    for (const [key, order] of sort) {
+      const comp =
+        key === 'id'
+          ? compareValues(id1, id2)
+          : compareValues(
+              context.data[field.type][id1][key],
+              context.data[field.type][id2][key],
+            );
+      if (comp) return order === 'asc' ? comp : -comp;
     }
     return 0;
   };
@@ -309,7 +312,7 @@ export default function runRelation(
         if (records[id] && !added.includes(id)) {
           for (const f of Object.keys(changes[field.type][id] || {})) {
             if (scalarFields[f]) {
-              records[id][f] = context.data[field.type][f];
+              records[id][f] = context.data[field.type][id][f];
             }
           }
         }

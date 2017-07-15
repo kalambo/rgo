@@ -42,6 +42,6 @@ export default function parseArgs(
         : null,
     };
   } catch (error) {
-    return { filter: {}, sort: {}, skip: 0, show: 0, fields: [] };
+    return { filter: {}, sort: [], skip: 0, show: 0, fields: [] };
   }
 }
