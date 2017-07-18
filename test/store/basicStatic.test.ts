@@ -1,9 +1,9 @@
 import * as _ from 'lodash';
 
-import createStore from '../../../src/client/store';
+import createStore from '../../src/client/store';
 
-const baseData = require('../../data.json');
-const schema = require('../../schema.json');
+const baseData = require('../data.json');
+const schema = require('../schema.json');
 
 let data;
 const reset = () => {
@@ -121,6 +121,24 @@ describe('store: basic static', () => {
     delete data.Person.A.firstName;
     expect(store.get()).toEqual(data);
   });
+  test('client: set store with null', () => {
+    const store = createStore(schema, { client: data });
+    store.set({ Person: { A: null } });
+    delete data.Person.A;
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set collection with null', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', { A: null });
+    delete data.Person.A;
+    expect(store.get()).toEqual(data);
+  });
+  test('client: set record to null', () => {
+    const store = createStore(schema, { client: data });
+    store.set('Person', 'A', null);
+    delete data.Person.A;
+    expect(store.get()).toEqual(data);
+  });
 
   test('server: set store', () => {
     const store = createStore(schema, { server: data });
@@ -159,6 +177,14 @@ describe('store: basic static', () => {
       Person: { A: { firstName: undefined }, B: undefined },
       Address: undefined,
     });
+    expect(store.get()).toEqual(data);
+  });
+  test('server: set store with null', () => {
+    const store = createStore(schema, { server: data });
+    store.set({
+      Person: { A: null },
+    });
+    delete data.Person.A;
     expect(store.get()).toEqual(data);
   });
 
@@ -229,6 +255,17 @@ describe('store: basic static', () => {
     data.Address = baseData.Address;
     expect(store.get()).toEqual(data);
   });
+  test('server and client: set store with null', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.set({ Person: { A: null } });
+    delete data.Person.A;
+    expect(store.get()).toEqual(data);
+  });
 
   test('server: set server', () => {
     const store = createStore(schema, { server: data });
@@ -242,6 +279,12 @@ describe('store: basic static', () => {
     data.Address.D.street = '4';
     expect(store.get()).toEqual(data);
   });
+  test('server: set server with null', () => {
+    const store = createStore(schema, { server: data });
+    store.setServer({ Person: { A: null } });
+    delete data.Person.A;
+    expect(store.get()).toEqual(data);
+  });
   test('client: set server', () => {
     const store = createStore(schema, { client: data });
     store.setServer({
@@ -252,7 +295,12 @@ describe('store: basic static', () => {
     data.U = { V: { W: '5' } };
     expect(store.get()).toEqual(data);
   });
-  test('client: set server', () => {
+  test('client: set server with null', () => {
+    const store = createStore(schema, { client: data });
+    store.setServer({ Person: { A: null } });
+    expect(store.get()).toEqual(data);
+  });
+  test('server and client: set server', () => {
     const store = createStore(schema, {
       server: data,
       client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
@@ -268,6 +316,17 @@ describe('store: basic static', () => {
     data.Address.C.street = '3';
     data.Address.D.street = '4';
     data.U2 = { V: { W: '5' } };
+    expect(store.get()).toEqual(data);
+  });
+  test('server and client: set server with null', () => {
+    const store = createStore(schema, {
+      server: data,
+      client: { Person: { A: { firstName: '5' } }, U: { V: { W: '6' } } },
+    });
+    data.Person.A.firstName = '5';
+    data.U = { V: { W: '6' } };
+    store.setServer({ Person: { A: null } });
+    data.Person.A = { firstName: '5' };
     expect(store.get()).toEqual(data);
   });
 });

@@ -13,7 +13,7 @@ import {
   runFilter,
 } from '../core';
 
-import { buildArgs, Changes } from './utils';
+import { buildArgs, Changes } from './store';
 
 export interface ReadContext {
   data: Data;
@@ -46,8 +46,8 @@ export default function runRelation(
         key === 'id'
           ? compareValues(id1, id2)
           : compareValues(
-              context.data[field.type][id1][key],
-              context.data[field.type][id2][key],
+              context.data[field.type][id1]![key],
+              context.data[field.type][id2]![key],
             );
       if (comp) return order === 'asc' ? comp : -comp as 1 | -1;
     }
@@ -70,7 +70,7 @@ export default function runRelation(
       ? records[id] ||
         (records[id] = keysToObject(
           Object.keys(scalarFields),
-          f => (f === 'id' ? id : context.data[field.type][id][f]),
+          f => (f === 'id' ? id : context.data[field.type][id]![f]),
         ))
       : null;
 
@@ -81,7 +81,7 @@ export default function runRelation(
     if (!root.type) {
       rootRecordIds[rootId] = filteredIds;
     } else {
-      const value = context.data[root.type][rootId][root.field];
+      const value = context.data[root.type][rootId]![root.field];
       if (fieldIs.relation(field)) {
         if (field.isList) {
           if (args.sort) {
@@ -101,7 +101,7 @@ export default function runRelation(
         rootRecordIds[rootId] = filteredIds.filter(
           id =>
             (value || []).includes(id) ||
-            isOrIncludes(context.data[field.type!][id][field.foreign], rootId),
+            isOrIncludes(context.data[field.type!][id]![field.foreign], rootId),
         );
       }
     }
@@ -240,7 +240,7 @@ export default function runRelation(
               }
             };
 
-            const value = context.data[root.type!][rootId][root.field];
+            const value = context.data[root.type!][rootId]![root.field];
             filteredAdded.forEach(id => {
               if (fieldIs.relation(field)) {
                 if (field.isList) {
@@ -271,7 +271,7 @@ export default function runRelation(
                 if (
                   (value || []).includes(id) ||
                   isOrIncludes(
-                    context.data[root.type!][id][field.foreign],
+                    context.data[root.type!][id]![field.foreign],
                     rootId,
                   )
                 ) {
@@ -298,7 +298,7 @@ export default function runRelation(
                 const included =
                   (value || []).includes(id) ||
                   isOrIncludes(
-                    context.data[root.type!][id][field.foreign],
+                    context.data[root.type!][id]![field.foreign],
                     rootId,
                   );
                 const prevIndex = rootRecordIds[rootId].indexOf(id);

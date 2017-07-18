@@ -1,10 +1,10 @@
 import { parse } from 'graphql';
 import * as _ from 'lodash';
 
-import createStore from '../../../src/client/store';
+import createStore from '../../src/client/store';
 
-const baseData = require('../../data.json');
-const schema = require('../../schema.json');
+const baseData = require('../data.json');
+const schema = require('../schema.json');
 
 let data;
 const reset = () => {

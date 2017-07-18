@@ -9,7 +9,7 @@ export type ScalarName =
   | 'File'
   | 'JSON';
 
-export type Data<T = any> = Obj<Obj<Obj<T>>>;
+export type Data = Obj<Obj<Obj | null>>;
 
 export interface Args {
   filter?: string;

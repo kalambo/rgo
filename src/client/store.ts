@@ -1,11 +1,37 @@
-import { createEmitter, createEmitterMap, Obj } from 'mishmash';
+import { createEmitter, createEmitterMap, keysToObject, Obj } from 'mishmash';
 import * as _ from 'lodash';
-import { DocumentNode, FieldNode, OperationDefinitionNode } from 'graphql';
+import {
+  ArgumentNode,
+  DocumentNode,
+  FieldNode,
+  OperationDefinitionNode,
+  StringValueNode,
+} from 'graphql';
 
-import { Data, Field } from '../core';
+import { Args, Data, Field } from '../core';
 
 import runRelation from './runRelation';
-import { buildArgs, Changes } from './utils';
+
+export type DataChanges = Obj<Obj<Obj<true>>>;
+
+export interface Changes {
+  changes: DataChanges;
+  rootChanges: {
+    added: string[];
+    removed: string[];
+  };
+}
+
+export const buildArgs = (args: ArgumentNode[] = [], variables: Obj): Args =>
+  keysToObject(
+    args,
+    ({ value }) => {
+      if (value.kind === 'Variable') return variables[value.name.value];
+      if (value.kind === 'IntValue') return parseInt(value.value, 10);
+      return (value as StringValueNode).value;
+    },
+    ({ name }) => name.value,
+  );
 
 export default function createStore(
   schema: Obj<Obj<Field>>,
@@ -15,19 +41,19 @@ export default function createStore(
   const client: Data = _.cloneDeep(initial.client || {});
   const combined: Data = _.merge({}, server, client);
 
-  const getEmitter = createEmitterMap();
+  const getEmitter = createEmitterMap<any>();
   const readEmitter = createEmitter<Changes>();
-  const emitChanges = (changes: Data<true>) => {
+  const emitChanges = (changes: DataChanges) => {
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
       for (const type of Object.keys(changes)) {
-        const v1 = combined[type] || {};
+        const v1 = combined[type];
         getEmitter.emit(type, v1);
         for (const id of Object.keys(changes[type])) {
-          const v2 = v1[id] || {};
+          const v2 = v1 && v1[id];
           getEmitter.emit(`${type}.${id}`, v2);
           for (const field of Object.keys(changes[type][id])) {
-            const v3 = v2[field];
+            const v3 = v2 && v2[field];
             getEmitter.emit(`${type}.${id}.${field}`, v3);
           }
         }
@@ -106,12 +132,15 @@ export default function createStore(
     return () => stopRelations.forEach(s => s());
   }
 
-  function set(value: Obj<Obj<Obj | undefined> | undefined>): void;
-  function set(type: string, value: Obj<Obj | undefined> | undefined): void;
-  function set(type: string, id: string, value: Obj | undefined): void;
+  function set(value: Obj<Obj<Obj | null | undefined> | undefined>): void;
+  function set(
+    type: string,
+    value: Obj<Obj | null | undefined> | undefined,
+  ): void;
+  function set(type: string, id: string, value: Obj | null | undefined): void;
   function set(type: string, id: string, field: string, value: any): void;
   function set(...args) {
-    const changes: Data<true> = {};
+    const changes: DataChanges = {};
     const setChanged = (type: string, id: string, field: string) => {
       changes[type] = changes[type] || {};
       changes[type][id] = changes[type][id] || {};
@@ -128,7 +157,7 @@ export default function createStore(
         for (const id of Object.keys(client[type] || {})) {
           for (const field of Object.keys(client[type][id] || {})) {
             if (
-              client[type][id][field] !==
+              client[type][id]![field] !==
               ((server[type] || {})[id] || {})[field]
             ) {
               setChanged(type, id, field);
@@ -150,7 +179,7 @@ export default function createStore(
           ) {
             for (const field of Object.keys(client[type][id] || {})) {
               if (
-                client[type][id][field] !==
+                client[type][id]![field] !==
                 ((server[type] || {})[id] || {})[field]
               ) {
                 setChanged(type, id, field);
@@ -160,6 +189,17 @@ export default function createStore(
             if ((server[type] || {})[id])
               combined[type][id] = _.cloneDeep(server[type][id]);
             else delete combined[type][id];
+          } else if (
+            (args.length < 3 && v2[id] === null) ||
+            (args.length === 3 && v2 === null)
+          ) {
+            for (const field of Object.keys(combined[type][id] || {})) {
+              if (combined[type][id] !== undefined) {
+                setChanged(type, id, field);
+              }
+            }
+            client[type][id] = null;
+            delete combined[type][id];
           } else {
             client[type][id] = client[type][id] || {};
             combined[type][id] = combined[type][id] || {};
@@ -168,17 +208,17 @@ export default function createStore(
               args.length > 3 ? [args[2] as string] : Object.keys(v3);
             for (const field of fields) {
               const v4 = args.length > 3 ? v3 : v3[field];
-              if (v4 === undefined) delete client[type][id][field];
-              else client[type][id][field] = v4;
-              if (v4 !== combined[type][id][field]) {
+              if (v4 === undefined) delete client[type][id]![field];
+              else client[type][id]![field] = v4;
+              if (v4 !== combined[type][id]![field]) {
                 if (v4 === undefined) {
                   if (((server[type] || {})[id] || {})[field] !== undefined) {
-                    combined[type][id][field] = server[type][id][field];
+                    combined[type][id]![field] = server[type][id]![field];
                   } else {
-                    delete combined[type][id][field];
+                    delete combined[type][id]![field];
                   }
                 } else {
-                  combined[type][id][field] = v4;
+                  combined[type][id]![field] = v4;
                 }
                 setChanged(type, id, field);
               }
@@ -191,23 +231,42 @@ export default function createStore(
   }
 
   function setServer(value: Data) {
-    const changes: Data<true> = {};
+    const changes: DataChanges = {};
+    const setChanged = (type: string, id: string, field: string) => {
+      changes[type] = changes[type] || {};
+      changes[type][id] = changes[type][id] || {};
+      changes[type][id][field] = true;
+    };
+
     for (const type of Object.keys(value)) {
       server[type] = server[type] || {};
       combined[type] = combined[type] || {};
       for (const id of Object.keys(value[type])) {
-        server[type][id] = server[type][id] || {};
-        combined[type][id] = combined[type][id] || {};
-        for (const field of Object.keys(value[type][id])) {
-          server[type][id][field] = value[type][id][field];
-          if (
-            (client[type] && client[type][id] && client[type][id][field]) ===
-            undefined
-          ) {
-            combined[type][id][field] = value[type][id][field];
-            changes[type] = changes[type] || {};
-            changes[type][id] = changes[type][id] || {};
-            changes[type][id][field] = true;
+        if (value[type][id] === null) {
+          for (const field of Object.keys(combined[type][id] || {})) {
+            if (
+              combined[type][id]![field] !==
+              ((client[type] || {})[id] || {})[field]
+            ) {
+              setChanged(type, id, field);
+            }
+          }
+          delete server[type][id];
+          if ((client[type] || {})[id])
+            combined[type][id] = _.cloneDeep(client[type][id]);
+          else delete combined[type][id];
+        } else {
+          server[type][id] = server[type][id] || {};
+          combined[type][id] = combined[type][id] || {};
+          for (const field of Object.keys(value[type][id])) {
+            server[type][id]![field] = value[type][id]![field];
+            if (
+              (client[type] && client[type][id] && client[type][id]![field]) ===
+              undefined
+            ) {
+              combined[type][id]![field] = value[type][id]![field];
+              setChanged(type, id, field);
+            }
           }
         }
       }

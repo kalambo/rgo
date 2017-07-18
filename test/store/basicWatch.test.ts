@@ -1,9 +1,9 @@
 import * as _ from 'lodash';
 
-import createStore from '../../../src/client/store';
+import createStore from '../../src/client/store';
 
-const baseData = require('../../data.json');
-const schema = require('../../schema.json');
+const baseData = require('../data.json');
+const schema = require('../schema.json');
 
 let data;
 const reset = () => {
@@ -131,6 +131,28 @@ describe('store: basic watch', () => {
     expect(recordChanges).toBe(6);
     expect(valueChanges).toBe(5);
 
+    store.set({ Person: { A: null } });
+    delete data.Person.A;
+    expect(storeValue).toEqual(data);
+    expect(storeChanges).toBe(9);
+    expect(collectionValue).toEqual(data.Person);
+    expect(collectionChanges).toBe(8);
+    expect(recordValue).toEqual(data.Person.A);
+    expect(recordChanges).toBe(7);
+    expect(valueValue).toEqual(data.Person.A && data.Person.A.firstName);
+    expect(valueChanges).toBe(6);
+
+    store.set(_.cloneDeep(baseData));
+    data = _.cloneDeep(baseData);
+    expect(storeValue).toEqual(data);
+    expect(storeChanges).toBe(10);
+    expect(collectionValue).toEqual(data.Person);
+    expect(collectionChanges).toBe(9);
+    expect(recordValue).toEqual(data.Person.A);
+    expect(recordChanges).toBe(8);
+    expect(valueValue).toEqual(data.Person.A.firstName);
+    expect(valueChanges).toBe(7);
+
     store.set({
       Person: { A: { firstName: undefined }, B: undefined },
       Address: undefined,
@@ -139,13 +161,13 @@ describe('store: basic watch', () => {
     delete data.Person.B;
     delete data.Address;
     expect(storeValue).toEqual(data);
-    expect(storeChanges).toBe(9);
+    expect(storeChanges).toBe(11);
     expect(collectionValue).toEqual(data.Person);
-    expect(collectionChanges).toBe(8);
+    expect(collectionChanges).toBe(10);
     expect(recordValue).toEqual(data.Person.A);
-    expect(recordChanges).toBe(7);
+    expect(recordChanges).toBe(9);
     expect(valueValue).toEqual(data.Person.A.firstName);
-    expect(valueChanges).toBe(6);
+    expect(valueChanges).toBe(8);
 
     store.setServer({
       Person: { A: { firstName: '12' }, B: { firstName: '13' } },
@@ -155,13 +177,13 @@ describe('store: basic watch', () => {
     data.Person.B = { firstName: '13' };
     data.Address = { C: { street: '14' }, D: { street: '15' } };
     expect(storeValue).toEqual(data);
-    expect(storeChanges).toBe(10);
+    expect(storeChanges).toBe(12);
     expect(collectionValue).toEqual(data.Person);
-    expect(collectionChanges).toBe(9);
+    expect(collectionChanges).toBe(11);
     expect(recordValue).toEqual(data.Person.A);
-    expect(recordChanges).toBe(8);
+    expect(recordChanges).toBe(10);
     expect(valueValue).toEqual(data.Person.A.firstName);
-    expect(valueChanges).toBe(7);
+    expect(valueChanges).toBe(9);
 
     storeUnsubscribe();
     collectionUnsubscribe();
@@ -171,9 +193,9 @@ describe('store: basic watch', () => {
       Person: { A: { firstName: '16' }, B: { firstName: '17' } },
       Address: { C: { street: '18' }, D: { street: '19' } },
     });
-    expect(storeChanges).toBe(10);
-    expect(collectionChanges).toBe(9);
-    expect(recordChanges).toBe(8);
-    expect(valueChanges).toBe(7);
+    expect(storeChanges).toBe(12);
+    expect(collectionChanges).toBe(11);
+    expect(recordChanges).toBe(10);
+    expect(valueChanges).toBe(9);
   });
 });
