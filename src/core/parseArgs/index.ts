@@ -1,21 +1,12 @@
 import { GraphQLResolveInfo, FieldNode } from 'graphql';
-import { keysToObject, Obj } from 'mishmash';
+import { Obj } from 'mishmash';
 
-import { Args, Field, fieldIs, QueryArgs } from '../typings';
-import { isObject, mapArray, mapObject } from '../utils';
+import { Args, Field, QueryArgs } from '../typings';
 
-import parseDateString from './parseDateString';
 import parseFilter from './parseFilter';
 import parseSort from './parseSort';
 
 export { parseFilter, parseSort };
-
-const typeMaps = {
-  Boolean: v => mapArray(v, x => ({ true: true, false: false }[x] || null)),
-  Int: v => mapArray(v, x => parseInt(x, 10)),
-  Float: v => mapArray(v, x => parseFloat(x)),
-  Date: v => mapArray(v, x => parseDateString(x)),
-};
 
 export default function parseArgs(
   args: Args,
@@ -25,14 +16,8 @@ export default function parseArgs(
 ): QueryArgs {
   try {
     return {
-      filter: mapObject(parseFilter(args.filter || '', userId), {
-        valueMaps: keysToObject(Object.keys(fields), k => {
-          const field = fields[k];
-          return typeMaps[fieldIs.scalar(field) ? field.scalar : ''] || true;
-        }),
-        continue: v => isObject(v) && Object.keys(v).some(k => k[0] === '$'),
-      }),
-      sort: parseSort(args.sort || ''),
+      filter: parseFilter(args.filter, userId, fields),
+      sort: parseSort(args.sort),
       skip: args.skip || 0,
       show: args.show !== undefined ? args.show : null,
       fields: info

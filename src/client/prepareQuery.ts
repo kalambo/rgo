@@ -1,71 +1,113 @@
-import { parse, visit, FieldNode } from 'graphql';
+import { Obj } from 'mishmash';
+import {
+  DocumentNode,
+  FieldNode,
+  OperationDefinitionNode,
+  parse,
+  visit,
+} from 'graphql';
 
-import { isObject, parseFilter, parseSort } from '../core';
+import {
+  Data,
+  Field,
+  ForeignRelationField,
+  isObject,
+  parseArgs,
+  RelationField,
+  runFilter,
+} from '../core';
+
+import { buildArgs } from './index';
+import { DataDiff } from './typings';
 
 const getFields = (obj: any): string[] => {
   if (Array.isArray(obj)) {
     return obj.reduce((res, o) => [...res, ...getFields(o)], [] as string[]);
   }
-
   if (isObject(obj)) {
     return Object.keys(obj).reduce(
       (res, k) => [...res, ...(k[0] === '$' ? getFields(obj[k]) : [k])],
       [] as string[],
     );
   }
-
   return [];
 };
 
-export default function prepareQuery(query: string, idsOnly?: boolean) {
-  const apiQuery = visit(parse(query), {
-    Argument() {
-      return false;
-    },
-    Field(node: FieldNode) {
-      const sels = node.selectionSet && node.selectionSet.selections;
-      if (sels) {
-        const newFields: string[] = ['id'];
+export default function prepareQuery(
+  schema: Obj<Obj<Field>>,
+  data: Data,
+  diff: DataDiff,
+  query: string,
+  variables: Obj,
+  idsOnly?: boolean,
+) {
+  const prepareApiField = (type: string, node: FieldNode) => {
+    const sels =
+      node.selectionSet && (node.selectionSet.selections as FieldNode[]);
+    if (sels) {
+      sels.forEach(f =>
+        prepareApiField(
+          (schema[type][node.name.value] as
+            | ForeignRelationField
+            | RelationField).type,
+          f as FieldNode,
+        ),
+      );
 
-        const args = node.arguments;
-        if (args) {
-          const filter = args.find(a => a.name.value === 'filter');
-          if (filter && (filter.value as any).value) {
-            const parsedFilter = parseFilter((filter.value as any).value, '');
-            newFields.push(...getFields(parsedFilter));
+      const newFields: string[] = ['id'];
+
+      const { filter, sort, skip, show } = parseArgs(
+        buildArgs(node.arguments, variables),
+        null,
+        schema[type],
+      );
+      const sliceChanges = { skip: 0, show: 0 };
+      for (const id of Object.keys(diff[type])) {
+        if (runFilter(filter, id, data[type][id])) {
+          if (diff[type][id] === 1 || diff[type][id] === 0) {
+            sliceChanges.skip += 1;
           }
-
-          const sort = args.find(a => a.name.value === 'sort');
-          if (sort) {
-            const parsedSort = parseSort((sort.value as any).value);
-            newFields.push(...Object.keys(parsedSort));
+          if (diff[type][id] === -1 || diff[type][id] === 0) {
+            sliceChanges.show += 1;
           }
-        }
-
-        const fields = Array.from(new Set(newFields)).filter(
-          f => !sels.some(s => s.kind === 'Field' && s.name.value === f),
-        );
-
-        if (fields.length > 0) {
-          return {
-            ...node,
-            selectionSet: {
-              ...node.selectionSet,
-              selections: [
-                ...sels,
-                ...fields.map(f => ({
-                  kind: 'Field',
-                  name: { kind: 'Name', value: f },
-                })),
-              ],
-            },
-          } as FieldNode;
         }
       }
-    },
-  });
+      (node.arguments || []).forEach(arg => {
+        if (arg.name.value === 'filter') {
+          newFields.push(...getFields(filter));
+        }
+        if (arg.name.value === 'sort') {
+          newFields.push(...sort.map(([f]) => f));
+        }
+        if (arg.name.value === 'skip') {
+          (arg.value as any).value = `${skip - sliceChanges.skip}`;
+        }
+        if (arg.name.value === 'show') {
+          (arg.value as any).value =
+            show === null ? undefined : `${show + sliceChanges.show}`;
+        }
+      });
 
-  const readQuery = visit(parse(query), {
+      const fields = Array.from(new Set(newFields)).filter(
+        f => !sels.some(s => s.kind === 'Field' && s.name.value === f),
+      );
+
+      if (fields.length > 0) {
+        node.selectionSet!.selections = [
+          ...sels,
+          ...fields.map(f => ({
+            kind: 'Field',
+            name: { kind: 'Name', value: f },
+          })),
+        ] as FieldNode[];
+      }
+    }
+  };
+  const apiQuery = parse(query) as DocumentNode;
+  ((apiQuery.definitions[0] as OperationDefinitionNode).selectionSet
+    .selections as FieldNode[]).forEach(f => prepareApiField(f.name.value, f));
+
+  const readQuery = visit(parse(query) as DocumentNode, {
     Argument() {
       return false;
     },

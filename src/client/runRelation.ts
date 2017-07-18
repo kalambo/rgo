@@ -4,8 +4,6 @@ import { FieldNode } from 'graphql';
 import {
   Args,
   compareValues,
-  Data,
-  Field,
   fieldIs,
   ForeignRelationField,
   parseArgs,
@@ -13,14 +11,8 @@ import {
   runFilter,
 } from '../core';
 
-import { buildArgs, Changes } from './store';
-
-export interface ReadContext {
-  data: Data;
-  schema: Obj<Obj<Field>>;
-  userId: string | null;
-  variables: Obj;
-}
+import { buildArgs } from './index';
+import { Changes, ReadContext } from './typings';
 
 const isOrIncludes = <T>(value: T | T[], elem: T) =>
   Array.isArray(value) ? value.includes(elem) : value === elem;

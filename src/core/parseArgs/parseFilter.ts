@@ -1,7 +1,12 @@
+import { keysToObject, Obj } from 'mishmash';
 import * as peg from 'pegjs';
 
-const parser = peg.generate(String.raw`
+import { Field, fieldIs } from '../typings';
+import { isObject, mapArray, mapObject } from '../utils';
 
+import parseDateString from './parseDateString';
+
+const parser = peg.generate(String.raw`
 
 start
   = _ main:or _ { return main[0]; }
@@ -60,6 +65,26 @@ whiteSpace
 
 `).parse;
 
-export default function parseFilter(s: string, userId: string | null) {
-  return parser(s.replace(/\$user/g, userId || '').replace(/OR/g, '|'));
+const typeMaps = {
+  Boolean: v => mapArray(v, x => ({ true: true, false: false }[x] || null)),
+  Int: v => mapArray(v, x => parseInt(x, 10)),
+  Float: v => mapArray(v, x => parseFloat(x)),
+  Date: v => mapArray(v, x => parseDateString(x)),
+};
+
+export default function parseFilter(
+  s: string = '',
+  userId: string | null,
+  fields: Obj<Field>,
+) {
+  return mapObject(
+    parser(s.replace(/\$user/g, userId || '').replace(/OR/g, '|')),
+    {
+      valueMaps: keysToObject(Object.keys(fields), k => {
+        const field = fields[k];
+        return typeMaps[fieldIs.scalar(field) ? field.scalar : ''] || true;
+      }),
+      continue: v => isObject(v) && Object.keys(v).some(k => k[0] === '$'),
+    },
+  );
 }
