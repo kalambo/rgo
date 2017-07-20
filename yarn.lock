@@ -13,33 +13,33 @@
   resolved "https://registry.yarnpkg.com/@most/prelude/-/prelude-1.6.2.tgz#e022db0a3522ea45a427f739570b99f6a6b49162"
 
 "@types/babel-core@^6.7.14":
-  version "6.7.14"
-  resolved "https://registry.yarnpkg.com/@types/babel-core/-/babel-core-6.7.14.tgz#a08c900a98e8987c1a98d2ea4fa0a1805a7d131f"
+  version "6.7.15"
+  resolved "https://registry.yarnpkg.com/@types/babel-core/-/babel-core-6.7.15.tgz#26e0267d777a9a356d1bae81a9d4f992d0351edc"
   dependencies:
     "@types/babel-template" "*"
     "@types/babel-traverse" "*"
     "@types/babel-types" "*"
 
 "@types/babel-template@*":
-  version "6.7.14"
-  resolved "https://registry.yarnpkg.com/@types/babel-template/-/babel-template-6.7.14.tgz#8088a56f9d697d620d3d079c3ef66025b7a08d02"
+  version "6.7.15"
+  resolved "https://registry.yarnpkg.com/@types/babel-template/-/babel-template-6.7.15.tgz#6df391cc15d0137a7b6e0ad92fef79d9ea0dce26"
   dependencies:
     "@types/babel-types" "*"
     "@types/babylon" "*"
 
 "@types/babel-traverse@*":
-  version "6.7.17"
-  resolved "https://registry.yarnpkg.com/@types/babel-traverse/-/babel-traverse-6.7.17.tgz#5212a4edced81f53a6c4fb1fd7a34aa4ff6cf36b"
+  version "6.7.18"
+  resolved "https://registry.yarnpkg.com/@types/babel-traverse/-/babel-traverse-6.7.18.tgz#e2dacddf6aaa7062f1d5ddb5bb3fd03b2991d37e"
   dependencies:
     "@types/babel-types" "*"
 
 "@types/babel-types@*":
-  version "6.25.0"
-  resolved "https://registry.yarnpkg.com/@types/babel-types/-/babel-types-6.25.0.tgz#34e3b018626f0141c4fdb534746916e093866d73"
+  version "6.25.1"
+  resolved "https://registry.yarnpkg.com/@types/babel-types/-/babel-types-6.25.1.tgz#ce8f126a4403e11e1b0033a424f11638afac7889"
 
 "@types/babylon@*":
-  version "6.16.1"
-  resolved "https://registry.yarnpkg.com/@types/babylon/-/babylon-6.16.1.tgz#e4d10ab9e43a73703a17c6f41438bede28769340"
+  version "6.16.2"
+  resolved "https://registry.yarnpkg.com/@types/babylon/-/babylon-6.16.2.tgz#062ce63b693d9af1c246f5aedf928bc9c30589c8"
   dependencies:
     "@types/babel-types" "*"
 
@@ -53,9 +53,9 @@
   version "0.22.2"
   resolved "https://registry.yarnpkg.com/@types/cheerio/-/cheerio-0.22.2.tgz#539625874bc856086ad491c2fdc9b10c05ae308e"
 
-"@types/enzyme@^2.8.2":
-  version "2.8.2"
-  resolved "https://registry.yarnpkg.com/@types/enzyme/-/enzyme-2.8.2.tgz#5cd2582b7c7876d0a34dd9eaeadf6b52263fe88e"
+"@types/enzyme@^2.8.3":
+  version "2.8.3"
+  resolved "https://registry.yarnpkg.com/@types/enzyme/-/enzyme-2.8.3.tgz#1f6b11248d99bf9a625d0552d56b627f73be4c9e"
   dependencies:
     "@types/cheerio" "*"
     "@types/react" "*"
@@ -1332,6 +1332,14 @@ fbjs@^0.8.1, fbjs@^0.8.9:
     setimmediate "^1.0.5"
     ua-parser-js "^0.7.9"
 
+fetch-mock@^5.12.1:
+  version "5.12.1"
+  resolved "https://registry.yarnpkg.com/fetch-mock/-/fetch-mock-5.12.1.tgz#b1808310f51ab286d1b487a8cb39dfbecb0d097a"
+  dependencies:
+    glob-to-regexp "^0.3.0"
+    node-fetch "^1.3.3"
+    path-to-regexp "^1.7.0"
+
 filename-regex@^2.0.0:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/filename-regex/-/filename-regex-2.0.1.tgz#c1c4b9bee3e09725ddb106b75c1e301fe2f18b26"
@@ -1492,6 +1500,10 @@ glob-parent@^2.0.0:
   resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-2.0.0.tgz#81383d72db054fcccf5336daa902f182f6edbb28"
   dependencies:
     is-glob "^2.0.0"
+
+glob-to-regexp@^0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/glob-to-regexp/-/glob-to-regexp-0.3.0.tgz#8c5a1494d2066c570cc3bfe4496175acc4d502ab"
 
 glob@^7.0.0, glob@^7.0.3, glob@^7.0.5, glob@^7.1.1:
   version "7.1.2"
@@ -1780,6 +1792,10 @@ is-typedarray@~1.0.0:
 is-utf8@^0.2.0:
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/is-utf8/-/is-utf8-0.2.1.tgz#4b0da1442104d1b336340e80797e865cf39f7d72"
+
+isarray@0.0.1:
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/isarray/-/isarray-0.0.1.tgz#8a18acfca9a8f4177e09abfc6038939b05d1eedf"
 
 isarray@1.0.0, isarray@~1.0.0:
   version "1.0.0"
@@ -2417,7 +2433,7 @@ natural-compare@^1.4.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/natural-compare/-/natural-compare-1.4.0.tgz#4abebfeed7541f2c27acfb29bdbbd15c8d5ba4f7"
 
-node-fetch@^1.0.1:
+node-fetch@^1.0.1, node-fetch@^1.3.3:
   version "1.7.1"
   resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-1.7.1.tgz#899cb3d0a3c92f952c47f1b876f4c8aeabd400d5"
   dependencies:
@@ -2678,6 +2694,12 @@ path-key@^2.0.0:
 path-parse@^1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/path-parse/-/path-parse-1.0.5.tgz#3c1adf871ea9cd6c9431b6ea2bd74a0ff055c4c1"
+
+path-to-regexp@^1.7.0:
+  version "1.7.0"
+  resolved "https://registry.yarnpkg.com/path-to-regexp/-/path-to-regexp-1.7.0.tgz#59fde0f435badacba103a84e9d3bc64e96b9937d"
+  dependencies:
+    isarray "0.0.1"
 
 path-type@^1.0.0:
   version "1.1.0"

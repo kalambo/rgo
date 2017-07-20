@@ -1,0 +1,15 @@
+{
+  "Address": {
+    "street": { "scalar": "String" },
+    "city": { "scalar": "String" },
+    "zipCode": { "scalar": "String" },
+    "people": { "type": "Person", "foreign": "places" }
+  },
+  "Person": {
+    "firstName": { "scalar": "String" },
+    "lastName": { "scalar": "String" },
+    "email": { "scalar": "String" },
+    "address": { "type": "Address" },
+    "places": { "type": "Address", "isList": true }
+  }
+}

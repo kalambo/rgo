@@ -1,5 +1,13 @@
 import { Obj } from 'mishmash';
-import { ArgumentNode, FieldNode, parse, print, visit } from 'graphql';
+import {
+  ArgumentNode,
+  ASTNode,
+  DocumentNode,
+  FieldNode,
+  parse,
+  print,
+  visit,
+} from 'graphql';
 
 import {
   Field,
@@ -13,12 +21,29 @@ import {
 import { buildArgs } from './index';
 import { ClientState } from './typings';
 
-const getType = (schema: Obj<Obj<Field>>, path: string) => {
-  const [type, ...fields] = path.split('.');
-  return fields.reduce(
-    (res, f) => (schema[res][f] as ForeignRelationField | RelationField).type,
-    type,
-  );
+const isFieldNode = (node: ASTNode): node is FieldNode => node.kind === 'Field';
+
+const getPathInfo = (
+  schema: Obj<Obj<Field>>,
+  queryDoc: DocumentNode,
+  astPath: string[],
+) => {
+  const result = { path: '', type: '' };
+  let node = queryDoc;
+  for (const k of astPath) {
+    node = node[k];
+    if (isFieldNode(node)) {
+      result.path = result.path
+        ? `${result.path}_${node.name.value}`
+        : node.name.value;
+      result.type = result.type
+        ? (schema[result.type][node.name.value] as
+            | ForeignRelationField
+            | RelationField).type
+        : node.name.value;
+    }
+  }
+  return result;
 };
 
 const getFields = (obj: any): string[] => {
@@ -61,18 +86,21 @@ export default function prepareQuery(
 
   const apiQuery = visit(baseQuery, {
     Field: {
-      enter(node: FieldNode, _key, _parent, path: string) {
+      enter(node: FieldNode, _key, _parent, astPath: string[]) {
         const sels =
           node.selectionSet && (node.selectionSet.selections as FieldNode[]);
         if (sels) {
-          const type = getType(schema, path);
+          const { path, type } = getPathInfo(schema, baseQuery, astPath);
 
           const { filter, sort, skip } = parseArgs(
             buildArgs(node.arguments, variables),
             null,
             schema[type],
           );
-          const filterFields = getFields(filter);
+          const filterSortFields = [
+            ...getFields(filter),
+            ...sort.map(([f]) => f),
+          ];
 
           layers[path] = {} as any;
           layers[path].extra = ({ server, combined, diff }: ClientState) => {
@@ -80,7 +108,7 @@ export default function prepareQuery(
             for (const id of Object.keys(diff[type])) {
               if (diff[type][id] === 1 || diff[type][id] === 0) {
                 if (
-                  filterFields.some(
+                  filterSortFields.some(
                     f => combined[type][id]![f] === undefined,
                   ) ||
                   runFilter(filter, id, combined[type][id])
@@ -92,7 +120,7 @@ export default function prepareQuery(
               }
               if (diff[type][id] === -1) {
                 if (
-                  filterFields.some(f => server[type][id]![f] === undefined)
+                  filterSortFields.some(f => server[type][id]![f] === undefined)
                 ) {
                   result.ids.push(id);
                   result.slice.show += 1;
@@ -104,46 +132,70 @@ export default function prepareQuery(
             result.slice.skip = Math.min(result.slice.skip, skip);
             return result;
           };
-          node.arguments = [
-            ...(node.arguments || []),
-            buildVariableArgument('extra', path),
-          ];
 
           const fields = Array.from(
-            new Set(['id', ...filterFields, ...sort.map(([f]) => f)]),
-          ).filter(
-            f => !sels.some(s => s.kind === 'Field' && s.name.value === f),
-          );
-          if (fields.length > 0) {
-            node.selectionSet!.selections = [
-              ...sels,
-              ...fields.map(f => ({
-                kind: 'Field',
-                name: { kind: 'Name', value: f },
-              })),
-            ] as FieldNode[];
-          }
+            new Set(['id', ...filterSortFields]),
+          ).filter(f => !sels.some(node => node.name.value === f));
 
-          return node;
+          return {
+            ...node,
+            arguments: [
+              ...(node.arguments || []),
+              buildVariableArgument('extra', path),
+            ],
+            selectionSet: {
+              ...node.selectionSet,
+              selections: [
+                ...sels,
+                ...fields.map(f => ({
+                  kind: 'Field',
+                  name: { kind: 'Name', value: f },
+                })),
+              ],
+            },
+          };
         }
       },
-    },
-    leave(node: FieldNode, _key, _parent, path: string) {
-      layers[path].query = print({
-        ...node,
-        arguments: [buildVariableArgument('ids')],
-      });
+      leave(node: FieldNode, key: string, _parent, astPath: string[]) {
+        const sels =
+          node.selectionSet && (node.selectionSet.selections as FieldNode[]);
+        if (sels) {
+          const { path, type } = getPathInfo(schema, baseQuery, [
+            ...astPath,
+            key,
+          ]);
+          layers[path].query = `{
+            ${print({
+              ...node,
+              name: { ...node.name, value: type },
+              arguments: [buildVariableArgument('ids')],
+            })}
+          }`;
+        }
+      },
     },
   });
 
   const readQuery = visit(baseQuery, {
     Field(node: FieldNode) {
-      const sels = node.selectionSet && node.selectionSet.selections;
-      if (idsOnly && sels) {
-        node.selectionSet!.selections = [
-          { kind: 'Field', name: { kind: 'Name', value: 'id' } },
-        ];
-        return node;
+      if (idsOnly) {
+        const sels =
+          node.selectionSet && (node.selectionSet.selections as FieldNode[]);
+        if (sels && !sels.some(node => node.name.value === 'id')) {
+          return {
+            ...node,
+            selectionSet: {
+              ...node.selectionSet,
+              selections: [
+                ...sels,
+                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+              ],
+            },
+          };
+        }
+        if (!sels && node.name.value !== 'id') {
+          return null;
+        }
       }
     },
   });
