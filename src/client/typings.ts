@@ -21,9 +21,16 @@ export interface Changes {
   };
 }
 
+export interface FirstId {
+  id: string;
+  [field: string]: Obj<FirstId> | string;
+}
+
 export interface ReadContext {
   data: Data;
+  diff: DataDiff;
   schema: Obj<Obj<Field>>;
   userId: string | null;
   variables: Obj;
+  firstIds: Obj<Obj<string | null>>;
 }

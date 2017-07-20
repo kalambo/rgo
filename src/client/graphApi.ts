@@ -1,4 +1,3 @@
-import { DocumentNode, print } from 'graphql';
 import { keysToObject, Obj } from 'mishmash';
 import * as throttle from 'lodash/throttle';
 
@@ -37,19 +36,26 @@ export default async function graphApi(url: string, authFetch: AuthFetch) {
     { leading: false },
   );
 
-  const batchFetch = async (body: any) => {
-    return await new Promise<Obj | null>(resolve => {
-      requestQueue.push({ body, resolve });
-      processQueue();
-    });
+  const batchFetch = async (bodies: any[]) => {
+    const requests = bodies.map(
+      body =>
+        new Promise<Obj | null>(resolve =>
+          requestQueue.push({ body, resolve }),
+        ),
+    );
+    processQueue();
+    return await Promise.all(requests);
   };
 
   return {
     schema,
+    normalize,
 
-    async query(query: DocumentNode, variables: any) {
-      const result = await batchFetch({ query: print(query), variables });
-      return result ? normalize(result) : null;
+    async query(queries: [string, Obj][]) {
+      const results = await batchFetch(
+        queries.map(([query, variables]) => ({ query, variables })),
+      );
+      return results;
     },
 
     async mutate(data: any) {
@@ -87,8 +93,8 @@ export default async function graphApi(url: string, authFetch: AuthFetch) {
         }
       `;
 
-      const result = await batchFetch({ query, variables: mutations });
-      return result ? normalize(result.mutate) : null;
+      const [result] = await batchFetch([{ query, variables: mutations }]);
+      return result && result.mutate;
     },
   };
 }

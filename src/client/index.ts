@@ -122,36 +122,80 @@ export default async function client(
       ((value: Obj | symbol) => void) | undefined
     ];
 
-    const { apiQuery, readQuery } = prepareQuery(
+    const { apiQuery, layers, readQuery } = prepareQuery(
       api.schema,
-      state.combined,
-      state.diff,
       queryString,
       variables,
       idsOnly,
     );
+    const readNodes = (readQuery.definitions[0] as OperationDefinitionNode)
+      .selectionSet.selections as FieldNode[];
 
     let unlisten: boolean | (() => void)[] = false;
     if (listener) listener(loading);
 
     const run = async () => {
-      const serverData = await api.query(apiQuery, variables);
-      setServer(state, serverData);
-      const fieldNodes = (readQuery.definitions[0] as OperationDefinitionNode)
-        .selectionSet.selections as FieldNode[];
+      const layerKeys = Object.keys(layers);
+      const layersExtra = keysToObject(Object.keys(layers), path =>
+        layers[path].extra(state),
+      );
+      const rootVariables = {
+        ...variables,
+        ...keysToObject(layerKeys, path => layersExtra[path].slice),
+      };
+      const [rootData, ...extraData] = await api.query([
+        [apiQuery, rootVariables],
+        ...layerKeys.map(
+          path =>
+            [
+              layers[path].query,
+              { ...rootVariables, ids: layersExtra[path].ids },
+            ] as [string, Obj],
+        ),
+      ]);
+      extraData.forEach(d => setServer(state, api.normalize(d)));
+      setServer(state, api.normalize(rootData));
+
+      const firstIds: Obj<Obj<string | null>> = {};
+      const findFirstIds = (
+        node: FieldNode,
+        path: string,
+        id: string,
+        records: Obj[],
+      ) => {
+        firstIds[path] = firstIds[path] || {};
+        firstIds[path][id] = records[layersExtra[path].slice.skip]
+          ? records[layersExtra[path].slice.skip].id
+          : null;
+        (node.selectionSet!.selections as FieldNode[])
+          .filter(({ selectionSet }) => selectionSet)
+          .forEach(node => {
+            const nextPath = `${path}.${node.name.value}`;
+            records.forEach(record =>
+              findFirstIds(node, nextPath, record.id, record[node.name.value]),
+            );
+          });
+      };
+      readNodes.forEach(node =>
+        findFirstIds(node, node.name.value, '', rootData![node.name.value]),
+      );
+
       const value = {};
       if (!unlisten)
-        unlisten = fieldNodes.map(node =>
+        unlisten = readNodes.map(node =>
           runRelation(
             { field: node.name.value, records: { '': value } },
             { type: node.name.value, isList: true },
             buildArgs(node.arguments, variables),
             node.selectionSet!.selections as FieldNode[],
+            node.name.value,
             {
               data: state.combined,
+              diff: state.diff,
               schema: api.schema,
               userId: null,
               variables,
+              firstIds,
             },
             listener && readEmitter.watch,
           ),

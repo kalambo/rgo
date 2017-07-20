@@ -1,14 +1,7 @@
 import { Obj } from 'mishmash';
-import {
-  DocumentNode,
-  FieldNode,
-  OperationDefinitionNode,
-  parse,
-  visit,
-} from 'graphql';
+import { ArgumentNode, FieldNode, parse, print, visit } from 'graphql';
 
 import {
-  Data,
   Field,
   ForeignRelationField,
   isObject,
@@ -18,7 +11,15 @@ import {
 } from '../core';
 
 import { buildArgs } from './index';
-import { DataDiff } from './typings';
+import { ClientState } from './typings';
+
+const getType = (schema: Obj<Obj<Field>>, path: string) => {
+  const [type, ...fields] = path.split('.');
+  return fields.reduce(
+    (res, f) => (schema[res][f] as ForeignRelationField | RelationField).type,
+    type,
+  );
+};
 
 const getFields = (obj: any): string[] => {
   if (Array.isArray(obj)) {
@@ -33,106 +34,119 @@ const getFields = (obj: any): string[] => {
   return [];
 };
 
+const buildVariableArgument = (argName: string, varName?: string) =>
+  ({
+    kind: 'Argument',
+    name: { kind: 'Name', value: argName },
+    value: {
+      kind: 'Variable',
+      name: { kind: 'Name', value: varName || argName },
+    },
+  } as ArgumentNode);
+
 export default function prepareQuery(
   schema: Obj<Obj<Field>>,
-  data: Data,
-  diff: DataDiff,
   query: string,
   variables: Obj,
   idsOnly?: boolean,
 ) {
-  const prepareApiField = (type: string, node: FieldNode) => {
-    const sels =
-      node.selectionSet && (node.selectionSet.selections as FieldNode[]);
-    if (sels) {
-      sels.forEach(f =>
-        prepareApiField(
-          (schema[type][node.name.value] as
-            | ForeignRelationField
-            | RelationField).type,
-          f as FieldNode,
-        ),
-      );
+  const baseQuery = parse(query);
 
-      const newFields: string[] = ['id'];
+  const layers: Obj<{
+    extra: (
+      state: ClientState,
+    ) => { slice: { skip: number; show: number }; ids: string[] };
+    query: string;
+  }> = {};
 
-      const { filter, sort, skip, show } = parseArgs(
-        buildArgs(node.arguments, variables),
-        null,
-        schema[type],
-      );
-      const sliceChanges = { skip: 0, show: 0 };
-      for (const id of Object.keys(diff[type])) {
-        if (runFilter(filter, id, data[type][id])) {
-          if (diff[type][id] === 1 || diff[type][id] === 0) {
-            sliceChanges.skip += 1;
+  const apiQuery = visit(baseQuery, {
+    Field: {
+      enter(node: FieldNode, _key, _parent, path: string) {
+        const sels =
+          node.selectionSet && (node.selectionSet.selections as FieldNode[]);
+        if (sels) {
+          const type = getType(schema, path);
+
+          const { filter, sort, skip } = parseArgs(
+            buildArgs(node.arguments, variables),
+            null,
+            schema[type],
+          );
+          const filterFields = getFields(filter);
+
+          layers[path] = {} as any;
+          layers[path].extra = ({ server, combined, diff }: ClientState) => {
+            const result = { slice: { skip: 0, show: 0 }, ids: [] as string[] };
+            for (const id of Object.keys(diff[type])) {
+              if (diff[type][id] === 1 || diff[type][id] === 0) {
+                if (
+                  filterFields.some(
+                    f => combined[type][id]![f] === undefined,
+                  ) ||
+                  runFilter(filter, id, combined[type][id])
+                ) {
+                  result.ids.push(id);
+                  if (diff[type][id] === 1) result.slice.skip += 1;
+                  else if (diff[type][id] === 0) result.slice.show += 1;
+                }
+              }
+              if (diff[type][id] === -1) {
+                if (
+                  filterFields.some(f => server[type][id]![f] === undefined)
+                ) {
+                  result.ids.push(id);
+                  result.slice.show += 1;
+                } else if (runFilter(filter, id, server[type][id])) {
+                  result.slice.show += 1;
+                }
+              }
+            }
+            result.slice.skip = Math.min(result.slice.skip, skip);
+            return result;
+          };
+          node.arguments = [
+            ...(node.arguments || []),
+            buildVariableArgument('extra', path),
+          ];
+
+          const fields = Array.from(
+            new Set(['id', ...filterFields, ...sort.map(([f]) => f)]),
+          ).filter(
+            f => !sels.some(s => s.kind === 'Field' && s.name.value === f),
+          );
+          if (fields.length > 0) {
+            node.selectionSet!.selections = [
+              ...sels,
+              ...fields.map(f => ({
+                kind: 'Field',
+                name: { kind: 'Name', value: f },
+              })),
+            ] as FieldNode[];
           }
-          if (diff[type][id] === -1 || diff[type][id] === 0) {
-            sliceChanges.show += 1;
-          }
-        }
-      }
-      (node.arguments || []).forEach(arg => {
-        if (arg.name.value === 'filter') {
-          newFields.push(...getFields(filter));
-        }
-        if (arg.name.value === 'sort') {
-          newFields.push(...sort.map(([f]) => f));
-        }
-        if (arg.name.value === 'skip') {
-          (arg.value as any).value = `${skip - sliceChanges.skip}`;
-        }
-        if (arg.name.value === 'show') {
-          (arg.value as any).value =
-            show === null ? undefined : `${show + sliceChanges.show}`;
-        }
-      });
 
-      const fields = Array.from(new Set(newFields)).filter(
-        f => !sels.some(s => s.kind === 'Field' && s.name.value === f),
-      );
-
-      if (fields.length > 0) {
-        node.selectionSet!.selections = [
-          ...sels,
-          ...fields.map(f => ({
-            kind: 'Field',
-            name: { kind: 'Name', value: f },
-          })),
-        ] as FieldNode[];
-      }
-    }
-  };
-  const apiQuery = parse(query) as DocumentNode;
-  ((apiQuery.definitions[0] as OperationDefinitionNode).selectionSet
-    .selections as FieldNode[]).forEach(f => prepareApiField(f.name.value, f));
-
-  const readQuery = visit(parse(query) as DocumentNode, {
-    Argument() {
-      return false;
+          return node;
+        }
+      },
     },
+    leave(node: FieldNode, _key, _parent, path: string) {
+      layers[path].query = print({
+        ...node,
+        arguments: [buildVariableArgument('ids')],
+      });
+    },
+  });
+
+  const readQuery = visit(baseQuery, {
     Field(node: FieldNode) {
       const sels = node.selectionSet && node.selectionSet.selections;
-      if (sels) {
-        if (!sels.some(s => s.kind === 'Field' && s.name.value === 'id')) {
-          return {
-            ...node,
-            selectionSet: {
-              ...node.selectionSet,
-              selections: [
-                { kind: 'Field', name: { kind: 'Name', value: 'id' } },
-                ...sels,
-              ],
-            },
-          } as FieldNode;
-        }
-      } else {
-        if (idsOnly && node.name.value !== 'id') {
-          return null;
-        }
+      if (idsOnly && sels) {
+        node.selectionSet!.selections = [
+          { kind: 'Field', name: { kind: 'Name', value: 'id' } },
+        ];
+        return node;
       }
     },
   });
 
-  return { apiQuery, readQuery };
+  return { apiQuery: print(apiQuery), layers, readQuery };
 }

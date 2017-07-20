@@ -6,8 +6,6 @@ import { Args, Field, QueryArgs } from '../typings';
 import parseFilter from './parseFilter';
 import parseSort from './parseSort';
 
-export { parseFilter, parseSort };
-
 export default function parseArgs(
   args: Args,
   userId: string | null,

@@ -22,6 +22,7 @@ export default function runRelation(
   field: ForeignRelationField | RelationField,
   args: Args,
   selections: FieldNode[],
+  path: string,
   context: ReadContext,
   onChanges?: (listener: (value: Changes) => void) => () => void,
 ) {
@@ -98,11 +99,21 @@ export default function runRelation(
       }
     }
     const addedIds = rootRecordIds[rootId].filter(id => id && !records[id]);
-    root.records[rootId][root.field] =
-      !(fieldIs.relation(field) && !field.isList) &&
-      rootRecordIds[rootId].length
-        ? rootRecordIds[rootId].slice(slice.start, slice.end).map(getRecord)
-        : getRecord(rootRecordIds[rootId][0] || null);
+    if (rootRecordIds[rootId].length === 0) {
+      root.records[rootId][root.field] = null;
+    } else if (fieldIs.foreignRelation(field) || field.isList) {
+      const sliceStart = rootRecordIds[rootId].indexOf(
+        context.firstIds[path][rootId],
+      );
+      const sliceEnd = show === null ? undefined : sliceStart + show;
+      root.records[rootId][root.field] = rootRecordIds[rootId]
+        .slice(sliceStart, sliceEnd)
+        .map(getRecord);
+    } else {
+      root.records[rootId][root.field] = getRecord(
+        rootRecordIds[rootId][0] || null,
+      );
+    }
     return addedIds as string[];
   };
   rootIds.forEach(initRoot);
@@ -118,6 +129,7 @@ export default function runRelation(
           | RelationField,
         buildArgs(node.arguments, context.variables),
         node.selectionSet!.selections as FieldNode[],
+        `${path}.${node.name.value}`,
         context,
         onChanges && changesEmitter.watch,
       ),
