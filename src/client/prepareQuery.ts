@@ -97,30 +97,27 @@ export default function prepareQuery(
             null,
             schema[type],
           );
-          const filterSortFields = [
-            ...getFields(filter),
-            ...sort.map(([f]) => f),
-          ];
+          const filterFields = getFields(filter);
 
           layers[path] = {} as any;
           layers[path].extra = ({ server, combined, diff }: ClientState) => {
             const result = { slice: { skip: 0, show: 0 }, ids: [] as string[] };
-            for (const id of Object.keys(diff[type])) {
+            for (const id of Object.keys(diff[type] || {})) {
               if (diff[type][id] === 1 || diff[type][id] === 0) {
                 if (
-                  filterSortFields.some(
+                  filterFields.some(
                     f => combined[type][id]![f] === undefined,
                   ) ||
                   runFilter(filter, id, combined[type][id])
                 ) {
                   result.ids.push(id);
-                  if (diff[type][id] === 1) result.slice.skip += 1;
-                  else if (diff[type][id] === 0) result.slice.show += 1;
+                  result.slice.skip += 1;
+                  if (diff[type][id] === 0) result.slice.show += 1;
                 }
               }
               if (diff[type][id] === -1) {
                 if (
-                  filterSortFields.some(f => server[type][id]![f] === undefined)
+                  filterFields.some(f => server[type][id]![f] === undefined)
                 ) {
                   result.ids.push(id);
                   result.slice.show += 1;
@@ -134,7 +131,7 @@ export default function prepareQuery(
           };
 
           const fields = Array.from(
-            new Set(['id', ...filterSortFields]),
+            new Set(['id', ...filterFields, ...sort.map(([f]) => f)]),
           ).filter(f => !sels.some(node => node.name.value === f));
 
           return {

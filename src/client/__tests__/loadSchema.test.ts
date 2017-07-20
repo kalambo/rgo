@@ -8,7 +8,7 @@ fetchMock.post('https://api.kalambo.org', {
   data: { SCHEMA: JSON.stringify(baseSchema) },
 });
 
-describe('loadSchema', () => {
+describe('client: loadSchema', () => {
   test('basic', async () => {
     const { schema, normalize } = await loadSchema('https://api.kalambo.org');
 
@@ -16,16 +16,20 @@ describe('loadSchema', () => {
     expect(
       normalize({
         Person: [
-          { id: 'A', firstName: 'Dave', address: { id: 'C', city: 'London' } },
-          { id: 'B', firstName: 'Tom' },
+          {
+            id: 'A',
+            firstName: 'Cierra',
+            address: { id: 'C', city: 'Colechester' },
+          },
+          { id: 'B', firstName: 'Kaley' },
         ],
       }),
     ).toEqual({
       Person: {
-        A: { firstName: 'Dave', address: 'C' },
-        B: { firstName: 'Tom' },
+        A: { firstName: 'Cierra', address: 'C' },
+        B: { firstName: 'Kaley' },
       },
-      Address: { C: { city: 'London' } },
+      Address: { C: { city: 'Colechester' } },
     });
   });
 });

@@ -5,7 +5,7 @@ import { ClientState } from '../typings';
 
 const baseData = require('./setup/data.json');
 
-describe('set', () => {
+describe('client: set', () => {
   test('basic', () => {
     const state: ClientState = {
       server: {},
@@ -13,14 +13,11 @@ describe('set', () => {
       combined: {},
       diff: {},
     };
-    const expected: ClientState = {
-      server: _.cloneDeep(baseData),
-      client: {},
-      combined: _.cloneDeep(baseData),
-      diff: {},
-    };
+    const expected: ClientState = _.cloneDeep(state);
 
     const changes1 = setServer(state, baseData);
+    expected.server = _.cloneDeep(baseData);
+    expected.combined = _.cloneDeep(baseData);
 
     expect(state).toEqual(expected);
     expect(changes1).toEqual(

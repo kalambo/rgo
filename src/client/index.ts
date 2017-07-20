@@ -28,19 +28,10 @@ export const buildArgs = (args: ArgumentNode[] = [], variables: Obj): Args =>
     ({ name }) => name.value,
   );
 
-export default async function client(
-  url: string,
-  authFetch: AuthFetch,
-  initial: { server?: Data; client?: Data } = {},
-) {
+export default async function client(url: string, authFetch: AuthFetch) {
   const api = await graphApi(url, authFetch);
 
-  const state: ClientState = {
-    server: _.cloneDeep(initial.server || {}),
-    client: _.cloneDeep(initial.client || {}),
-    combined: _.merge({}, initial.server, initial.client),
-    diff: {},
-  };
+  const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
   const getEmitter = createEmitterMap<any>();
   const readEmitter = createEmitter<Changes>();
@@ -134,34 +125,35 @@ export default async function client(
     let unlisten: boolean | (() => void)[] = false;
     if (listener) listener(loading);
 
-    const run = async () => {
+    const result = (async () => {
       const layerKeys = Object.keys(layers);
-      const layersExtra = keysToObject(Object.keys(layers), path =>
+      const layersExtra = keysToObject(layerKeys, path =>
         layers[path].extra(state),
       );
       const rootVariables = {
         ...variables,
         ...keysToObject(layerKeys, path => layersExtra[path].slice),
       };
-      const [rootData, ...extraData] = await api.query([
+      const queryData = await api.query([
         [apiQuery, rootVariables],
-        ...layerKeys.map(
-          path =>
-            [
-              layers[path].query,
-              { ...rootVariables, ids: layersExtra[path].ids },
-            ] as [string, Obj],
-        ),
+        ...layerKeys
+          .filter(path => layersExtra[path].ids.length > 0)
+          .map(
+            path =>
+              [
+                layers[path].query,
+                { ...rootVariables, ids: layersExtra[path].ids },
+              ] as [string, Obj],
+          ),
       ]);
-      extraData.forEach(d => setServer(state, api.normalize(d)));
-      setServer(state, api.normalize(rootData));
+      queryData.forEach(d => setServer(state, api.normalize(d)));
 
       const firstIds: Obj<Obj<string | null>> = {};
       const findFirstIds = (
         node: FieldNode,
         path: string,
         id: string,
-        records: Obj[],
+        records: Obj[] = [],
       ) => {
         firstIds[path] = firstIds[path] || {};
         firstIds[path][id] = records[layersExtra[path].slice.skip]
@@ -170,14 +162,14 @@ export default async function client(
         (node.selectionSet!.selections as FieldNode[])
           .filter(({ selectionSet }) => selectionSet)
           .forEach(node => {
-            const nextPath = `${path}.${node.name.value}`;
+            const nextPath = `${path}_${node.name.value}`;
             records.forEach(record =>
               findFirstIds(node, nextPath, record.id, record[node.name.value]),
             );
           });
       };
       readNodes.forEach(node =>
-        findFirstIds(node, node.name.value, '', rootData![node.name.value]),
+        findFirstIds(node, node.name.value, '', queryData[0]![node.name.value]),
       );
 
       const value = {};
@@ -202,9 +194,9 @@ export default async function client(
         );
       if (listener) listener(value);
       return value;
-    };
+    })();
 
-    if (!listener) return run();
+    if (!listener) return result;
     return () =>
       typeof unlisten === 'function' ? unlisten() : (unlisten = true);
   }
