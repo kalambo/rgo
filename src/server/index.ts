@@ -1,2 +1,3 @@
 export { default as buildSchema } from './buildSchema';
-export { default as connectors } from './connectors';
+import * as connectors from './connectors';
+export { connectors };

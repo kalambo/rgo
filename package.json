@@ -41,10 +41,12 @@
     "react": "^15.0.0"
   },
   "dependencies": {
+    "@types/flat": "^0.0.28",
     "@types/graphql": "^0.10.0",
     "@types/mongodb": "^2.2.7",
     "@types/pegjs": "^0.10.0",
     "@types/recompose": "^0.23.2",
+    "@types/sequelize": "^4.0.66",
     "flat": "^2.0.1",
     "graphql": "^0.10.5",
     "lodash": "^4.17.4",
@@ -53,6 +55,7 @@
     "most": "^1.5.0",
     "normalizr": "^3.2.3",
     "pegjs": "^0.10.0",
-    "recompose": "^0.24.0"
+    "recompose": "^0.24.0",
+    "sequelize": "^4.4.2"
   }
 }

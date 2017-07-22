@@ -1,5 +1,5 @@
 import { keysToObject, Obj } from 'mishmash';
-import * as throttle from 'lodash/throttle';
+import * as _ from 'lodash';
 
 import { Field, fieldIs, mapArray, scalars } from '../core';
 
@@ -21,7 +21,7 @@ export default async function graphApi(url: string, authFetch: AuthFetch) {
   const { schema, normalize } = await loadSchema(url);
 
   let requestQueue: { body: any; resolve: (result: any) => void }[] = [];
-  const processQueue = throttle(
+  const processQueue = _.throttle(
     async () => {
       const batch = requestQueue;
       requestQueue = [];
