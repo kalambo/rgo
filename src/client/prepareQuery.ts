@@ -11,6 +11,7 @@ import {
 
 import {
   Field,
+  fieldIs,
   ForeignRelationField,
   isObject,
   parseArgs,
@@ -28,7 +29,7 @@ const getPathInfo = (
   queryDoc: DocumentNode,
   astPath: string[],
 ) => {
-  const result = { path: '', type: '' };
+  const result = { path: '', parentType: '', type: '' };
   let node = queryDoc;
   for (const k of astPath) {
     node = node[k];
@@ -36,6 +37,7 @@ const getPathInfo = (
       result.path = result.path
         ? `${result.path}_${node.name.value}`
         : node.name.value;
+      result.parentType = result.type;
       result.type = result.type
         ? (schema[result.type][node.name.value] as
             | ForeignRelationField
@@ -69,6 +71,16 @@ const buildVariableArgument = (argName: string, varName?: string) =>
     },
   } as ArgumentNode);
 
+const queryOperation = (keys: string[], noIds?: boolean) => {
+  if (keys.length === 0) {
+    if (noIds) return 'query ';
+    return 'query($ids: [String!]) ';
+  }
+  const keyVariables = keys.map(k => `$${k}: Extra`).join(', ');
+  if (noIds) return `query(${keyVariables}) `;
+  return `query($ids: [String!], ${keyVariables}) `;
+};
+
 export default function prepareQuery(
   schema: Obj<Obj<Field>>,
   query: string,
@@ -90,7 +102,11 @@ export default function prepareQuery(
         const sels =
           node.selectionSet && (node.selectionSet.selections as FieldNode[]);
         if (sels) {
-          const { path, type } = getPathInfo(schema, baseQuery, astPath);
+          const { path, parentType, type } = getPathInfo(
+            schema,
+            baseQuery,
+            astPath,
+          );
 
           const { filter, sort, skip } = parseArgs(
             buildArgs(node.arguments, variables),
@@ -99,36 +115,49 @@ export default function prepareQuery(
           );
           const filterFields = getFields(filter);
 
-          layers[path] = {} as any;
-          layers[path].extra = ({ server, combined, diff }: ClientState) => {
-            const result = { slice: { skip: 0, show: 0 }, ids: [] as string[] };
-            for (const id of Object.keys(diff[type] || {})) {
-              if (diff[type][id] === 1 || diff[type][id] === 0) {
-                if (
-                  filterFields.some(
-                    f => combined[type][id]![f] === undefined,
-                  ) ||
-                  runFilter(filter, id, combined[type][id])
-                ) {
-                  result.ids.push(id);
-                  result.slice.skip += 1;
-                  if (diff[type][id] === 0) result.slice.show += 1;
+          const schemaField = parentType && schema[parentType][node.name.value];
+          if (
+            !schemaField ||
+            fieldIs.foreignRelation(schemaField) ||
+            schemaField.isList
+          ) {
+            layers[path] = {} as any;
+            layers[path].extra = ({ server, combined, diff }: ClientState) => {
+              const result = {
+                slice: { skip: 0, show: 0 },
+                ids: [] as string[],
+              };
+              for (const id of Object.keys(diff[type] || {})) {
+                if (diff[type][id] === 1 || diff[type][id] === 0) {
+                  if (
+                    filterFields.some(
+                      f => combined[type][id]![f] === undefined,
+                    ) ||
+                    runFilter(filter, id, combined[type][id])
+                  ) {
+                    result.ids.push(id);
+                    result.slice.skip += 1;
+                    if (diff[type][id] === 0) result.slice.show += 1;
+                  }
+                }
+                if (diff[type][id] === -1) {
+                  if (
+                    !(server[type] && server[type][id]) ||
+                    filterFields.some(f => server[type][id]![f] === undefined)
+                  ) {
+                    result.ids.push(id);
+                    result.slice.show += 1;
+                  } else if (
+                    runFilter(filter, id, server[type] && server[type][id])
+                  ) {
+                    result.slice.show += 1;
+                  }
                 }
               }
-              if (diff[type][id] === -1) {
-                if (
-                  filterFields.some(f => server[type][id]![f] === undefined)
-                ) {
-                  result.ids.push(id);
-                  result.slice.show += 1;
-                } else if (runFilter(filter, id, server[type][id])) {
-                  result.slice.show += 1;
-                }
-              }
-            }
-            result.slice.skip = Math.min(result.slice.skip, skip);
-            return result;
-          };
+              result.slice.skip = Math.min(result.slice.skip, skip);
+              return result;
+            };
+          }
 
           const fields = Array.from(
             new Set(['id', ...filterFields, ...sort.map(([f]) => f)]),
@@ -136,10 +165,12 @@ export default function prepareQuery(
 
           return {
             ...node,
-            arguments: [
-              ...(node.arguments || []),
-              buildVariableArgument('extra', path),
-            ],
+            arguments: layers[path]
+              ? [
+                  ...(node.arguments || []),
+                  buildVariableArgument('extra', path),
+                ]
+              : node.arguments,
             selectionSet: {
               ...node.selectionSet,
               selections: [
@@ -161,13 +192,17 @@ export default function prepareQuery(
             ...astPath,
             key,
           ]);
-          layers[path].query = `{
-            ${print({
-              ...node,
-              name: { ...node.name, value: type },
-              arguments: [buildVariableArgument('ids')],
-            })}
-          }`;
+          if (layers[path]) {
+            layers[path].query = `${queryOperation(
+              Object.keys(layers).filter(k => k.startsWith(path) && k !== path),
+            )}{
+              ${print({
+                ...node,
+                name: { ...node.name, value: type },
+                arguments: [buildVariableArgument('ids')],
+              })}
+            }`;
+          }
         }
       },
     },
@@ -197,5 +232,9 @@ export default function prepareQuery(
     },
   });
 
-  return { apiQuery: print(apiQuery), layers, readQuery };
+  return {
+    apiQuery: `${queryOperation(Object.keys(layers), true)}${print(apiQuery)}`,
+    layers,
+    readQuery,
+  };
 }

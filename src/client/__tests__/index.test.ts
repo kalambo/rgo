@@ -57,10 +57,10 @@ describe('client: index', () => {
       cleanRequests(JSON.parse(fetchMock.lastOptions(domain).body)),
     ).toEqual([
       {
-        query: clean(`{
+        query: clean(`query($Person: Extra) {
           Person(extra: $Person) {
             firstName
-            address(extra: $Person_address) {
+            address {
               city
               id
               createdAt
@@ -71,7 +71,6 @@ describe('client: index', () => {
         }`),
         variables: {
           Person: { skip: 0, show: 0 },
-          Person_address: { skip: 0, show: 0 },
         },
       },
     ]);

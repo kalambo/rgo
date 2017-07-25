@@ -18,6 +18,9 @@ export default function sql(model: Model<any, any>): Connector {
     async findById(id) {
       return model.findById(id);
     },
+    async findByIds(ids) {
+      return model.findAll({ where: { id: { $in: ids } } });
+    },
 
     async insert(id, data) {
       model.create({ id, ...data });

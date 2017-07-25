@@ -16,6 +16,7 @@ export interface Args {
   sort?: string;
   skip?: number;
   show?: number;
+  extra?: { skip: number; show: number };
 }
 
 export interface QueryArgs {

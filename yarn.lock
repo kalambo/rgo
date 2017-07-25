@@ -57,9 +57,9 @@
   version "0.22.2"
   resolved "https://registry.yarnpkg.com/@types/cheerio/-/cheerio-0.22.2.tgz#539625874bc856086ad491c2fdc9b10c05ae308e"
 
-"@types/enzyme@^2.8.3":
-  version "2.8.3"
-  resolved "https://registry.yarnpkg.com/@types/enzyme/-/enzyme-2.8.3.tgz#1f6b11248d99bf9a625d0552d56b627f73be4c9e"
+"@types/enzyme@^2.8.4":
+  version "2.8.4"
+  resolved "https://registry.yarnpkg.com/@types/enzyme/-/enzyme-2.8.4.tgz#0a75487091978a77178920fa0437c0f13a8e2dcd"
   dependencies:
     "@types/cheerio" "*"
     "@types/react" "*"
@@ -72,17 +72,17 @@
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/@types/geojson/-/geojson-1.0.2.tgz#b02d10ab028e2928ac592a051aaa4981a1941d03"
 
-"@types/graphql@^0.10.0":
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.10.0.tgz#85c6cddd0de9449af009af9ff61aa5870c59fee3"
+"@types/graphql@^0.10.1":
+  version "0.10.1"
+  resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.10.1.tgz#3944e528bb3232e09cddb5364d75aba6342d068c"
 
 "@types/jest@^20.0.4":
   version "20.0.4"
   resolved "https://registry.yarnpkg.com/@types/jest/-/jest-20.0.4.tgz#91e2c76fbe90b3a719b5d689958f0495f005beb9"
 
 "@types/lodash@*":
-  version "4.14.70"
-  resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.70.tgz#37bda4acfb3bb79143009cc9d00abd559f7dca30"
+  version "4.14.71"
+  resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.71.tgz#0dc383f78981216ac76e2f2c3afd998e0450e4c1"
 
 "@types/mongodb@^2.2.7":
   version "2.2.7"
@@ -92,12 +92,12 @@
     "@types/node" "*"
 
 "@types/node@*":
-  version "8.0.14"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.14.tgz#4a19dc6bb61d16c01cbadc7b30ac23518fff176b"
+  version "8.0.16"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.16.tgz#5aa51abd72621a0ce53fb86bccd76825ee1b4ca9"
 
 "@types/node@^6.0.48":
-  version "6.0.84"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-6.0.84.tgz#193ffe5a9f42864d425ffd9739d95b753c6a1eab"
+  version "6.0.85"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-6.0.85.tgz#ec02bfe54a61044f2be44f13b389c6a0e8ee05ae"
 
 "@types/pegjs@^0.10.0":
   version "0.10.0"
@@ -109,23 +109,29 @@
   dependencies:
     "@types/react" "*"
 
-"@types/react@*", "@types/react@^15.0.38":
-  version "15.0.38"
-  resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.38.tgz#6afea31a9fe66304af474106ba372ddaba449995"
+"@types/react@*", "@types/react@^15.0.39":
+  version "15.0.39"
+  resolved "https://registry.yarnpkg.com/@types/react/-/react-15.0.39.tgz#5a820c75cabf4cbfa177a3ab5a9a0634c46b14d1"
 
-"@types/recompose@^0.23.1", "@types/recompose@^0.23.2":
+"@types/recompose@^0.23.2":
   version "0.23.2"
   resolved "https://registry.yarnpkg.com/@types/recompose/-/recompose-0.23.2.tgz#9335c347aaf21f958763b98a0eabcb3ffa101813"
   dependencies:
     "@types/react" "*"
 
-"@types/sequelize@^4.0.66":
-  version "4.0.66"
-  resolved "https://registry.yarnpkg.com/@types/sequelize/-/sequelize-4.0.66.tgz#3c5fb824f13f8487a33e8ddb3e10f9990d1b0e49"
+"@types/sequelize@^4.0.67":
+  version "4.0.67"
+  resolved "https://registry.yarnpkg.com/@types/sequelize/-/sequelize-4.0.67.tgz#e3bf56cbc9189ae2da5aa7b10c9ef2a3943d9d82"
   dependencies:
     "@types/bluebird" "*"
     "@types/lodash" "*"
     "@types/validator" "*"
+
+"@types/uuid@^3.4.0":
+  version "3.4.0"
+  resolved "https://registry.yarnpkg.com/@types/uuid/-/uuid-3.4.0.tgz#91639516fbb892ed3737a2bdc1b030d02b4a09c1"
+  dependencies:
+    "@types/node" "*"
 
 "@types/validator@*":
   version "6.2.1"
@@ -185,10 +191,10 @@ ansi-styles@^2.2.1:
   resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-2.2.1.tgz#b432dd3358b634cf75e1e4664368240533c1ddbe"
 
 ansi-styles@^3.0.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-3.1.0.tgz#09c202d5c917ec23188caa5c9cb9179cd9547750"
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/ansi-styles/-/ansi-styles-3.2.0.tgz#c159b8d5be0f9e5a6f346dab94f16ce022161b88"
   dependencies:
-    color-convert "^1.0.0"
+    color-convert "^1.9.0"
 
 anymatch@^1.3.0:
   version "1.3.0"
@@ -808,8 +814,8 @@ bcrypt-pbkdf@^1.0.0:
     tweetnacl "^0.14.3"
 
 binary-extensions@^1.0.0:
-  version "1.8.0"
-  resolved "https://registry.yarnpkg.com/binary-extensions/-/binary-extensions-1.8.0.tgz#48ec8d16df4377eae5fa5884682480af4d95c774"
+  version "1.9.0"
+  resolved "https://registry.yarnpkg.com/binary-extensions/-/binary-extensions-1.9.0.tgz#66506c16ce6f4d6928a5b3cd6a33ca41e941e37b"
 
 block-stream@*:
   version "0.0.9"
@@ -853,8 +859,8 @@ browser-resolve@^1.11.2:
     resolve "1.1.7"
 
 browserslist@^2.1.2:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/browserslist/-/browserslist-2.2.1.tgz#709048c57bf3bf9b382105c396a737ad525d948e"
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/browserslist/-/browserslist-2.2.2.tgz#e9b4618b8a01c193f9786beea09f6fd10dbe31c3"
   dependencies:
     caniuse-lite "^1.0.30000704"
     electron-to-chromium "^1.3.16"
@@ -900,8 +906,8 @@ camelcase@^4.1.0:
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-4.1.0.tgz#d545635be1e33c542649c69173e5de6acfae34dd"
 
 caniuse-lite@^1.0.30000704:
-  version "1.0.30000704"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000704.tgz#adb6ea01134515663682db93abab291d4c02946b"
+  version "1.0.30000706"
+  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000706.tgz#bc59abc41ba7d4a3634dda95befded6114e1f24e"
 
 caseless@~0.12.0:
   version "0.12.0"
@@ -999,7 +1005,7 @@ code-point-at@^1.0.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/code-point-at/-/code-point-at-1.1.0.tgz#0d070b4d043a5bea33a2f1a40e2edb3d9a4ccf77"
 
-color-convert@^1.0.0:
+color-convert@^1.9.0:
   version "1.9.0"
   resolved "https://registry.yarnpkg.com/color-convert/-/color-convert-1.9.0.tgz#1accf97dd739b983bf994d56fec8f95853641b7a"
   dependencies:
@@ -1439,11 +1445,11 @@ find-up@^2.0.0, find-up@^2.1.0:
   dependencies:
     locate-path "^2.0.0"
 
-flat@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/flat/-/flat-2.0.1.tgz#70e29188a74be0c3c89409eed1fa9577907ae32f"
+flat@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/flat/-/flat-4.0.0.tgz#3abc7f3b588e64ce77dc42fd59aa35806622fea8"
   dependencies:
-    is-buffer "~1.1.2"
+    is-buffer "~1.1.5"
 
 for-in@^1.0.1:
   version "1.0.2"
@@ -1757,7 +1763,7 @@ is-bluebird@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/is-bluebird/-/is-bluebird-1.0.2.tgz#096439060f4aa411abee19143a84d6a55346d6e2"
 
-is-buffer@^1.1.5, is-buffer@~1.1.2:
+is-buffer@^1.1.5, is-buffer@~1.1.5:
   version "1.1.5"
   resolved "https://registry.yarnpkg.com/is-buffer/-/is-buffer-1.1.5.tgz#1f3b26ef613b214b88cbca23cc6c01d87961eecc"
 
@@ -2428,15 +2434,15 @@ micromatch@^2.1.5, micromatch@^2.3.11:
     parse-glob "^3.0.4"
     regex-cache "^0.4.2"
 
-mime-db@~1.27.0:
-  version "1.27.0"
-  resolved "https://registry.yarnpkg.com/mime-db/-/mime-db-1.27.0.tgz#820f572296bbd20ec25ed55e5b5de869e5436eb1"
+mime-db@~1.29.0:
+  version "1.29.0"
+  resolved "https://registry.yarnpkg.com/mime-db/-/mime-db-1.29.0.tgz#48d26d235589651704ac5916ca06001914266878"
 
 mime-types@^2.1.12, mime-types@~2.1.7:
-  version "2.1.15"
-  resolved "https://registry.yarnpkg.com/mime-types/-/mime-types-2.1.15.tgz#a4ebf5064094569237b8cf70046776d09fc92aed"
+  version "2.1.16"
+  resolved "https://registry.yarnpkg.com/mime-types/-/mime-types-2.1.16.tgz#2b858a52e5ecd516db897ac2be87487830698e23"
   dependencies:
-    mime-db "~1.27.0"
+    mime-db "~1.29.0"
 
 mimic-fn@^1.0.0:
   version "1.1.0"
@@ -2460,12 +2466,12 @@ minimist@~0.0.1:
   version "0.0.10"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-0.0.10.tgz#de3f98543dbf96082be48ad1a0c7cda836301dcf"
 
-mishmash@^0.3.1:
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.3.1.tgz#737cc95a0237765033e761c26d8b3a2ce8faa79b"
+mishmash@^0.3.2:
+  version "0.3.2"
+  resolved "https://registry.yarnpkg.com/mishmash/-/mishmash-0.3.2.tgz#fc6999de447d71c7c9371af9aa419cc489690327"
   dependencies:
-    "@types/react" "^15.0.38"
-    "@types/recompose" "^0.23.1"
+    "@types/react" "^15.0.39"
+    "@types/recompose" "^0.23.2"
     most "^1.5.0"
     recompose "^0.24.0"
     style-transform "^0.1.1"
@@ -3165,8 +3171,8 @@ sax@^1.2.1:
   resolved "https://registry.yarnpkg.com/sax/-/sax-1.2.4.tgz#2816234e2378bddc4e5354fab5caa895df7100d9"
 
 "semver@2 || 3 || 4 || 5", semver@^5.0.1, semver@^5.1.0, semver@^5.3.0:
-  version "5.3.0"
-  resolved "https://registry.yarnpkg.com/semver/-/semver-5.3.0.tgz#9b2ce5d3de02d17c6012ad326aa6b4d0cf54f94f"
+  version "5.4.1"
+  resolved "https://registry.yarnpkg.com/semver/-/semver-5.4.1.tgz#e059c09d8571f0540823733433505d3a2f00b18e"
 
 sequelize@^4.4.2:
   version "4.4.2"
@@ -3517,7 +3523,7 @@ util-deprecate@~1.0.1:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/util-deprecate/-/util-deprecate-1.0.2.tgz#450d4dc9fa70de732762fbd2d4a28981419a0ccf"
 
-uuid@^3.0.0, uuid@^3.0.1:
+uuid@^3.0.0, uuid@^3.0.1, uuid@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.1.0.tgz#3dd3d3e790abc24d7b0d3a034ffababe28ebbc04"
 

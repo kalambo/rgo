@@ -151,7 +151,9 @@ export function setServer(
         if (client[type] && client[type][id]) setDiff(diff, type, id, 1);
       } else {
         server[type][id] = server[type][id] || {};
-        combined[type][id] = combined[type][id] || {};
+        if ((client[type] && client[type][id]) !== null) {
+          combined[type][id] = combined[type][id] || {};
+        }
         for (const field of Object.keys(value[type][id])) {
           server[type][id]![field] = value[type][id]![field];
           if (

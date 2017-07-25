@@ -17,7 +17,10 @@ describe('client: prepareQuery', () => {
         Person(filter: "lastName=Cole") {
           id
           firstName
-          address(skip: 2) {
+          address {
+            city
+          }
+          places(skip: 2) {
             street
           }
         }
@@ -27,11 +30,16 @@ describe('client: prepareQuery', () => {
     );
 
     expect(clean(apiQuery)).toBe(
-      clean(`{
+      clean(`query($Person: Extra, $Person_places: Extra) {
         Person(filter: "lastName=Cole", extra: $Person) {
           id
           firstName
-          address(skip: 2, extra: $Person_address) {
+          address {
+            city
+            id
+            createdAt
+          }
+          places(skip: 2, extra: $Person_places) {
             street
             id
             createdAt
@@ -42,11 +50,16 @@ describe('client: prepareQuery', () => {
       }`),
     );
     expect(clean(layers.Person.query)).toBe(
-      clean(`{
+      clean(`query($ids: [String!], $Person_places: Extra) {
         Person(ids: $ids) {
           id
           firstName
-          address(skip: 2, extra: $Person_address) {
+          address {
+            city
+            id
+            createdAt
+          }
+          places(skip: 2, extra: $Person_places) {
             street
             id
             createdAt
@@ -56,8 +69,8 @@ describe('client: prepareQuery', () => {
         }
       }`),
     );
-    expect(clean(layers.Person_address.query)).toBe(
-      clean(`{
+    expect(clean(layers.Person_places.query)).toBe(
+      clean(`query($ids: [String!]) {
         Address(ids: $ids) {
           street
           id
@@ -69,7 +82,10 @@ describe('client: prepareQuery', () => {
       clean(`{
         Person(filter: "lastName=Cole") {
           id
-          address(skip: 2) {
+          address {
+            id
+          }
+          places(skip: 2) {
             id
           }
         }
@@ -96,7 +112,7 @@ describe('client: prepareQuery', () => {
       slice: { skip: 0, show: 0 },
       ids: ['F'],
     });
-    expect(layers.Person_address.extra(state)).toEqual({
+    expect(layers.Person_places.extra(state)).toEqual({
       slice: { skip: 1, show: 2 },
       ids: ['A'],
     });

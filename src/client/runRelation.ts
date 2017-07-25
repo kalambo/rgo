@@ -3,7 +3,7 @@ import { FieldNode } from 'graphql';
 
 import {
   Args,
-  compareValues,
+  createCompare,
   fieldIs,
   ForeignRelationField,
   parseArgs,
@@ -17,11 +17,14 @@ import { Changes, ReadContext } from './typings';
 const isOrIncludes = <T>(value: T | T[], elem: T) =>
   Array.isArray(value) ? value.includes(elem) : value === elem;
 
+const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
+
 export default function runRelation(
   root: { type?: string; field: string; records: Obj<Obj> },
   field: ForeignRelationField | RelationField,
   args: Args,
   selections: FieldNode[],
+  serverData: Obj<Obj[]>,
   path: string,
   context: ReadContext,
   onChanges?: (listener: (value: Changes) => void) => () => void,
@@ -32,20 +35,13 @@ export default function runRelation(
     context.schema[field.type],
   );
   const filter = (id: string) =>
-    runFilter(parsedFilter, id, (context.data[field.type] || {})[id]);
-  const compare = (id1: string, id2: string): 0 | 1 | -1 => {
-    for (const [key, order] of sort) {
-      const comp =
-        key === 'id'
-          ? compareValues(id1, id2)
-          : compareValues(
-              context.data[field.type][id1]![key],
-              context.data[field.type][id2]![key],
-            );
-      if (comp) return order === 'asc' ? comp : -comp as 1 | -1;
-    }
-    return 0;
-  };
+    runFilter(parsedFilter, id, (context.state.combined[field.type] || {})[id]);
+  const compare = createCompare(
+    (id: string, key) =>
+      key === 'id' ? id : context.state.combined[field.type][id]![key],
+    sort,
+  );
+  const compareRecords = createCompare((record: Obj, key) => record[key], sort);
   const slice = { start: skip, end: show === null ? undefined : skip + show };
 
   const scalarFields = keysToObject(
@@ -63,18 +59,18 @@ export default function runRelation(
       ? records[id] ||
         (records[id] = keysToObject(
           Object.keys(scalarFields),
-          f => (f === 'id' ? id : context.data[field.type][id]![f]),
+          f => (f === 'id' ? id : context.state.combined[field.type][id]![f]),
         ))
       : null;
 
-  const allIds = Object.keys(context.data[field.type] || {});
+  const allIds = Object.keys(context.state.combined[field.type] || {});
   const filteredIdsObj = keysToObject(allIds, filter);
   const filteredIds = allIds.filter(id => filteredIdsObj[id]).sort(compare);
   const initRoot = (rootId: string) => {
     if (!root.type) {
       rootRecordIds[rootId] = filteredIds;
     } else {
-      const value = context.data[root.type][rootId]![root.field];
+      const value = context.state.combined[root.type][rootId]![root.field];
       if (fieldIs.relation(field)) {
         if (field.isList) {
           if (args.sort) {
@@ -94,7 +90,10 @@ export default function runRelation(
         rootRecordIds[rootId] = filteredIds.filter(
           id =>
             (value || []).includes(id) ||
-            isOrIncludes(context.data[field.type!][id]![field.foreign], rootId),
+            isOrIncludes(
+              context.state.combined[field.type!][id]![field.foreign],
+              rootId,
+            ),
         );
       }
     }
@@ -102,13 +101,46 @@ export default function runRelation(
     if (rootRecordIds[rootId].length === 0) {
       root.records[rootId][root.field] = null;
     } else if (fieldIs.foreignRelation(field) || field.isList) {
-      const sliceStart = rootRecordIds[rootId].indexOf(
-        context.firstIds[path][rootId],
+      const queryFirst = serverData[rootId][context.extra[path].slice.skip];
+      const queryStart = locationOf(
+        queryFirst.id,
+        rootRecordIds[rootId],
+        createCompare(
+          (id: string, key) =>
+            key === 'id'
+              ? id
+              : id === queryFirst.id
+                ? queryFirst[key]
+                : context.state.combined[field.type][id]![key],
+          sort,
+        ),
       );
+      let sliceStart = queryStart;
+      for (const id of Object.keys(context.state.diff[field.type] || {})) {
+        if (context.state.diff[field.type][id] === 1) {
+          const localIndex = rootRecordIds[rootId].indexOf(id);
+          if (localIndex < queryStart) sliceStart -= 1;
+        }
+        if (context.state.diff[field.type][id] === -1) {
+          const serverRecord = (context.state.server[field.type] || {})[id];
+          if (
+            (!root.type ||
+              fieldIs.foreignRelation(field) ||
+              context.state.combined[root.type][rootId]![root.field].includes(
+                id,
+              )) &&
+            runFilter(parsedFilter, id, serverRecord)
+          ) {
+            if (compareRecords({ id, ...serverRecord }, queryFirst) === -1) {
+              sliceStart += 1;
+            }
+          }
+        }
+      }
       const sliceEnd = show === null ? undefined : sliceStart + show;
-      root.records[rootId][root.field] = rootRecordIds[rootId]
-        .slice(sliceStart, sliceEnd)
-        .map(getRecord);
+      root.records[rootId][root.field] = nullIfEmpty(
+        rootRecordIds[rootId].slice(sliceStart, sliceEnd).map(getRecord),
+      );
     } else {
       root.records[rootId][root.field] = getRecord(
         rootRecordIds[rootId][0] || null,
@@ -129,6 +161,17 @@ export default function runRelation(
           | RelationField,
         buildArgs(node.arguments, context.variables),
         node.selectionSet!.selections as FieldNode[],
+        rootIds.reduce(
+          (res, rootId) => ({
+            ...res,
+            ...keysToObject(
+              serverData[rootId],
+              record => record[node.name.value],
+              record => record.id,
+            ),
+          }),
+          {},
+        ),
         `${path}.${node.name.value}`,
         context,
         onChanges && changesEmitter.watch,
@@ -244,7 +287,9 @@ export default function runRelation(
               }
             };
 
-            const value = context.data[root.type!][rootId]![root.field];
+            const value = context.state.combined[root.type!][rootId]![
+              root.field
+            ];
             filteredAdded.forEach(id => {
               if (fieldIs.relation(field)) {
                 if (field.isList) {
@@ -275,7 +320,7 @@ export default function runRelation(
                 if (
                   (value || []).includes(id) ||
                   isOrIncludes(
-                    context.data[root.type!][id]![field.foreign],
+                    context.state.combined[root.type!][id]![field.foreign],
                     rootId,
                   )
                 ) {
@@ -302,7 +347,7 @@ export default function runRelation(
                 const included =
                   (value || []).includes(id) ||
                   isOrIncludes(
-                    context.data[root.type!][id]![field.foreign],
+                    context.state.combined[root.type!][id]![field.foreign],
                     rootId,
                   );
                 const prevIndex = rootRecordIds[rootId].indexOf(id);
@@ -332,7 +377,8 @@ export default function runRelation(
         if (records[id] && !added.includes(id)) {
           for (const f of Object.keys(changes[field.type][id] || {})) {
             if (scalarFields[f]) {
-              const value = ((context.data[field.type] || {})[id] || {})[f];
+              const value = ((context.state.combined[field.type] || {})[id] ||
+                {})[f];
               if (value === undefined) delete records[id][f];
               else records[id][f] = value;
             }

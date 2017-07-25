@@ -1,6 +1,6 @@
 import { Obj } from 'mishmash';
 
-import { compareValues, runFilter } from '../../core';
+import { createCompare, runFilter } from '../../core';
 
 import { Connector } from '../typings';
 
@@ -12,16 +12,10 @@ export default function memoryConnector(initialData: Obj[] = []): Connector {
       if (show === 0) return [];
 
       const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
-      const compareFunc = (record1: Obj, record2: Obj): 0 | 1 | -1 => {
-        for (const [key, order] of sort) {
-          const comp =
-            key === 'id'
-              ? compareValues(record1.id, record2.id)
-              : compareValues(record1[key], record2[key]);
-          if (comp) return order === 'asc' ? comp : -comp as 1 | -1;
-        }
-        return 0;
-      };
+      const compareFunc = createCompare(
+        (record: Obj, key) => record[key],
+        sort,
+      );
 
       return records
         .filter(filterFunc)
@@ -31,6 +25,9 @@ export default function memoryConnector(initialData: Obj[] = []): Connector {
 
     async findById(id) {
       return records.find(record => record.id === id);
+    },
+    async findByIds(ids) {
+      return records.filter(record => ids.includes(record.id));
     },
 
     async insert(id, data) {

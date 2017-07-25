@@ -21,9 +21,10 @@
     "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/enzyme": "^2.8.3",
+    "@types/enzyme": "^2.8.4",
     "@types/jest": "^20.0.4",
     "@types/react-dom": "^15.5.1",
+    "@types/uuid": "^3.4.0",
     "babel-cli": "^6.24.1",
     "babel-preset-env": "^1.6.0",
     "enzyme": "^2.9.1",
@@ -35,22 +36,23 @@
     "react-test-renderer": "^15.6.1",
     "rimraf": "^2.6.1",
     "ts-jest": "^20.0.7",
-    "typescript": "^2.4.2"
+    "typescript": "^2.4.2",
+    "uuid": "^3.1.0"
   },
   "peerDependencies": {
     "react": "^15.0.0"
   },
   "dependencies": {
     "@types/flat": "^0.0.28",
-    "@types/graphql": "^0.10.0",
+    "@types/graphql": "^0.10.1",
     "@types/mongodb": "^2.2.7",
     "@types/pegjs": "^0.10.0",
     "@types/recompose": "^0.23.2",
-    "@types/sequelize": "^4.0.66",
-    "flat": "^2.0.1",
+    "@types/sequelize": "^4.0.67",
+    "flat": "^4.0.0",
     "graphql": "^0.10.5",
     "lodash": "^4.17.4",
-    "mishmash": "^0.3.1",
+    "mishmash": "^0.3.2",
     "mongodb": "^2.2.30",
     "most": "^1.5.0",
     "normalizr": "^3.2.3",

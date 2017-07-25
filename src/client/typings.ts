@@ -21,16 +21,39 @@ export interface Changes {
   };
 }
 
-export interface FirstId {
-  id: string;
-  [field: string]: Obj<FirstId> | string;
-}
-
 export interface ReadContext {
-  data: Data;
-  diff: DataDiff;
+  state: ClientState;
   schema: Obj<Obj<Field>>;
   userId: string | null;
   variables: Obj;
-  firstIds: Obj<Obj<string | null>>;
+  extra: Obj<{ slice: { skip: number; show: number }; ids: string[] }>;
+}
+
+export interface Client {
+  get(): Data;
+  get(type: string): Obj<Obj>;
+  get(type: string, id: string): Obj;
+  get(type: string, id: string, field: string): any;
+  get(listener: (value: Data) => void): () => void;
+  get(type: string, listener: (value: Obj<Obj>) => void): () => void;
+  get(type: string, id: string, listener: (value: Obj) => void): () => void;
+  get(
+    type: string,
+    id: string,
+    field: string,
+    listener: (value: any) => void,
+  ): () => void;
+
+  set(value: Obj<Obj<Obj | null | undefined> | undefined>): void;
+  set(type: string, value: Obj<Obj | null | undefined> | undefined): void;
+  set(type: string, id: string, value: Obj | null | undefined): void;
+  set(type: string, id: string, field: string, value: any): void;
+
+  query(queryString: string, variables: Obj, idsOnly: boolean): Promise<Obj>;
+  query(
+    queryString: string,
+    variables: Obj,
+    idsOnly: boolean,
+    listener: (value: Obj | symbol) => void,
+  ): () => void;
 }

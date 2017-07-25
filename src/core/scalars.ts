@@ -48,15 +48,21 @@ export interface Scalar {
 
 const buildScalarTypes = (types: Obj<ScalarConfig>) =>
   keysToObject(Object.keys(types), name => ({
-    name,
-    description: `${name} custom scalar type`,
-    serialize: types[name].encode || (value => value),
-    parseValue: types[name].decode || (value => value),
-    parseLiteral: ast =>
-      parseLiteral(
-        ast,
-        types[name].kinds ? keysToObject(types[name].kinds!, () => true) : null,
-      ),
+    decode: types[name].decode,
+    encode: types[name].encode,
+    type: new GraphQLScalarType({
+      name,
+      description: `${name} custom scalar type`,
+      serialize: types[name].encode || (value => value),
+      parseValue: types[name].decode || (value => value),
+      parseLiteral: ast =>
+        parseLiteral(
+          ast,
+          types[name].kinds
+            ? keysToObject(types[name].kinds!, () => true)
+            : null,
+        ),
+    }),
   }));
 
 export default {

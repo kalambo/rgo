@@ -6,6 +6,7 @@ export interface Connector {
   query: (args: QueryArgs) => Promise<any[]>;
 
   findById: (id: string) => Promise<any>;
+  findByIds: (ids: string[]) => Promise<any[]>;
 
   insert: (id: string, data: any) => Promise<void>;
   update: (id: string, data: any) => Promise<void>;

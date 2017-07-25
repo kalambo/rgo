@@ -51,11 +51,8 @@ export default async function graphApi(url: string, authFetch: AuthFetch) {
     schema,
     normalize,
 
-    async query(queries: [string, Obj][]) {
-      const results = await batchFetch(
-        queries.map(([query, variables]) => ({ query, variables })),
-      );
-      return results;
+    async query(queries: { query: string; variables: Obj }[]) {
+      return await batchFetch(queries);
     },
 
     async mutate(data: any) {

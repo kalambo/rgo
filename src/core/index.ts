@@ -15,7 +15,7 @@ export {
   ScalarName,
 } from './typings';
 export {
-  compareValues,
+  createCompare,
   isObject,
   mapArray,
   mapObject,

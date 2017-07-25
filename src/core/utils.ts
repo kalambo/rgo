@@ -53,12 +53,27 @@ export const mapObject = (
   }
 };
 
-export const compareValues = (a, b) => {
+const compareValues = (a, b) => {
   if (a === b) return 0;
-  if (a === null) return -1;
   if (typeof a === 'string') return a.localeCompare(b) as 0 | 1 | -1;
   if (a < b) return -1;
   return 1;
+};
+export const createCompare = <T>(
+  get: (value: T, key: string) => any,
+  sort: [string, 'asc' | 'desc'][],
+) => (value1: T, value2: T): 0 | 1 | -1 => {
+  for (const [key, order] of sort) {
+    const v1 = get(value1, key);
+    const v2 = get(value2, key);
+    const v1Null = v1 === null || v1 === undefined;
+    const v2Null = v2 === null || v2 === undefined;
+    if (v1Null && !v2Null) return 1;
+    if (v2Null && !v1Null) return -1;
+    const comp = compareValues(get(value1, key), get(value2, key));
+    if (comp) return order === 'asc' ? comp : -comp as 1 | -1;
+  }
+  return 0;
 };
 
 export const runFilter = (filter: any, id: string, record: any): boolean => {
