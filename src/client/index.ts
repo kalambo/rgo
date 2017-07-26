@@ -1,39 +1,13 @@
 export { Client } from './typings';
 
 import * as _ from 'lodash';
-import {
-  ArgumentNode,
-  OperationDefinitionNode,
-  FieldNode,
-  StringValueNode,
-} from 'graphql';
 
-import {
-  Args,
-  createEmitter,
-  createEmitterMap,
-  keysToObject,
-  Obj,
-} from '../core';
+import { createEmitter, createEmitterMap, Obj } from '../core';
 
 import graphApi, { AuthFetch } from './graphApi';
-import prepareQuery from './prepareQuery';
-import runRelation from './runRelation';
+import { initQuery, prepareQuery, runQuery } from './query';
 import { setClient, setServer } from './set';
 import { Client, ClientState, Changes, DataChanges } from './typings';
-
-const loading = Symbol('loading');
-
-export const buildArgs = (args: ArgumentNode[] = [], variables: Obj): Args =>
-  keysToObject(
-    args,
-    ({ value }) => {
-      if (value.kind === 'Variable') return variables[value.name.value];
-      if (value.kind === 'IntValue') return parseInt(value.value, 10);
-      return (value as StringValueNode).value;
-    },
-    ({ name }) => name.value,
-  );
 
 export default async function buildClient(
   url: string,
@@ -89,58 +63,38 @@ export default async function buildClient(
         ((value: Obj | symbol) => void) | undefined
       ];
 
-      const { apiQuery, layers, readQuery } = prepareQuery(
+      const { queryLayers, rootQuery, subQueries } = prepareQuery(
         api.schema,
         queryString,
         variables,
         idsOnly,
       );
-      const readNodes = (readQuery.definitions[0] as OperationDefinitionNode)
-        .selectionSet.selections as FieldNode[];
 
       let unlisten: boolean | (() => void)[] = false;
-      if (listener) listener(loading);
+      if (listener) listener(Symbol.for('loading'));
 
       const result = (async () => {
-        const layerKeys = Object.keys(layers);
-        const layersExtra = keysToObject(layerKeys, path =>
-          layers[path].extra(state),
+        const { offsets, requests } = initQuery(
+          state,
+          rootQuery,
+          queryLayers,
+          subQueries,
+          variables,
         );
-        const rootVariables = {
-          ...variables,
-          ...keysToObject(layerKeys, path => layersExtra[path].slice),
-        };
-        const queryData = await api.query([
-          { query: apiQuery, variables: rootVariables },
-          ...layerKeys
-            .filter(path => layersExtra[path].ids.length > 0)
-            .map(path => ({
-              query: layers[path].query,
-              variables: { ...rootVariables, ids: layersExtra[path].ids },
-            })),
-        ]);
+        const queryData = await api.query(requests);
         queryData.forEach(d => setServer(state, api.normalize(d)));
 
         const value = {};
-        if (!unlisten)
-          unlisten = readNodes.map(node =>
-            runRelation(
-              { field: node.name.value, records: { '': value } },
-              { type: node.name.value, isList: true },
-              buildArgs(node.arguments, variables),
-              node.selectionSet!.selections as FieldNode[],
-              { '': queryData[0]![node.name.value] },
-              node.name.value,
-              {
-                state,
-                schema: api.schema,
-                userId: null,
-                variables,
-                extra: layersExtra,
-              },
-              listener && readEmitter.watch,
-            ),
+        if (!unlisten) {
+          unlisten = runQuery(
+            value,
+            queryLayers,
+            state,
+            queryData[0]!,
+            offsets,
+            listener && readEmitter.watch,
           );
+        }
         if (listener) listener(value);
         return value;
       })();

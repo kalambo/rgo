@@ -1,4 +1,11 @@
-import { Data, Field, Obj } from '../core';
+import {
+  Data,
+  Field,
+  ForeignRelationField,
+  Obj,
+  QueryArgs,
+  RelationField,
+} from '../core';
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 
@@ -19,12 +26,24 @@ export interface Changes {
   };
 }
 
+export interface QueryLayer {
+  root: { type?: string; field: string };
+  field: ForeignRelationField | RelationField;
+  path: string;
+  args: QueryArgs & {
+    unsorted: boolean;
+    filterFields: string[];
+  };
+  scalarFields: Obj<true>;
+  relations: QueryLayer[];
+}
+
 export interface ReadContext {
   state: ClientState;
   schema: Obj<Obj<Field>>;
   userId: string | null;
   variables: Obj;
-  extra: Obj<{ slice: { skip: number; show: number }; ids: string[] }>;
+  layers: Obj<{ args: QueryArgs; hasSort: boolean; extraSkip: number }>;
 }
 
 export interface Client {

@@ -1,9 +1,9 @@
-import { clearClient, client, setupClient, simpleQuery } from './setup';
+import { clearClient, client, setupClient, simpleQuery } from '../setup';
 
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('end to end: added', () => {
+describe('queries: added', () => {
   test('simple: 0.5th', async () => {
     client.set('Person', 'F', { firstName: 'Brent' });
     expect(await client.query(simpleQuery, {}, false)).toEqual({

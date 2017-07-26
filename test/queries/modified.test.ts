@@ -1,9 +1,9 @@
-import { clearClient, client, setupClient, simpleQuery } from './setup';
+import { clearClient, client, setupClient, simpleQuery } from '../setup';
 
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('end to end: modified', () => {
+describe('queries: modified', () => {
   test('simple: 1st=>0.5th', async () => {
     await client.query(
       `{ Person(sort: "firstName", skip: 0, show: 1) { firstName } }`,

@@ -5,12 +5,12 @@ import {
   relationQuery,
   simpleQuery,
   sortedRelationQuery,
-} from './setup';
+} from '../setup';
 
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('end to end: removed', () => {
+describe('queries: removed', () => {
   test('simple: 1st', async () => {
     client.set('Person', 'B', null);
     expect(await client.query(simpleQuery, {}, false)).toEqual({

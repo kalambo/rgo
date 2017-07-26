@@ -1,9 +1,9 @@
-import { clearClient, client, setupClient } from './setup';
+import { clearClient, client, setupClient } from '../setup';
 
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('end to end: basic', () => {
+describe('queries: basic', () => {
   test('test', async () => {
     expect(
       await client.query(
