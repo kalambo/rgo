@@ -1,5 +1,6 @@
 import * as fetchMock from 'fetch-mock';
-import { Obj } from 'mishmash';
+
+import { Obj } from '../../core';
 
 import buildClient from '../index';
 

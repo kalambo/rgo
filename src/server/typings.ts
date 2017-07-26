@@ -1,6 +1,4 @@
-import { Obj } from 'mishmash';
-
-import { Field, QueryArgs } from '../core';
+import { Field, Obj, QueryArgs } from '../core';
 
 export interface Connector {
   query: (args: QueryArgs) => Promise<any[]>;

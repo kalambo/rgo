@@ -1,6 +1,4 @@
-import { Obj } from 'mishmash';
-
-import { createCompare, runFilter } from '../../core';
+import { createCompare, Obj, runFilter } from '../../core';
 
 import { Connector } from '../typings';
 

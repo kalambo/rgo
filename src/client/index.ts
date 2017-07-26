@@ -1,6 +1,5 @@
 export { Client } from './typings';
 
-import { createEmitter, createEmitterMap, keysToObject, Obj } from 'mishmash';
 import * as _ from 'lodash';
 import {
   ArgumentNode,
@@ -9,7 +8,13 @@ import {
   StringValueNode,
 } from 'graphql';
 
-import { Args } from '../core';
+import {
+  Args,
+  createEmitter,
+  createEmitterMap,
+  keysToObject,
+  Obj,
+} from '../core';
 
 import graphApi, { AuthFetch } from './graphApi';
 import prepareQuery from './prepareQuery';

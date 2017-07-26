@@ -1,6 +1,4 @@
-import { Obj } from 'mishmash';
-
-import { Data, Field } from '../core';
+import { Data, Field, Obj } from '../core';
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 

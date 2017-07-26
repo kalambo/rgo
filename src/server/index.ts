@@ -14,9 +14,8 @@ import {
   GraphQLSchema,
   GraphQLString,
 } from 'graphql';
-import { keysToObject, Obj } from 'mishmash';
 
-import { Field, fieldIs, parseArgs, scalars } from '../core';
+import { Field, fieldIs, keysToObject, Obj, parseArgs, scalars } from '../core';
 
 import batch from './batch';
 import mutate from './mutate';

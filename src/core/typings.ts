@@ -1,4 +1,4 @@
-import { Obj } from 'mishmash';
+export type Obj<T = any> = { [key: string]: T };
 
 export type ScalarName =
   | 'Boolean'

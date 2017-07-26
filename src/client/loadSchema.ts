@@ -1,7 +1,6 @@
 import { normalize, schema as normalizrSchema } from 'normalizr';
-import { keysToObject, Obj } from 'mishmash';
 
-import { Field, fieldIs, mapArray, scalars } from '../core';
+import { Field, fieldIs, keysToObject, mapArray, Obj, scalars } from '../core';
 
 export default async function loadSchema(url: string) {
   const schema: Obj<Obj<Field>> = JSON.parse(

@@ -1,4 +1,3 @@
-import { Obj } from 'mishmash';
 import {
   ArgumentNode,
   ASTNode,
@@ -14,6 +13,7 @@ import {
   fieldIs,
   ForeignRelationField,
   isObject,
+  Obj,
   parseArgs,
   RelationField,
   runFilter,

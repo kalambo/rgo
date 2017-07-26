@@ -1,11 +1,10 @@
-import { Obj } from 'mishmash';
 import * as _ from 'lodash';
 
-((...x) => x) as Obj;
-
-import { Data } from '../core';
+import { Data, Obj } from '../core';
 
 import { ClientState, DataChanges, DataDiff } from './typings';
+
+(...x) => x as Obj;
 
 const setDiff = (
   diff: DataDiff,

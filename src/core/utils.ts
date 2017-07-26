@@ -1,5 +1,6 @@
-import { Obj } from 'mishmash';
 import * as set from 'lodash/fp/set';
+
+import { Obj } from './typings';
 
 export const noUndef = (v: any, replacer: any = null) =>
   v === undefined ? replacer : v;
@@ -19,6 +20,18 @@ export interface MapConfig {
 
 const flatSet = (obj: any, key: string, value: any, flat?: boolean) =>
   flat ? { ...obj, [key]: value } : set(key, value, obj);
+
+export const keysToObject = <T, U>(
+  keys: T[],
+  valueMap: (k: T, i: number) => U | undefined,
+  keyMap?: (k: T, i: number) => string,
+) =>
+  keys.reduce((res, k, i) => {
+    const newValue = valueMap(k, i);
+    return newValue === undefined
+      ? res
+      : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
+  }, {} as Obj<U>);
 
 export const mapObject = (
   obj: any,
@@ -51,6 +64,60 @@ export const mapObject = (
       {},
     );
   }
+};
+
+const binarySearch = <T>(
+  element: T,
+  array: T[],
+  compareFunc: (a: T, b: T) => 0 | 1 | -1,
+  start = 0,
+  end = array.length,
+): number => {
+  if (array.length === 0) return -1;
+
+  const pivot = (start + end) >> 1;
+  const c = compareFunc(element, array[pivot]);
+
+  if (end - start <= 1) return c === 1 ? pivot : pivot - 1;
+  if (c === 0) return pivot - 1;
+  return c === 1
+    ? binarySearch(element, array, compareFunc, pivot, end)
+    : binarySearch(element, array, compareFunc, start, pivot);
+};
+export const locationOf = <T>(
+  element: T,
+  array: T[],
+  compareFunc: (a: T, b: T) => 0 | 1 | -1,
+) => binarySearch(element, array, compareFunc) + 1;
+
+export const createEmitter = <T>() => {
+  const listeners: ((value: T) => void)[] = [];
+  return {
+    watch(listener: (value: T) => void) {
+      listeners.push(listener);
+      return () => listeners.filter(l => l !== listener);
+    },
+    emit(value: T) {
+      listeners.forEach(l => l(value));
+    },
+  };
+};
+
+export const createEmitterMap = <T>() => {
+  const listeners: Obj<((value: T) => void)[]> = {};
+  return {
+    watch(key: string, listener: (value: T) => void) {
+      if (!listeners[key]) listeners[key] = [];
+      listeners[key].push(listener);
+      return () => {
+        listeners[key] = listeners[key].filter(l => l !== listener);
+        if (listeners[key].length === 0) delete listeners[key];
+      };
+    },
+    emit(key: string, value: T) {
+      if (listeners[key]) listeners[key].forEach(l => l(value));
+    },
+  };
 };
 
 const compareValues = (a, b) => {

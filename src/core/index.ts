@@ -9,6 +9,7 @@ export {
   fieldIs,
   ForeignRelationField,
   Formula,
+  Obj,
   QueryArgs,
   RelationField,
   ScalarField,
@@ -16,7 +17,11 @@ export {
 } from './typings';
 export {
   createCompare,
+  createEmitter,
+  createEmitterMap,
   isObject,
+  keysToObject,
+  locationOf,
   mapArray,
   mapObject,
   noUndef,

@@ -1,8 +1,7 @@
-import { keysToObject, Obj } from 'mishmash';
 import * as peg from 'pegjs';
 
-import { Field, fieldIs } from '../typings';
-import { isObject, mapArray, mapObject } from '../utils';
+import { Field, fieldIs, Obj } from '../typings';
+import { isObject, keysToObject, mapArray, mapObject } from '../utils';
 
 import parseDateString from './parseDateString';
 

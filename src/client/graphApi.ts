@@ -1,7 +1,6 @@
-import { keysToObject, Obj } from 'mishmash';
 import * as _ from 'lodash';
 
-import { Field, fieldIs, mapArray, scalars } from '../core';
+import { Field, fieldIs, keysToObject, mapArray, Obj, scalars } from '../core';
 
 import loadSchema from './loadSchema';
 

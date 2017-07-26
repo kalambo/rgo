@@ -1,7 +1,6 @@
 import { GraphQLResolveInfo, FieldNode } from 'graphql';
-import { Obj } from 'mishmash';
 
-import { Args, Field, QueryArgs } from '../typings';
+import { Args, Field, Obj, QueryArgs } from '../typings';
 
 import parseFilter from './parseFilter';
 import parseSort from './parseSort';

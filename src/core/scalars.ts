@@ -7,7 +7,9 @@ import {
   ValueNode,
 } from 'graphql';
 import { Kind } from 'graphql/language';
-import { keysToObject, Obj } from 'mishmash';
+
+import { Obj } from './typings';
+import { keysToObject } from './utils';
 
 const parseLiteral = (
   ast: ValueNode,
