@@ -103,18 +103,22 @@ export default function runRelation(
     const addedIds = rootRecordIds[rootId].filter(id => id && !records[id]);
     if (rootRecordIds[rootId].length === 0) {
       root.records[rootId][root.field] = null;
+    } else if (fieldIs.relation(field) && field.isList && !args.sort) {
+      root.records[rootId][root.field] = nullIfEmpty(
+        rootRecordIds[rootId].map(getRecord),
+      );
     } else if (fieldIs.foreignRelation(field) || field.isList) {
       const queryFirst = serverData[rootId][context.extra[path].slice.skip];
       const queryStart = locationOf(
-        queryFirst.id,
+        '',
         rootRecordIds[rootId],
         createCompare(
           (id: string, key) =>
             key === 'id'
-              ? id
-              : id === queryFirst.id
-                ? queryFirst[key]
-                : context.state.combined[field.type][id]![key],
+              ? id || queryFirst.id
+              : id
+                ? context.state.combined[field.type][id]![key]
+                : queryFirst[key],
           sort,
         ),
       );
@@ -122,11 +126,22 @@ export default function runRelation(
       for (const id of Object.keys(context.state.diff[field.type] || {})) {
         if (context.state.diff[field.type][id] === 1) {
           const localIndex = rootRecordIds[rootId].indexOf(id);
-          if (localIndex < queryStart) sliceStart -= 1;
+          if (localIndex !== -1 && localIndex < queryStart) sliceStart -= 1;
+        }
+        if (context.state.diff[field.type][id] === 0) {
+          const queryRecord = serverData[rootId].find(
+            record => record.id === id,
+          );
+          if (queryRecord && compareRecords(queryRecord, queryFirst) === -1) {
+            sliceStart += 1;
+          }
+          const localIndex = rootRecordIds[rootId].indexOf(id);
+          if (localIndex !== -1 && localIndex < queryStart) sliceStart -= 1;
         }
         if (context.state.diff[field.type][id] === -1) {
           const serverRecord = (context.state.server[field.type] || {})[id];
           if (
+            serverRecord &&
             (!root.type ||
               fieldIs.foreignRelation(field) ||
               context.state.combined[root.type][rootId]![root.field].includes(
@@ -175,7 +190,7 @@ export default function runRelation(
           }),
           {},
         ),
-        `${path}.${node.name.value}`,
+        `${path}_${node.name.value}`,
         context,
         onChanges && changesEmitter.watch,
       ),
