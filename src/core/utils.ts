@@ -11,6 +11,12 @@ export const isObject = v =>
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
+export const isOrIncludes = <T>(value: T | T[], elem: T) =>
+  Array.isArray(value) ? value.includes(elem) : value === elem;
+
+export const nullIfEmpty = (array: any[]) =>
+  array.length === 0 ? null : array;
+
 export interface MapConfig {
   valueMaps?: Obj<((value: any) => any) | true>;
   newKeys?: Obj<string>;
@@ -165,4 +171,20 @@ export const runFilter = (filter: any, id: string, record: any): boolean => {
   if (op === '$in') return filter[key][op].includes(value);
 
   return false;
+};
+
+export const getFilterFields = (obj: any): string[] => {
+  if (Array.isArray(obj)) {
+    return obj.reduce(
+      (res, o) => [...res, ...getFilterFields(o)],
+      [] as string[],
+    );
+  }
+  if (isObject(obj)) {
+    return Object.keys(obj).reduce(
+      (res, k) => [...res, ...(k[0] === '$' ? getFilterFields(obj[k]) : [k])],
+      [] as string[],
+    );
+  }
+  return [];
 };

@@ -5,7 +5,7 @@ import * as _ from 'lodash';
 import { createEmitter, createEmitterMap, Obj } from '../core';
 
 import graphApi, { AuthFetch } from './graphApi';
-import { initQuery, prepareQuery, runQuery } from './query';
+import { prepareQuery, runQueryLayer } from './query';
 import { setClient, setServer } from './set';
 import { Client, ClientState, Changes, DataChanges } from './typings';
 
@@ -63,8 +63,9 @@ export default async function buildClient(
         ((value: Obj | symbol) => void) | undefined
       ];
 
-      const { queryLayers, rootQuery, subQueries } = prepareQuery(
+      const { layers, requests } = prepareQuery(
         api.schema,
+        state,
         queryString,
         variables,
         idsOnly,
@@ -74,25 +75,19 @@ export default async function buildClient(
       if (listener) listener(Symbol.for('loading'));
 
       const result = (async () => {
-        const { offsets, requests } = initQuery(
-          state,
-          rootQuery,
-          queryLayers,
-          subQueries,
-          variables,
-        );
         const queryData = await api.query(requests);
         queryData.forEach(d => setServer(state, api.normalize(d)));
 
         const value = {};
         if (!unlisten) {
-          unlisten = runQuery(
-            value,
-            queryLayers,
-            state,
-            queryData[0]!,
-            offsets,
-            listener && readEmitter.watch,
+          unlisten = layers.map(layer =>
+            runQueryLayer(
+              layer,
+              { '': value },
+              state,
+              { '': queryData[0]![layer.root.field] },
+              listener && readEmitter.watch,
+            ),
           );
         }
         if (listener) listener(value);

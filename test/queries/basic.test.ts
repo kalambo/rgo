@@ -4,7 +4,7 @@ beforeEach(setupClient);
 afterEach(clearClient);
 
 describe('queries: basic', () => {
-  test('test', async () => {
+  test('simple', async () => {
     expect(
       await client.query(
         `{

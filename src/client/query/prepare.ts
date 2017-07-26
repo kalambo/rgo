@@ -9,30 +9,19 @@ import {
 
 import {
   Args,
+  createCompare,
   Field,
   fieldIs,
   ForeignRelationField,
-  isObject,
+  getFilterFields,
   keysToObject,
   Obj,
   parseArgs,
   RelationField,
+  runFilter,
 } from '../../core';
 
-import { QueryLayer } from '../typings';
-
-const getFields = (obj: any): string[] => {
-  if (Array.isArray(obj)) {
-    return obj.reduce((res, o) => [...res, ...getFields(o)], [] as string[]);
-  }
-  if (isObject(obj)) {
-    return Object.keys(obj).reduce(
-      (res, k) => [...res, ...(k[0] === '$' ? getFields(obj[k]) : [k])],
-      [] as string[],
-    );
-  }
-  return [];
-};
+import { ClientState, QueryLayer } from '../typings';
 
 const processArgs = (
   schema: Obj<Obj<Field>>,
@@ -53,7 +42,7 @@ const processArgs = (
   return {
     ...args,
     unsorted: !plainArgs.sort,
-    filterFields: getFields(args.filter),
+    filterFields: getFilterFields(args.filter),
   };
 };
 
@@ -77,13 +66,18 @@ const queryOperation = (keys: string[], ids?: boolean) => {
   return `query($ids: [String!], ${keyVariables}) `;
 };
 
-export default function prepare(
+export default function buildLayers(
   schema: Obj<Obj<Field>>,
+  state: ClientState,
   query: string,
   variables: Obj,
   idsOnly?: boolean,
 ) {
-  const subQueries: Obj<string> = {};
+  const partials: Obj<{
+    query: string;
+    extra: { skip: number; show: number };
+    ids: string[];
+  }> = {};
 
   const processRelation = (
     root: { type?: string; field: string },
@@ -140,26 +134,101 @@ export default function prepare(
       });
 
     if (isList) {
-      subQueries[path] = `${queryOperation(
-        Object.keys(subQueries).filter(k => k.startsWith(path) && k !== path),
-        true,
-      )}{
-        ${print({
-          ...node,
-          name: { ...node.name, value: field.type },
-          arguments: [buildVariableArgument('ids')],
-        })}
-      }`;
+      partials[path] = {
+        query: `${queryOperation(
+          Object.keys(partials).filter(k => k.startsWith(path) && k !== path),
+          true,
+        )}{
+          ${print({
+            ...node,
+            name: { ...node.name, value: field.type },
+            arguments: [buildVariableArgument('ids')],
+          })}
+        }`,
+        extra: { skip: 0, show: 0 },
+        ids: [],
+      };
+
+      for (const id of Object.keys(state.diff[field.type] || {})) {
+        if (
+          state.diff[field.type][id] === 1 ||
+          state.diff[field.type][id] === 0
+        ) {
+          if (
+            args.filterFields.some(
+              f => state.combined[field.type][id]![f] === undefined,
+            ) ||
+            runFilter(args.filter, id, state.combined[field.type][id])
+          ) {
+            partials[path].ids.push(id);
+            partials[path].extra.skip += 1;
+            if (state.diff[field.type][id] === 0) {
+              partials[path].extra.show += 1;
+            }
+          }
+        }
+        if (state.diff[field.type][id] === -1) {
+          if (
+            !(state.server[field.type] && state.server[field.type][id]) ||
+            args.filterFields.some(
+              f => state.server[field.type][id]![f] === undefined,
+            )
+          ) {
+            partials[path].ids.push(id);
+            partials[path].extra.show += 1;
+          } else if (
+            runFilter(
+              args.filter,
+              id,
+              state.server[field.type] && state.server[field.type][id],
+            )
+          ) {
+            partials[path].extra.show += 1;
+          }
+        }
+      }
+      partials[path].extra.skip = Math.min(
+        partials[path].extra.skip,
+        args.skip,
+      );
     }
 
-    return { root, field, path, args, scalarFields, relations };
+    const layerState = {} as any;
+    return {
+      root,
+      field,
+      args: { ...args, offset: partials[path] ? partials[path].extra.skip : 0 },
+      scalarFields,
+      relations,
+      funcs: {
+        filter: (id: string) =>
+          runFilter(args.filter, id, (state.combined[field.type] || {})[id]),
+        compare: createCompare(
+          (id: string, key) =>
+            key === 'id' ? id : state.combined[field.type][id]![key],
+          args.sort,
+        ),
+        compareRecords: createCompare(
+          (record: Obj, key) => record[key],
+          args.sort,
+        ),
+      },
+      state: layerState,
+      getRecord: (id: string | null) =>
+        id
+          ? layerState.records[id] ||
+            (layerState.records[id] = keysToObject(
+              Object.keys(scalarFields),
+              f => (f === 'id' ? id : state.combined[field.type][id]![f]),
+            ))
+          : null,
+    };
   };
 
   const queryDoc = parse(query);
   const rootSelection = (queryDoc.definitions[0] as OperationDefinitionNode)
     .selectionSet.selections as FieldNode[];
-
-  const queryLayers = rootSelection.map(node =>
+  const layers = rootSelection.map(node =>
     processRelation(
       { field: node.name.value },
       { type: node.name.value, isList: true },
@@ -168,9 +237,21 @@ export default function prepare(
     ),
   );
 
-  return {
-    queryLayers,
-    rootQuery: `${queryOperation(Object.keys(subQueries))}${print(queryDoc)}`,
-    subQueries,
+  const partialsKeys = Object.keys(partials);
+  const rootVariables = {
+    ...variables,
+    ...keysToObject(partialsKeys, path => partials[path].extra),
   };
+  const requests = [
+    {
+      query: `${queryOperation(Object.keys(partials))}${print(queryDoc)}`,
+      variables: rootVariables,
+    },
+    ...partialsKeys.filter(path => partials[path].ids.length > 0).map(path => ({
+      query: partials[path].query,
+      variables: { ...rootVariables, ids: partials[path].ids },
+    })),
+  ];
+
+  return { layers, requests };
 }
