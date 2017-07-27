@@ -1,10 +1,8 @@
 import * as _ from 'lodash';
 
-import { Data, Obj } from '../core';
+import { Data, Field, fieldIs, mapArray, Obj, scalars } from '../core';
 
 import { ClientState, DataChanges, DataDiff } from './typings';
-
-(...x) => x as Obj;
 
 const setDiff = (
   diff: DataDiff,
@@ -120,6 +118,7 @@ export function setClient(
 }
 
 export function setServer(
+  schema: Obj<Obj<Field>>,
   { server, client, combined, diff }: ClientState,
   value: Data,
 ) {
@@ -154,12 +153,26 @@ export function setServer(
           combined[type][id] = combined[type][id] || {};
         }
         for (const field of Object.keys(value[type][id])) {
-          server[type][id]![field] = value[type][id]![field];
+          const f = schema[type][field];
+          const decode = fieldIs.scalar(f) && scalars[f.scalar].decode;
+          const fieldValue =
+            value[type][id]![field] === null || !decode
+              ? value[type][id]![field]
+              : mapArray(value[type][id]![field], decode);
+          if (
+            fieldIs.relation(f) &&
+            f.isList &&
+            typeof (fieldValue && fieldValue[0]) === 'number'
+          ) {
+            fieldValue.unshift(...new Array(fieldValue.shift()));
+          }
+
+          server[type][id]![field] = fieldValue;
           if (
             (client[type] && client[type][id] && client[type][id]![field]) ===
             undefined
           ) {
-            combined[type][id]![field] = value[type][id]![field];
+            combined[type][id]![field] = fieldValue;
             setChanged(type, id, field);
           }
         }

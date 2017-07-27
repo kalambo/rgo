@@ -4,6 +4,7 @@ import { setClient, setServer } from '../set';
 import { ClientState } from '../typings';
 
 const baseData = require('./setup/data.json');
+const baseSchema = require('./setup/schema.json');
 
 describe('client: set', () => {
   test('basic', () => {
@@ -15,7 +16,7 @@ describe('client: set', () => {
     };
     const expected: ClientState = _.cloneDeep(state);
 
-    const changes1 = setServer(state, baseData);
+    const changes1 = setServer(baseSchema, state, baseData);
     expected.server = _.cloneDeep(baseData);
     expected.combined = _.cloneDeep(baseData);
 
@@ -26,7 +27,7 @@ describe('client: set', () => {
       ),
     );
 
-    const changes2 = setServer(state, {
+    const changes2 = setServer(baseSchema, state, {
       Address: { A: null, F: { city: 'Troyville' } },
     });
     delete expected.server.Address.A;
@@ -37,7 +38,7 @@ describe('client: set', () => {
     expect(state).toEqual(expected);
     expect(changes2).toEqual({
       Address: {
-        A: { street: true, city: true, postcode: true, people: true },
+        A: { street: true, city: true, zipCode: true, people: true },
         F: { city: true },
       },
     });

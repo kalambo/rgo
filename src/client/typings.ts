@@ -31,23 +31,10 @@ export interface QueryLayer {
   args: QueryArgs & {
     unsorted: boolean;
     filterFields: string[];
-    offset: number;
   };
   scalarFields: Obj<true>;
   relations: QueryLayer[];
-  funcs: {
-    filter: (id: string) => boolean;
-    compare: (id1: string, id2: string) => 0 | 1 | -1;
-    compareRecords: (record1: Obj, record2: Obj) => 0 | 1 | -1;
-  };
-  state: {
-    rootIds: string[];
-    rootRecordIds: Obj<(string | null)[]>;
-    records: Obj<Obj>;
-    filteredIdsObj: Obj<boolean>;
-    filteredIds: string[];
-  };
-  getRecord: (id: string | null) => Obj | null;
+  path: string;
 }
 
 export interface Client {

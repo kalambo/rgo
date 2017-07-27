@@ -2,8 +2,8 @@ import * as connectors from './connectors';
 export { connectors };
 
 import {
-  ExecutionResult,
-  graphql,
+  execute,
+  FieldNode,
   GraphQLInputObjectType,
   GraphQLID,
   GraphQLInt,
@@ -13,9 +13,24 @@ import {
   GraphQLResolveInfo,
   GraphQLSchema,
   GraphQLString,
+  OperationDefinitionNode,
+  parse,
 } from 'graphql';
 
-import { Field, fieldIs, keysToObject, Obj, parseArgs, scalars } from '../core';
+import {
+  Data,
+  Field,
+  fieldIs,
+  ForeignRelationField,
+  keysToObject,
+  mapArray,
+  Obj,
+  parseArgs,
+  parsePlainArgs,
+  QueryResult,
+  RelationField,
+  scalars,
+} from '../core';
 
 import batch from './batch';
 import mutate from './mutate';
@@ -28,10 +43,15 @@ const argTypes = {
   sort: { type: GraphQLString },
   skip: { type: GraphQLInt },
   show: { type: GraphQLInt },
-  extra: {
+  info: {
     type: new GraphQLInputObjectType({
-      name: 'Extra',
-      fields: { skip: { type: GraphQLInt }, show: { type: GraphQLInt } },
+      name: 'Info',
+      fields: {
+        extraSkip: { type: GraphQLInt },
+        extraShow: { type: GraphQLInt },
+        traceSkip: { type: GraphQLInt },
+        traceShow: { type: GraphQLInt },
+      },
     }),
   },
 };
@@ -199,14 +219,6 @@ export default function buildServer(types: Obj<DataType>) {
             }
           },
         })),
-        SCHEMA: {
-          type: scalars.JSON.type,
-          resolve: () =>
-            JSON.stringify(
-              typeFields,
-              (_, v) => (typeof v === 'function' ? true : v),
-            ),
-        },
       },
     }),
 
@@ -231,20 +243,131 @@ export default function buildServer(types: Obj<DataType>) {
     }),
   });
 
-  const runQuery = async (config: QueryConfig, context: any) =>
-    graphql(
-      schema,
-      config.query,
-      null,
-      { ...context, rootQuery: config.query },
-      config.variables,
-    );
-
   return async (
-    config: QueryConfig | QueryConfig[],
+    configs: QueryConfig[],
     context?: any,
-  ): Promise<ExecutionResult | ExecutionResult[]> =>
-    Array.isArray(config)
-      ? Promise.all(config.map(c => runQuery(c, context)))
-      : runQuery(config, context);
+  ): Promise<QueryResult> => {
+    if (configs.length === 1 && configs[0].query === '{ SCHEMA }') {
+      return JSON.stringify(
+        typeFields,
+        (_, v) => (typeof v === 'function' ? true : v),
+      ) as any;
+    }
+
+    const data: Data = {};
+    const firstIds = await Promise.all(
+      configs.map(async ({ query, variables }) => {
+        const firsts: Obj<Obj<string>> = {};
+        const queryDoc = parse(query);
+        const result = await execute(
+          schema,
+          queryDoc,
+          null,
+          { ...context, rootQuery: query },
+          variables,
+        );
+
+        const processLayer = (
+          root: { type?: string; field: string },
+          field: ForeignRelationField | RelationField,
+          { arguments: argNodes, selectionSet }: FieldNode,
+          queryResults: Obj<(Obj | null)[]>,
+          path: string,
+          variables: Obj,
+        ) => {
+          const fieldNodes = selectionSet!.selections as FieldNode[];
+          const scalarFields = fieldNodes
+            .filter(
+              ({ name, selectionSet }) => name.value !== 'id' && !selectionSet,
+            )
+            .map(node => node.name.value);
+          const relationFields = fieldNodes
+            .filter(({ selectionSet }) => selectionSet)
+            .map(node => node.name.value);
+          const args = parsePlainArgs(argNodes, variables);
+
+          data[field.type] = data[field.type] || {};
+          if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
+            firsts[path] = {};
+          }
+          Object.keys(queryResults).forEach((rootId, index) => {
+            if (
+              root.type &&
+              fieldIs.relation(field) &&
+              field.isList &&
+              !args.sort
+            ) {
+              data[root.type][rootId]![root.field].unshift(args.skip || 0);
+            }
+            if (
+              !args.info ||
+              index < args.info.traceSkip ||
+              args.info.traceShow === undefined ||
+              index > args.info.traceShow
+            ) {
+              queryResults[rootId].forEach(
+                record =>
+                  record &&
+                  (data[field.type][record.id] = {
+                    ...data[field.type][record.id],
+                    ...keysToObject(scalarFields, f => record[f]),
+                    ...keysToObject(
+                      relationFields,
+                      f =>
+                        record[f] && mapArray(record[f], rec => rec && rec.id),
+                    ),
+                  }),
+              );
+            }
+            if (firsts[path]) {
+              firsts[path][rootId] = (queryResults[rootId][
+                args.info ? args.info.extraSkip : 0
+              ] || {}).id;
+            }
+          });
+
+          fieldNodes.filter(({ selectionSet }) => selectionSet).forEach(node =>
+            processLayer(
+              { type: field.type, field: node.name.value },
+              typeFields[field.type][node.name.value] as
+                | ForeignRelationField
+                | RelationField,
+              node,
+              Object.keys(queryResults).reduce(
+                (res, rootId) => ({
+                  ...res,
+                  ...keysToObject(
+                    queryResults[rootId].filter(record => record) as Obj[],
+                    record =>
+                      Array.isArray(record[node.name.value])
+                        ? record[node.name.value]
+                        : [record[node.name.value]],
+                    record => record.id,
+                  ),
+                }),
+                {},
+              ),
+              `${path}_${node.name.value}`,
+              variables,
+            ),
+          );
+        };
+
+        const rootNodes = (queryDoc.definitions[0] as OperationDefinitionNode)
+          .selectionSet.selections as FieldNode[];
+        rootNodes.forEach(node =>
+          processLayer(
+            { field: node.name.value },
+            { type: node.name.value, isList: true },
+            node,
+            { '': result.data![node.name.value] || [] },
+            node.name.value,
+            variables,
+          ),
+        );
+        return firsts;
+      }),
+    );
+    return { data, firstIds } as any;
+  };
 }

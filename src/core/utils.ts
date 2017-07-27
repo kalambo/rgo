@@ -11,12 +11,6 @@ export const isObject = v =>
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
-export const isOrIncludes = <T>(value: T | T[], elem: T) =>
-  Array.isArray(value) ? value.includes(elem) : value === elem;
-
-export const nullIfEmpty = (array: any[]) =>
-  array.length === 0 ? null : array;
-
 export interface MapConfig {
   valueMaps?: Obj<((value: any) => any) | true>;
   newKeys?: Obj<string>;

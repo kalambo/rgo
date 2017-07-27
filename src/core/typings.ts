@@ -16,7 +16,12 @@ export interface Args {
   sort?: string;
   skip?: number;
   show?: number;
-  extra?: { skip: number; show: number };
+  info?: {
+    extraSkip: number;
+    extraShow: number;
+    traceSkip: number;
+    traceShow?: number;
+  };
 }
 
 export interface QueryArgs {
@@ -25,6 +30,7 @@ export interface QueryArgs {
   skip: number;
   show: number | null;
   fields: string[] | null;
+  trace?: { skip: number; show: number | null };
 }
 
 export type Formula = (
@@ -70,4 +76,9 @@ export interface DataKey {
   type: string;
   id: string;
   field?: string;
+}
+
+export interface QueryResult {
+  data: Data;
+  firstIds: Obj<Obj<string>>[];
 }

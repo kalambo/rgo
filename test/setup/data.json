@@ -40,28 +40,28 @@
     "A": {
       "street": "23106 Frederique Street",
       "city": "Lynchfurt",
-      "postcode": "17381",
+      "zipCode": "17381",
       "people": ["D"]
     },
     "B": {
       "street": "39691 Crooks Centers",
       "city": "Tobyhaven",
-      "postcode": "08963"
+      "zipCode": "08963"
     },
     "C": {
       "street": "79464 Ottis Heights",
       "city": "Princeview",
-      "postcode": "23194"
+      "zipCode": "23194"
     },
     "D": {
       "street": "407 Jakubowski Vista",
       "city": "Jeannebury",
-      "postcode": "56075"
+      "zipCode": "56075"
     },
     "E": {
       "street": "99228 Witting Mountains",
       "city": "Rileyfurt",
-      "postcode": "43912"
+      "zipCode": "43912"
     }
   }
 }

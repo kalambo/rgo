@@ -1,9 +1,26 @@
-import { GraphQLResolveInfo, FieldNode } from 'graphql';
+import {
+  ArgumentNode,
+  GraphQLResolveInfo,
+  FieldNode,
+  StringValueNode,
+} from 'graphql';
 
 import { Args, Field, Obj, QueryArgs } from '../typings';
+import { keysToObject } from '../utils';
 
 import parseFilter from './parseFilter';
 import parseSort from './parseSort';
+
+export const parsePlainArgs = (argNodes: ArgumentNode[] = [], variables: Obj) =>
+  keysToObject(
+    argNodes,
+    ({ value }) => {
+      if (value.kind === 'Variable') return variables[value.name.value];
+      if (value.kind === 'IntValue') return parseInt(value.value, 10);
+      return (value as StringValueNode).value;
+    },
+    ({ name }) => name.value,
+  ) as Args;
 
 export default function parseArgs(
   args: Args,
@@ -12,8 +29,8 @@ export default function parseArgs(
   info?: GraphQLResolveInfo,
 ): QueryArgs {
   try {
-    const extraSkip = (args.extra && args.extra!.skip) || 0;
-    const extraShow = (args.extra && args.extra!.show) || 0;
+    const extraSkip = (args.info && args.info.extraSkip) || 0;
+    const extraShow = (args.info && args.info.extraShow) || 0;
     return {
       filter: parseFilter(args.filter, userId, fields),
       sort: parseSort(args.sort),
@@ -24,8 +41,19 @@ export default function parseArgs(
             .map((f: FieldNode) => f.name.value)
             .filter(f => f !== '__typename')
         : null,
+      trace: args.info && {
+        skip: args.info.traceSkip,
+        show: args.info.traceShow !== undefined ? args.info.traceShow : null,
+      },
     };
   } catch (error) {
-    return { filter: {}, sort: [], skip: 0, show: 0, fields: [] };
+    return {
+      filter: {},
+      sort: [],
+      skip: 0,
+      show: 0,
+      fields: [],
+      trace: { skip: 0, show: 0 },
+    };
   }
 }

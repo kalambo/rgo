@@ -1,4 +1,4 @@
-export { default as parseArgs } from './parseArgs';
+export { default as parseArgs, parsePlainArgs } from './parseArgs';
 export { default as isValid } from './isValid';
 export { default as scalars } from './scalars';
 export {
@@ -11,6 +11,7 @@ export {
   Formula,
   Obj,
   QueryArgs,
+  QueryResult,
   RelationField,
   ScalarField,
   ScalarName,
@@ -21,12 +22,10 @@ export {
   createEmitterMap,
   getFilterFields,
   isObject,
-  isOrIncludes,
   keysToObject,
   locationOf,
   mapArray,
   mapObject,
   noUndef,
-  nullIfEmpty,
   runFilter,
 } from './utils';

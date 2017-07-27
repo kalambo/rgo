@@ -2,20 +2,67 @@ export { Client } from './typings';
 
 import * as _ from 'lodash';
 
-import { createEmitter, createEmitterMap, Obj } from '../core';
+import {
+  createEmitter,
+  createEmitterMap,
+  Field,
+  Obj,
+  QueryResult,
+} from '../core';
 
-import graphApi, { AuthFetch } from './graphApi';
-import { prepareQuery, runQueryLayer } from './query';
+import parseQuery from './parseQuery';
+import queryRequests from './queryRequests';
+import readLayer from './readLayer';
 import { setClient, setServer } from './set';
 import { Client, ClientState, Changes, DataChanges } from './typings';
+
+export type AuthFetch = (url: string, body: any[]) => Promise<QueryResult>;
+
+// const allKeys = (objects: any[]) =>
+//   Array.from(
+//     new Set(objects.reduce((res, o) => [...res, ...Object.keys(o)], [])),
+//   ) as string[];
+
+// const isReadonly = (field: Field) => {
+//   if (fieldIs.scalar(field)) return !!field.formula;
+//   return fieldIs.foreignRelation(field);
+// };
 
 export default async function buildClient(
   url: string,
   authFetch: AuthFetch,
 ): Promise<Client> {
-  const api = await graphApi(url, authFetch);
-
+  const schema: Obj<Obj<Field>> = await (await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify([{ query: '{ SCHEMA }' }]),
+  })).json();
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
+
+  let requestQueue: { body: any; resolve: (result: any) => void }[] = [];
+  const processQueue = _.throttle(
+    async () => {
+      const batch = requestQueue;
+      requestQueue = [];
+      const { firstIds, data } = await authFetch(url, batch.map(b => b.body));
+      setServer(schema, state, data);
+      batch.forEach((b, i) => b.resolve(firstIds[i]));
+    },
+    100,
+    { leading: false },
+  );
+  const batchFetch = async (bodies: any[]) => {
+    const requests = bodies.map(
+      body =>
+        new Promise<Obj<Obj<string>>>(resolve =>
+          requestQueue.push({ body, resolve }),
+        ),
+    );
+    processQueue();
+    return await Promise.all(requests);
+  };
 
   const getEmitter = createEmitterMap<any>();
   const readEmitter = createEmitter<Changes>();
@@ -63,29 +110,23 @@ export default async function buildClient(
         ((value: Obj | symbol) => void) | undefined
       ];
 
-      const { layers, requests } = prepareQuery(
-        api.schema,
-        state,
-        queryString,
-        variables,
-        idsOnly,
-      );
-
       let unlisten: boolean | (() => void)[] = false;
       if (listener) listener(Symbol.for('loading'));
 
       const result = (async () => {
-        const queryData = await api.query(requests);
-        queryData.forEach(d => setServer(state, api.normalize(d)));
+        const info = parseQuery(schema, queryString, variables, idsOnly);
+        const [firstIds] = await batchFetch(
+          queryRequests(state, info, variables),
+        );
 
         const value = {};
         if (!unlisten) {
-          unlisten = layers.map(layer =>
-            runQueryLayer(
+          unlisten = info.layers.map(layer =>
+            readLayer(
               layer,
               { '': value },
               state,
-              { '': queryData[0]![layer.root.field] },
+              firstIds,
               listener && readEmitter.watch,
             ),
           );
@@ -99,6 +140,45 @@ export default async function buildClient(
         typeof unlisten === 'function' ? unlisten() : (unlisten = true);
     },
   } as any;
+
+  // async mutate(data: any) {
+  //     const typesNames = Object.keys(data);
+  //     const mutations = keysToObject(typesNames, type =>
+  //       Object.keys(data[type]).map(id => ({
+  //         id,
+  //         ...keysToObject(Object.keys(data[type][id]), f => {
+  //           const value = data[type][id][f];
+  //           const field = schema[type][f];
+  //           const encode =
+  //             fieldIs.scalar(field) && scalars[field.scalar].encode;
+  //           return value === null || !encode ? value : mapArray(value, encode);
+  //         }),
+  //       })),
+  //     );
+
+  //     const query = `
+  //       mutation Mutate(${typesNames
+  //         .map(t => `$${t}: [${t}Input!]`)
+  //         .join(', ')}) {
+  //         mutate(${typesNames.map(t => `${t}: $${t}`).join(', ')}) {
+  //           ${typesNames.map(
+  //             t => `${t} {
+  //             ${[
+  //               ...allKeys(mutations[t]),
+  //               ...Object.keys(schema[t]).filter(f => isReadonly(schema[t][f])),
+  //               'modifiedAt',
+  //             ]
+  //               .map(f => (fieldIs.scalar(schema[t][f]) ? f : `${f} { id }`))
+  //               .join('\n')}
+  //           }`,
+  //           )}
+  //         }
+  //       }
+  //     `;
+
+  //     const [result] = await batchFetch([{ query, variables: mutations }]);
+  //     return result && result.mutate;
+  //   },
 
   // async function mutate(keys: DataKey[]) {
   //   const mutationData = keys.reduce(
