@@ -74,75 +74,26 @@ export default function mongoConnector(
       skip = 0,
       show = null,
       fields = null,
-      trace,
     }) {
       if (show === 0) return [];
 
-      const queryConfig = toDb(mongoFilter(filter), { flat: true });
-      const fieldsConfig = toDb(keysToObject(fields || [], () => true), {
-        flat: true,
-        ignoreValues: true,
-      });
-      const sortConfig = toDb(
-        sort.map(([field, order]) => [fieldDbKeys[field] || field, order]),
-        { flat: true, ignoreValues: true },
-      );
-
-      if (!trace) {
-        return (await collection
-          .find(
-            queryConfig,
-            fieldsConfig,
-            skip,
-            show === null ? undefined : show,
-          )
-          .sort(sortConfig)
-          .toArray()).map(fromDb);
-      }
-
-      // const cursor1 = cursor.clone();
-      // cursor1.skip(skip);
-      // cursor1.limit(trace.skip);
-
-      // const cursor2 = cursor.clone();
-      // cursor2.project({ [fieldDbKeys.id || 'id']: true });
-      // cursor2.skip(trace.skip);
-      // if (trace.show !== null) cursor2.limit(trace.show);
-
-      // const cursor3 = cursor.clone();
-      // if (trace.show !== null) cursor3.skip(trace.show);
-      // if (show !== null) cursor3.limit(show);
-
-      const results = Promise.all([
-        skip === trace.skip
-          ? []
-          : (await collection
-              .find(queryConfig, fieldsConfig, skip, trace.skip)
-              .sort(sortConfig)
-              .toArray()).map(fromDb),
-        (await collection
-          .find(
-            queryConfig,
-            { [fieldDbKeys.id || 'id']: true },
-            trace.skip,
-            trace.show === null ? undefined : trace.show,
-          )
-          .sort(sortConfig)
-          .toArray()).map(fromDb),
-        trace.show === null || show === trace.show
-          ? []
-          : (await collection
-              .find(
-                queryConfig,
-                fieldsConfig,
-                trace.show,
-                show === null ? undefined : show,
-              )
-              .sort(sortConfig)
-              .toArray()).map(fromDb),
-      ]);
-
-      return [...results[0], ...results[1], ...results[2]];
+      return (await collection
+        .find(
+          toDb(mongoFilter(filter), { flat: true }),
+          toDb(keysToObject(fields || [], () => true), {
+            flat: true,
+            ignoreValues: true,
+          }),
+          skip,
+          show === null ? undefined : show,
+        )
+        .sort(
+          toDb(
+            sort.map(([field, order]) => [fieldDbKeys[field] || field, order]),
+            { flat: true, ignoreValues: true },
+          ),
+        )
+        .toArray()).map(fromDb);
     },
 
     async findById(id) {

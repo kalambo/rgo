@@ -3,16 +3,16 @@
 
 
 "@types/babel-core@^6.7.14":
-  version "6.7.16"
-  resolved "https://registry.yarnpkg.com/@types/babel-core/-/babel-core-6.7.16.tgz#11096ad3efde289475c1b92e09e7ea7eace84ca6"
+  version "6.25.0"
+  resolved "https://registry.yarnpkg.com/@types/babel-core/-/babel-core-6.25.0.tgz#e6439b193c3644cf3fbd24b05620876f76017313"
   dependencies:
     "@types/babel-template" "*"
     "@types/babel-traverse" "*"
     "@types/babel-types" "*"
 
 "@types/babel-template@*":
-  version "6.7.16"
-  resolved "https://registry.yarnpkg.com/@types/babel-template/-/babel-template-6.7.16.tgz#6271bcddede375c4e83df9c325ce5eec058bc34f"
+  version "6.25.0"
+  resolved "https://registry.yarnpkg.com/@types/babel-template/-/babel-template-6.25.0.tgz#2505d7b55b88f821d98048b4fdf07b3b22563d30"
   dependencies:
     "@types/babel-types" "*"
     "@types/babylon" "*"
@@ -63,9 +63,9 @@
   version "4.14.71"
   resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.71.tgz#0dc383f78981216ac76e2f2c3afd998e0450e4c1"
 
-"@types/mongodb@^2.2.7":
-  version "2.2.7"
-  resolved "https://registry.yarnpkg.com/@types/mongodb/-/mongodb-2.2.7.tgz#35c04cb60ff06d0c6ab71cc6561e41baf094fa70"
+"@types/mongodb@^2.2.8":
+  version "2.2.8"
+  resolved "https://registry.yarnpkg.com/@types/mongodb/-/mongodb-2.2.8.tgz#42c45a9d0b0aa4ab276376adb6c027fff9a2e234"
   dependencies:
     "@types/bson" "*"
     "@types/node" "*"
@@ -1049,8 +1049,8 @@ delegates@^1.0.0:
   resolved "https://registry.yarnpkg.com/delegates/-/delegates-1.0.0.tgz#84c6e159b81904fdca59a0ef44cd870d31250f9a"
 
 depd@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/depd/-/depd-1.1.0.tgz#e1bd82c6aab6ced965b97b88b17ed3e528ca18c3"
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/depd/-/depd-1.1.1.tgz#5783b4e1c459f06fa5ca27f991f3d06e7a310359"
 
 detect-indent@^4.0.0:
   version "4.0.0"
@@ -1903,8 +1903,8 @@ js-tokens@^3.0.0:
   resolved "https://registry.yarnpkg.com/js-tokens/-/js-tokens-3.0.2.tgz#9866df395102130e38f7f996bceb65443209c25b"
 
 js-yaml@^3.7.0:
-  version "3.9.0"
-  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-3.9.0.tgz#4ffbbf25c2ac963b8299dc74da7e3740de1c18ce"
+  version "3.9.1"
+  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-3.9.1.tgz#08775cebdfdd359209f0d2acd383c8f86a6904a0"
   dependencies:
     argparse "^1.0.7"
     esprima "^4.0.0"

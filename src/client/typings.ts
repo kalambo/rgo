@@ -17,14 +17,6 @@ export interface ClientState {
 
 export type DataChanges = Obj<Obj<Obj<true>>>;
 
-export interface Changes {
-  changes: DataChanges;
-  rootChanges: {
-    added: string[];
-    removed: string[];
-  };
-}
-
 export interface QueryLayer {
   root: { type?: string; field: string };
   field: ForeignRelationField | RelationField;

@@ -41,10 +41,14 @@ export default function parseArgs(
             .map((f: FieldNode) => f.name.value)
             .filter(f => f !== '__typename')
         : null,
-      trace: args.info && {
-        skip: args.info.traceSkip,
-        show: args.info.traceShow !== undefined ? args.info.traceShow : null,
-      },
+      trace:
+        args.info && args.info.traceSkip !== null
+          ? {
+              skip: args.info.traceSkip,
+              show:
+                args.info.traceShow !== undefined ? args.info.traceShow : null,
+            }
+          : null,
     };
   } catch (error) {
     return {

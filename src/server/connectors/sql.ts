@@ -10,49 +10,16 @@ export default function sql(model: Model<any, any>): Connector {
       skip = 0,
       show = null,
       fields = null,
-      trace,
     }) {
       if (show === 0) return [];
 
-      if (!trace) {
-        return await model.findAll({
-          where: filter,
-          order: sort,
-          offset: skip,
-          limit: show === null ? undefined : show,
-          attributes: fields || undefined,
-        });
-      }
-
-      const results = Promise.all([
-        skip === trace.skip
-          ? []
-          : await model.findAll({
-              where: filter,
-              order: sort,
-              offset: skip,
-              limit: trace.skip,
-              attributes: fields || undefined,
-            }),
-        await model.findAll({
-          where: filter,
-          order: sort,
-          offset: trace.skip,
-          limit: trace.show === null ? undefined : trace.show,
-          attributes: ['id'],
-        }),
-        trace.show === null || show === trace.show
-          ? []
-          : await model.findAll({
-              where: filter,
-              order: sort,
-              offset: trace.show,
-              limit: show === null ? undefined : show,
-              attributes: fields || undefined,
-            }),
-      ]);
-
-      return [...results[0], ...results[1], ...results[2]];
+      return await model.findAll({
+        where: filter,
+        order: sort,
+        offset: skip,
+        limit: show === null ? undefined : show,
+        attributes: fields || undefined,
+      });
     },
 
     async findById(id) {

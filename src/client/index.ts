@@ -14,19 +14,9 @@ import parseQuery from './parseQuery';
 import queryRequests from './queryRequests';
 import readLayer from './readLayer';
 import { setClient, setServer } from './set';
-import { Client, ClientState, Changes, DataChanges } from './typings';
+import { Client, ClientState, DataChanges } from './typings';
 
 export type AuthFetch = (url: string, body: any[]) => Promise<QueryResult>;
-
-// const allKeys = (objects: any[]) =>
-//   Array.from(
-//     new Set(objects.reduce((res, o) => [...res, ...Object.keys(o)], [])),
-//   ) as string[];
-
-// const isReadonly = (field: Field) => {
-//   if (fieldIs.scalar(field)) return !!field.formula;
-//   return fieldIs.foreignRelation(field);
-// };
 
 export default async function buildClient(
   url: string,
@@ -39,6 +29,7 @@ export default async function buildClient(
     },
     body: JSON.stringify([{ query: '{ SCHEMA }' }]),
   })).json();
+
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
   let requestQueue: { body: any; resolve: (result: any) => void }[] = [];
@@ -65,7 +56,7 @@ export default async function buildClient(
   };
 
   const getEmitter = createEmitterMap<any>();
-  const readEmitter = createEmitter<Changes>();
+  const readEmitter = createEmitter<DataChanges>();
   const emitChanges = (changes: DataChanges) => {
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
@@ -82,7 +73,7 @@ export default async function buildClient(
         }
       }
       getEmitter.emit('', state.combined);
-      readEmitter.emit({ changes, rootChanges: { added: [], removed: [] } });
+      readEmitter.emit(changes);
     }
   };
 
@@ -110,34 +101,48 @@ export default async function buildClient(
         ((value: Obj | symbol) => void) | undefined
       ];
 
-      let unlisten: boolean | (() => void)[] = false;
-      if (listener) listener(Symbol.for('loading'));
+      const value = {};
+      const info = parseQuery(schema, queryString, variables, idsOnly);
+      let rootUpdaters: ((changes: DataChanges) => boolean)[] | null = null;
+      const trace: Obj<{ skip: number; show: number | null }> = {};
+      const ids: Obj<string[]> = {};
+      let firstIds: Obj<Obj<string>>;
 
-      const result = (async () => {
-        const info = parseQuery(schema, queryString, variables, idsOnly);
-        const [firstIds] = await batchFetch(
-          queryRequests(state, info, variables),
-        );
+      let firstResolve: (value: any) => void;
+      const firstPromise = new Promise(resolve => (firstResolve = resolve));
+      let running = true;
 
-        const value = {};
-        if (!unlisten) {
-          unlisten = info.layers.map(layer =>
-            readLayer(
-              layer,
-              { '': value },
-              state,
-              firstIds,
-              listener && readEmitter.watch,
-            ),
-          );
+      let liveFetches = 0;
+      const runFetch = async () => {
+        if (listener && liveFetches === 0) {
+          listener(Symbol.for('loading'));
         }
-        if (listener) listener(value);
-        return value;
-      })();
+        liveFetches += 1;
+        const requests = queryRequests(state, info, variables, trace, ids);
+        if (requests.length > 0) firstIds = (await batchFetch(requests))[0];
+        liveFetches -= 1;
+        if (liveFetches === 0) {
+          rootUpdaters = info.layers.map(layer =>
+            readLayer(layer, { '': value }, state, firstIds),
+          );
+          firstResolve(value);
+          if (listener && running) listener(value);
+        }
+      };
 
-      if (!listener) return result;
-      return () =>
-        typeof unlisten === 'function' ? unlisten() : (unlisten = true);
+      runFetch();
+      const unlisten = readEmitter.watch(changes => {
+        if (!rootUpdaters || rootUpdaters.some(updater => updater(changes))) {
+          rootUpdaters = null;
+          runFetch();
+        }
+      });
+
+      if (!listener) return firstPromise;
+      return () => {
+        running = false;
+        unlisten();
+      };
     },
   } as any;
 
@@ -217,3 +222,13 @@ export default async function buildClient(
   //   // mutate,
   // };
 }
+
+// const allKeys = (objects: any[]) =>
+//   Array.from(
+//     new Set(objects.reduce((res, o) => [...res, ...Object.keys(o)], [])),
+//   ) as string[];
+
+// const isReadonly = (field: Field) => {
+//   if (fieldIs.scalar(field)) return !!field.formula;
+//   return fieldIs.foreignRelation(field);
+// };

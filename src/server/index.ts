@@ -131,9 +131,11 @@ export default function buildServer(types: Obj<DataType>) {
                     ? await auth.query(userId, queryArgs)
                     : queryArgs;
 
-                  const results = await types[field.type].connector.query(
-                    authArgs,
-                  );
+                  const results = await types[field.type].connector.query({
+                    ...authArgs,
+                    skip: 0,
+                    show: authArgs.show === 0 ? 0 : null,
+                  });
 
                   return roots.map(root => {
                     if (fieldIs.relation(field)) {
@@ -142,18 +144,37 @@ export default function buildServer(types: Obj<DataType>) {
                         return results.find(r => r.id === root[f]);
                       }
                       if (args.sort) {
-                        const res = results.filter(r => root[f].includes(r.id));
-                        return res.length > 0 ? res : null;
+                        return nullIfEmpty(
+                          results
+                            .filter(r => root[f].includes(r.id))
+                            .slice(
+                              authArgs.skip,
+                              authArgs.show === null
+                                ? undefined
+                                : authArgs.show,
+                            ),
+                        );
                       }
-                      return root[f].map(id => results.find(r => r.id === id));
+                      return root[f]
+                        .slice(
+                          authArgs.skip,
+                          authArgs.show === null ? undefined : authArgs.show,
+                        )
+                        .map(id => results.find(r => r.id === id));
                     }
-                    const res = results.filter(
-                      r =>
-                        Array.isArray(r[relField])
-                          ? r[relField].includes(root.id)
-                          : r[relField] === root.id,
+                    return nullIfEmpty(
+                      results
+                        .filter(
+                          r =>
+                            Array.isArray(r[relField])
+                              ? r[relField].includes(root.id)
+                              : r[relField] === root.id,
+                        )
+                        .slice(
+                          authArgs.skip,
+                          authArgs.show === null ? undefined : authArgs.show,
+                        ),
                     );
-                    return res.length > 0 ? res : null;
                   });
                 },
               ),
@@ -214,6 +235,32 @@ export default function buildServer(types: Obj<DataType>) {
               const authArgs = auth.query
                 ? await auth.query(userId, queryArgs)
                 : queryArgs;
+
+              if (authArgs.trace) {
+                return nullIfEmpty(
+                  (await Promise.all([
+                    authArgs.skip === authArgs.trace.skip
+                      ? []
+                      : types[type].connector.query({
+                          ...authArgs,
+                          show: authArgs.trace.skip,
+                        }),
+                    types[type].connector.query({
+                      ...authArgs,
+                      skip: authArgs.trace.skip,
+                      show: authArgs.trace.show,
+                      fields: ['id'],
+                    }),
+                    authArgs.trace.show === null ||
+                    authArgs.show === authArgs.trace.show
+                      ? []
+                      : types[type].connector.query({
+                          ...authArgs,
+                          skip: authArgs.trace.show,
+                        }),
+                  ])).reduce((res, records) => res.concat(records), []),
+                );
+              }
 
               return nullIfEmpty(await types[type].connector.query(authArgs));
             }
@@ -290,35 +337,34 @@ export default function buildServer(types: Obj<DataType>) {
           if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
             firsts[path] = {};
           }
-          Object.keys(queryResults).forEach((rootId, index) => {
+          Object.keys(queryResults).forEach(rootId => {
             if (
               root.type &&
               fieldIs.relation(field) &&
               field.isList &&
               !args.sort
             ) {
-              data[root.type][rootId]![root.field].unshift(args.skip || 0);
+              if (data[root.type][rootId]![root.field]) {
+                data[root.type][rootId]![root.field].unshift(args.skip || 0);
+              }
             }
-            if (
-              !args.info ||
-              index < args.info.traceSkip ||
-              args.info.traceShow === undefined ||
-              index > args.info.traceShow
-            ) {
-              queryResults[rootId].forEach(
-                record =>
-                  record &&
-                  (data[field.type][record.id] = {
-                    ...data[field.type][record.id],
-                    ...keysToObject(scalarFields, f => record[f]),
-                    ...keysToObject(
-                      relationFields,
-                      f =>
-                        record[f] && mapArray(record[f], rec => rec && rec.id),
-                    ),
-                  }),
-              );
-            }
+            queryResults[rootId].forEach(
+              (record, index) =>
+                record &&
+                (!args.info ||
+                  args.info.traceSkip === null ||
+                  index < args.info.traceSkip ||
+                  args.info.traceShow === undefined ||
+                  index > args.info.traceShow) &&
+                (data[field.type][record.id] = {
+                  ...data[field.type][record.id],
+                  ...keysToObject(scalarFields, f => record[f]),
+                  ...keysToObject(
+                    relationFields,
+                    f => record[f] && mapArray(record[f], rec => rec && rec.id),
+                  ),
+                }),
+            );
             if (firsts[path]) {
               firsts[path][rootId] = (queryResults[rootId][
                 args.info ? args.info.extraSkip : 0

@@ -19,7 +19,7 @@ export interface Args {
   info?: {
     extraSkip: number;
     extraShow: number;
-    traceSkip: number;
+    traceSkip: number | null;
     traceShow?: number;
   };
 }
@@ -30,7 +30,7 @@ export interface QueryArgs {
   skip: number;
   show: number | null;
   fields: string[] | null;
-  trace?: { skip: number; show: number | null };
+  trace: { skip: number; show: number | null } | null;
 }
 
 export type Formula = (
