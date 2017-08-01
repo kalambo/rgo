@@ -3,8 +3,10 @@ import {
   fieldIs,
   keysToObject,
   locationOf,
+  noUndef,
   Obj,
   runFilter,
+  undefOr,
 } from '../core';
 
 import { ClientState, DataChanges, QueryLayer } from './typings';
@@ -42,7 +44,7 @@ export default function readLayer(
     if (records[id]) return records[id];
     return (records[id] = keysToObject(
       Object.keys(scalarFields),
-      f => (f === 'id' ? id : state.combined[field.type][id]![f]),
+      f => (f === 'id' ? id : noUndef(state.combined[field.type][id]![f])),
     ));
   };
 
@@ -145,7 +147,7 @@ export default function readLayer(
         rootRecordIds[rootId]
           .slice(
             sliceStarts[rootId],
-            args.show === null ? undefined : sliceStarts[rootId] + args.show,
+            undefOr(args.end, sliceStarts[rootId] + args.end! - args.start),
           )
           .map(getRecord),
       );
@@ -164,6 +166,27 @@ export default function readLayer(
 
   return (changes: DataChanges) => {
     if (relationUpdaters.some(updater => updater(changes))) return true;
+
+    for (const id of Object.keys(changes[field.type] || {})) {
+      for (const f of args.structuralFields) {
+        if ((changes[field.type][id] || {})[f]) return true;
+      }
+      if (
+        fieldIs.foreignRelation(field) &&
+        (changes[field.type][id] || {})[field.foreign]
+      ) {
+        return true;
+      }
+    }
+
+    if (root.type) {
+      for (const id of Object.keys(changes[root.type] || {})) {
+        if (rootRecords[id]) {
+          if ((changes[root.type][id] || {})[root.field]) return true;
+        }
+      }
+    }
+
     for (const id of Object.keys(changes[field.type] || {})) {
       if (records[id]) {
         for (const f of Object.keys(changes[field.type][id] || {})) {
@@ -175,6 +198,7 @@ export default function readLayer(
         }
       }
     }
+
     return false;
   };
 

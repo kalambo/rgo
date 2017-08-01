@@ -101,10 +101,10 @@ export default async function buildClient(
         ((value: Obj | symbol) => void) | undefined
       ];
 
-      const value = {};
+      let value = {};
       const info = parseQuery(schema, queryString, variables, idsOnly);
       let rootUpdaters: ((changes: DataChanges) => boolean)[] | null = null;
-      const trace: Obj<{ skip: number; show: number | null }> = {};
+      const trace: Obj<{ start: number; end?: number }> = {};
       const ids: Obj<string[]> = {};
       let firstIds: Obj<Obj<string>>;
 
@@ -117,11 +117,15 @@ export default async function buildClient(
         if (listener && liveFetches === 0) {
           listener(Symbol.for('loading'));
         }
-        liveFetches += 1;
         const requests = queryRequests(state, info, variables, trace, ids);
-        if (requests.length > 0) firstIds = (await batchFetch(requests))[0];
-        liveFetches -= 1;
+        if (requests.length > 0) {
+          liveFetches += 1;
+          const response = (await batchFetch(requests))[0];
+          if (!requests[0].variables.ids) firstIds = response;
+          liveFetches -= 1;
+        }
         if (liveFetches === 0) {
+          value = {};
           rootUpdaters = info.layers.map(layer =>
             readLayer(layer, { '': value }, state, firstIds),
           );
@@ -135,6 +139,8 @@ export default async function buildClient(
         if (!rootUpdaters || rootUpdaters.some(updater => updater(changes))) {
           rootUpdaters = null;
           runFetch();
+        } else if (listener && running) {
+          listener(value);
         }
       });
 

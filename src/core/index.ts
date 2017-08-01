@@ -28,4 +28,5 @@ export {
   mapObject,
   noUndef,
   runFilter,
+  undefOr,
 } from './utils';

@@ -6,8 +6,8 @@ export default function memoryConnector(initialData: Obj[] = []): Connector {
   const records = initialData;
 
   return {
-    async query({ filter = {}, sort = [], skip = 0, show = null }) {
-      if (show === 0) return [];
+    async query({ filter = {}, sort = [], start = 0, end }) {
+      if (start === end) return [];
 
       const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
       const compareFunc = createCompare(
@@ -15,10 +15,7 @@ export default function memoryConnector(initialData: Obj[] = []): Connector {
         sort,
       );
 
-      return records
-        .filter(filterFunc)
-        .sort(compareFunc)
-        .slice(skip, show === null ? undefined : skip + show);
+      return records.filter(filterFunc).sort(compareFunc).slice(start, end);
     },
 
     async findById(id) {

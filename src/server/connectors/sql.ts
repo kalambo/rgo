@@ -1,24 +1,20 @@
 import { Model } from 'sequelize';
 
+import { undefOr } from '../../core';
+
 import { Connector } from '../typings';
 
 export default function sql(model: Model<any, any>): Connector {
   return {
-    async query({
-      filter = {},
-      sort = [],
-      skip = 0,
-      show = null,
-      fields = null,
-    }) {
-      if (show === 0) return [];
+    async query({ filter = {}, sort = [], start = 0, end, fields }) {
+      if (start === end) return [];
 
       return await model.findAll({
         where: filter,
         order: sort,
-        offset: skip,
-        limit: show === null ? undefined : show,
-        attributes: fields || undefined,
+        offset: start,
+        limit: undefOr(end, end! - start),
+        attributes: fields,
       });
     },
 

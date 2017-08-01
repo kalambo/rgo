@@ -5,6 +5,9 @@ import { Obj } from './typings';
 export const noUndef = (v: any, replacer: any = null) =>
   v === undefined ? replacer : v;
 
+export const undefOr = (v: any, replacer: any = null) =>
+  v === undefined ? undefined : replacer;
+
 export const isObject = v =>
   Object.prototype.toString.call(v) === '[object Object]';
 

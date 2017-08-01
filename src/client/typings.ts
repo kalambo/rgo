@@ -23,6 +23,7 @@ export interface QueryLayer {
   args: QueryArgs & {
     unsorted: boolean;
     filterFields: string[];
+    structuralFields: string[];
   };
   scalarFields: Obj<true>;
   relations: QueryLayer[];

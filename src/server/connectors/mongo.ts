@@ -1,7 +1,7 @@
 import { Collection } from 'mongodb';
 import * as flatten from 'flat';
 
-import { keysToObject, mapArray, mapObject, Obj } from '../../core';
+import { keysToObject, mapArray, mapObject, Obj, undefOr } from '../../core';
 
 import { Connector, FieldDbMap } from '../typings';
 
@@ -68,14 +68,8 @@ export default function mongoConnector(
   };
 
   return {
-    async query({
-      filter = {},
-      sort = [],
-      skip = 0,
-      show = null,
-      fields = null,
-    }) {
-      if (show === 0) return [];
+    async query({ filter = {}, sort = [], start = 0, end, fields }) {
+      if (start === end) return [];
 
       return (await collection
         .find(
@@ -84,8 +78,8 @@ export default function mongoConnector(
             flat: true,
             ignoreValues: true,
           }),
-          skip,
-          show === null ? undefined : show,
+          start,
+          undefOr(end, end! - start),
         )
         .sort(
           toDb(

@@ -28,10 +28,12 @@ const processArgs = (
 ) => {
   const plainArgs = parsePlainArgs(argNodes, variables);
   const args = parseArgs(plainArgs, null, schema[type]);
+  const filterFields = getFilterFields(args.filter);
   return {
     ...args,
     unsorted: !plainArgs.sort,
-    filterFields: getFilterFields(args.filter),
+    filterFields,
+    structuralFields: [...filterFields, ...args.sort.map(([f]) => f)],
   };
 };
 

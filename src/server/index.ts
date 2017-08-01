@@ -49,8 +49,8 @@ const argTypes = {
       fields: {
         extraSkip: { type: GraphQLInt },
         extraShow: { type: GraphQLInt },
-        traceSkip: { type: GraphQLInt },
-        traceShow: { type: GraphQLInt },
+        traceStart: { type: GraphQLInt },
+        traceEnd: { type: GraphQLInt },
       },
     }),
   },
@@ -133,8 +133,8 @@ export default function buildServer(types: Obj<DataType>) {
 
                   const results = await types[field.type].connector.query({
                     ...authArgs,
-                    skip: 0,
-                    show: authArgs.show === 0 ? 0 : null,
+                    start: 0,
+                    end: authArgs.start === authArgs.end ? 0 : undefined,
                   });
 
                   return roots.map(root => {
@@ -147,19 +147,11 @@ export default function buildServer(types: Obj<DataType>) {
                         return nullIfEmpty(
                           results
                             .filter(r => root[f].includes(r.id))
-                            .slice(
-                              authArgs.skip,
-                              authArgs.show === null
-                                ? undefined
-                                : authArgs.show,
-                            ),
+                            .slice(authArgs.start, authArgs.end),
                         );
                       }
                       return root[f]
-                        .slice(
-                          authArgs.skip,
-                          authArgs.show === null ? undefined : authArgs.show,
-                        )
+                        .slice(authArgs.start, authArgs.end)
                         .map(id => results.find(r => r.id === id));
                     }
                     return nullIfEmpty(
@@ -170,10 +162,7 @@ export default function buildServer(types: Obj<DataType>) {
                               ? r[relField].includes(root.id)
                               : r[relField] === root.id,
                         )
-                        .slice(
-                          authArgs.skip,
-                          authArgs.show === null ? undefined : authArgs.show,
-                        ),
+                        .slice(authArgs.start, authArgs.end),
                     );
                   });
                 },
@@ -239,24 +228,25 @@ export default function buildServer(types: Obj<DataType>) {
               if (authArgs.trace) {
                 return nullIfEmpty(
                   (await Promise.all([
-                    authArgs.skip === authArgs.trace.skip
+                    authArgs.start === authArgs.trace.start
                       ? []
                       : types[type].connector.query({
                           ...authArgs,
-                          show: authArgs.trace.skip,
+                          end: authArgs.trace.start,
                         }),
                     types[type].connector.query({
                       ...authArgs,
-                      skip: authArgs.trace.skip,
-                      show: authArgs.trace.show,
+                      start: authArgs.trace.start,
+                      end: authArgs.trace.end,
                       fields: ['id'],
                     }),
-                    authArgs.trace.show === null ||
-                    authArgs.show === authArgs.trace.show
+                    authArgs.trace.end === undefined ||
+                    (authArgs.end !== undefined &&
+                      authArgs.end === authArgs.trace.end)
                       ? []
                       : types[type].connector.query({
                           ...authArgs,
-                          skip: authArgs.trace.show,
+                          start: authArgs.trace.end,
                         }),
                   ])).reduce((res, records) => res.concat(records), []),
                 );
@@ -352,10 +342,10 @@ export default function buildServer(types: Obj<DataType>) {
               (record, index) =>
                 record &&
                 (!args.info ||
-                  args.info.traceSkip === null ||
-                  index < args.info.traceSkip ||
-                  args.info.traceShow === undefined ||
-                  index > args.info.traceShow) &&
+                  args.info.traceStart === undefined ||
+                  index < args.info.traceStart ||
+                  args.info.traceEnd === undefined ||
+                  index >= args.info.traceEnd) &&
                 (data[field.type][record.id] = {
                   ...data[field.type][record.id],
                   ...keysToObject(scalarFields, f => record[f]),

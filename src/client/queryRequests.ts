@@ -1,4 +1,4 @@
-import { Obj, runFilter } from '../core';
+import { Obj, runFilter, undefOr } from '../core';
 
 import { ClientState, QueryLayer } from './typings';
 
@@ -14,15 +14,15 @@ export default function queryRequests(
     partials: Obj<string>;
   },
   variables: Obj,
-  trace: Obj<{ skip: number; show: number | null }>,
+  trace: Obj<{ start: number; end?: number }>,
   ids: Obj<string[]>,
 ) {
-  const partialsSlice: Obj<{ skip: number; show: number | null }> = {};
+  const partialsSlice: Obj<{ start: number; end?: number }> = {};
   const partialsInfo: Obj<{ extraSkip: number; extraShow: number }> = {};
   const partialsIds: Obj<string[]> = {};
 
   const getLayerInfo = ({ field, args, relations, path }: QueryLayer) => {
-    partialsSlice[path] = { skip: args.skip, show: args.show };
+    partialsSlice[path] = { start: args.start, end: args.end };
     partialsInfo[path] = { extraSkip: 0, extraShow: 0 };
     partialsIds[path] = [];
     for (const id of Object.keys(state.diff[field.type] || {})) {
@@ -65,7 +65,7 @@ export default function queryRequests(
     }
     partialsInfo[path].extraSkip = Math.min(
       partialsInfo[path].extraSkip,
-      args.skip,
+      args.start,
     );
     const newIds = partialsIds[path];
     partialsIds[path] = ids[path]
@@ -80,28 +80,26 @@ export default function queryRequests(
   const partialsKeys = Object.keys(partials);
 
   const baseVariables = { ...variables, ...partialsInfo };
-  let isTraceComplete = true;
+  let alreadyFetched = true;
   partialsKeys.forEach(path => {
     if (trace[path]) {
-      baseVariables[path].traceSkip = trace[path].skip;
-      baseVariables[path].traceShow = trace[path].show;
+      baseVariables[path].traceStart = trace[path].start;
+      baseVariables[path].traceEnd = trace[path].end;
     }
     const newTrace = {
-      skip: partialsSlice[path].skip - partialsInfo[path].extraSkip,
-      show:
-        partialsSlice[path].show !== null
-          ? partialsSlice[path].show! +
-            partialsInfo[path].extraSkip +
-            partialsInfo[path].extraShow
-          : null,
+      start: partialsSlice[path].start - partialsInfo[path].extraSkip,
+      end: undefOr(
+        partialsSlice[path].end,
+        partialsSlice[path].end! + partialsInfo[path].extraShow,
+      ),
     };
     if (
       !trace[path] ||
-      (newTrace.skip >= trace[path].skip &&
-        (trace[path].show === null ||
-          (newTrace.show !== null && newTrace.show <= trace[path].show!)))
+      newTrace.start < trace[path].start ||
+      (trace[path].end !== undefined &&
+        (newTrace.end === undefined || newTrace.end > trace[path].end!))
     ) {
-      isTraceComplete = false;
+      alreadyFetched = false;
     }
     trace[path] = newTrace;
   });
@@ -109,7 +107,7 @@ export default function queryRequests(
   const partialVariables = { ...variables, ...partialsInfo };
 
   return [
-    ...(!isTraceComplete
+    ...(!alreadyFetched
       ? [{ query: base, variables: { ...variables, ...partialsInfo } }]
       : []),
     ...partialsKeys.filter(path => partialsIds[path].length > 0).map(path => ({

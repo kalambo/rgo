@@ -19,18 +19,18 @@ export interface Args {
   info?: {
     extraSkip: number;
     extraShow: number;
-    traceSkip: number | null;
-    traceShow?: number;
+    traceStart?: number;
+    traceEnd?: number;
   };
 }
 
 export interface QueryArgs {
   filter: any;
   sort: [string, 'asc' | 'desc'][];
-  skip: number;
-  show: number | null;
-  fields: string[] | null;
-  trace: { skip: number; show: number | null } | null;
+  start: number;
+  end?: number;
+  fields?: string[];
+  trace?: { start: number; end?: number };
 }
 
 export type Formula = (
