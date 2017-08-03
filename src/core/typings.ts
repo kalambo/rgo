@@ -78,7 +78,13 @@ export interface DataKey {
   field?: string;
 }
 
-export interface QueryResult {
-  data: Data;
-  firstIds: Obj<Obj<string>>[];
+export interface QueryRequest {
+  query: string;
+  variables?: any;
+  normalize?: boolean;
+}
+
+export interface QueryResponse {
+  data?: any;
+  firstIds?: Obj<Obj<string>>;
 }

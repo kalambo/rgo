@@ -35,8 +35,8 @@
   },
   "dependencies": {
     "@types/flat": "^0.0.28",
-    "@types/graphql": "^0.10.1",
-    "@types/mongodb": "^2.2.8",
+    "@types/graphql": "^0.10.2",
+    "@types/mongodb": "^2.2.9",
     "@types/pegjs": "^0.10.0",
     "@types/sequelize": "^4.0.67",
     "flat": "^4.0.0",

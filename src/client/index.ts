@@ -7,7 +7,8 @@ import {
   createEmitterMap,
   Field,
   Obj,
-  QueryResult,
+  QueryRequest,
+  QueryResponse,
 } from '../core';
 
 import parseQuery from './parseQuery';
@@ -16,43 +17,54 @@ import readLayer from './readLayer';
 import { setClient, setServer } from './set';
 import { Client, ClientState, DataChanges } from './typings';
 
-export type AuthFetch = (url: string, body: any[]) => Promise<QueryResult>;
+export type AuthFetch = (
+  url: string,
+  body: QueryRequest[],
+) => Promise<QueryResponse[]>;
 
 export default async function buildClient(
   url: string,
   authFetch: AuthFetch,
 ): Promise<Client> {
-  const schema: Obj<Obj<Field>> = await (await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify([{ query: '{ SCHEMA }' }]),
-  })).json();
+  const schema: Obj<Obj<Field>> = JSON.parse(
+    (await (await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: '{ SCHEMA }' }),
+    })).json()).data,
+  );
 
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
-  let requestQueue: { body: any; resolve: (result: any) => void }[] = [];
+  let requestQueue: {
+    request: QueryRequest;
+    resolve: (firstIds: Obj<Obj<string>>) => void;
+  }[] = [];
   const processQueue = _.throttle(
     async () => {
       const batch = requestQueue;
       requestQueue = [];
-      const { firstIds, data } = await authFetch(url, batch.map(b => b.body));
-      setServer(schema, state, data);
-      batch.forEach((b, i) => b.resolve(firstIds[i]));
+      const responses = await authFetch(
+        url,
+        batch.map(b => ({ ...b.request, normalize: true })),
+      );
+      setServer(schema, state, responses[0].data);
+      batch.forEach((b, i) => b.resolve(responses[i].firstIds!));
     },
     100,
     { leading: false },
   );
-  const batchFetch = async (bodies: any[]) => {
-    const requests = bodies.map(
-      body =>
+  const batchFetch = async (requests: QueryRequest[]) => {
+    const promises = requests.map(
+      request =>
         new Promise<Obj<Obj<string>>>(resolve =>
-          requestQueue.push({ body, resolve }),
+          requestQueue.push({ request, resolve }),
         ),
     );
     processQueue();
-    return await Promise.all(requests);
+    return await Promise.all(promises);
   };
 
   const getEmitter = createEmitterMap<any>();

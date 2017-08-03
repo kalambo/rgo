@@ -27,14 +27,15 @@ import {
   Obj,
   parseArgs,
   parsePlainArgs,
-  QueryResult,
+  QueryRequest,
+  QueryResponse,
   RelationField,
   scalars,
 } from '../core';
 
 import batch from './batch';
 import mutate from './mutate';
-import { DataType, QueryConfig } from './typings';
+import { DataType } from './typings';
 
 const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
 
@@ -280,29 +281,37 @@ export default function buildServer(types: Obj<DataType>) {
     }),
   });
 
-  return async (
-    configs: QueryConfig[],
+  function server(request: QueryRequest, context?: any): Promise<QueryResponse>;
+  function server(
+    request: QueryRequest[],
     context?: any,
-  ): Promise<QueryResult> => {
-    if (configs.length === 1 && configs[0].query === '{ SCHEMA }') {
-      return JSON.stringify(
-        typeFields,
-        (_, v) => (typeof v === 'function' ? true : v),
-      ) as any;
+  ): Promise<QueryResponse[]>;
+  async function server(request: QueryRequest | QueryRequest[], context?: any) {
+    const queries = Array.isArray(request) ? request : [request];
+
+    if (queries.length === 1 && queries[0].query === '{ SCHEMA }') {
+      return {
+        data: JSON.stringify(
+          typeFields,
+          (_, v) => (typeof v === 'function' ? true : v),
+        ),
+      };
     }
 
     const data: Data = {};
-    const firstIds = await Promise.all(
-      configs.map(async ({ query, variables }) => {
-        const firsts: Obj<Obj<string>> = {};
+    const results: QueryResponse[] = await Promise.all(
+      queries.map(async ({ query, variables, normalize }) => {
+        const firstIds: Obj<Obj<string>> = {};
         const queryDoc = parse(query);
-        const result = await execute(
+        const result = (await execute(
           schema,
           queryDoc,
           null,
           { ...context, rootQuery: query },
           variables,
-        );
+        )).data!;
+
+        if (!normalize) return { data: result };
 
         const processLayer = (
           root: { type?: string; field: string },
@@ -325,7 +334,7 @@ export default function buildServer(types: Obj<DataType>) {
 
           data[field.type] = data[field.type] || {};
           if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
-            firsts[path] = {};
+            firstIds[path] = {};
           }
           Object.keys(queryResults).forEach(rootId => {
             if (
@@ -355,8 +364,8 @@ export default function buildServer(types: Obj<DataType>) {
                   ),
                 }),
             );
-            if (firsts[path]) {
-              firsts[path][rootId] = (queryResults[rootId][
+            if (firstIds[path]) {
+              firstIds[path][rootId] = (queryResults[rootId][
                 args.info ? args.info.extraSkip : 0
               ] || {}).id;
             }
@@ -396,14 +405,19 @@ export default function buildServer(types: Obj<DataType>) {
             { field: node.name.value },
             { type: node.name.value, isList: true },
             node,
-            { '': result.data![node.name.value] || [] },
+            { '': result[node.name.value] || [] },
             node.name.value,
             variables,
           ),
         );
-        return firsts;
+        return { firstIds };
       }),
     );
-    return { data, firstIds } as any;
-  };
+
+    const firstNormalize = queries.findIndex(({ normalize }) => !!normalize);
+    if (firstNormalize !== -1) results[firstNormalize].data = data;
+
+    return Array.isArray(request) ? results : results[0];
+  }
+  return server;
 }

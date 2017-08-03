@@ -1,10 +1,10 @@
-import { Model } from 'sequelize';
+import * as Sequelize from 'sequelize';
 
 import { undefOr } from '../../core';
 
 import { Connector } from '../typings';
 
-export default function sql(model: Model<any, any>): Connector {
+export default function sql(model: Sequelize.Model<any, any>): Connector {
   return {
     async query({ filter = {}, sort = [], start = 0, end, fields }) {
       if (start === end) return [];
