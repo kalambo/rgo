@@ -9,7 +9,19 @@ export type ScalarName =
   | 'File'
   | 'JSON';
 
+export interface Rules {
+  equals?: any;
+  email?: true;
+  maxWords?: number;
+  minChoices?: number;
+  maxChoices?: number;
+  lt?: string;
+  gt?: string;
+}
+
 export type Data = Obj<Obj<Obj | null>>;
+
+export type DataKey = [string, string, string];
 
 export interface Args {
   filter?: string;
@@ -41,7 +53,7 @@ export type Formula = (
 export interface ScalarField {
   scalar: ScalarName;
   isList?: true;
-  rules?: Obj;
+  rules?: Rules;
   formula?: Formula | true;
 }
 export interface RelationField {
@@ -71,12 +83,6 @@ export const fieldIs = {
     );
   },
 };
-
-export interface DataKey {
-  type: string;
-  id: string;
-  field?: string;
-}
 
 export interface QueryRequest {
   query: string;

@@ -15,8 +15,6 @@ describe('queries: basic', () => {
             }
           }
         }`,
-        {},
-        false,
       ),
     ).toEqual({
       Person: [
@@ -40,8 +38,6 @@ describe('queries: basic', () => {
             }
           }
         }`,
-        {},
-        false,
       ),
     ).toEqual({
       Person: [
@@ -62,8 +58,6 @@ describe('queries: basic', () => {
             }
           }
         }`,
-        {},
-        false,
       ),
     ).toEqual({
       Person: [
@@ -94,8 +88,6 @@ describe('queries: basic', () => {
             }
           }
         }`,
-        {},
-        false,
       ),
     ).toEqual({
       Person: [

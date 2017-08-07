@@ -1,4 +1,4 @@
-export { Client } from './typings';
+export { Client, FieldOptions } from './typings';
 
 import * as _ from 'lodash';
 
@@ -6,16 +6,28 @@ import {
   createEmitter,
   createEmitterMap,
   Field,
+  fieldIs,
+  keysToObject,
+  noUndef,
   Obj,
   QueryRequest,
   QueryResponse,
+  Rules,
+  ScalarName,
+  validate,
 } from '../core';
 
 import parseQuery from './parseQuery';
 import queryRequests from './queryRequests';
 import readLayer from './readLayer';
 import { setClient, setServer } from './set';
-import { Client, ClientState, DataChanges } from './typings';
+import {
+  Client,
+  ClientState,
+  DataChanges,
+  FieldOptions,
+  QueryOptions,
+} from './typings';
 
 export type AuthFetch = (
   url: string,
@@ -25,6 +37,7 @@ export type AuthFetch = (
 export default async function buildClient(
   url: string,
   authFetch: AuthFetch,
+  log?: boolean,
 ): Promise<Client> {
   const schema: Obj<Obj<Field>> = JSON.parse(
     (await (await fetch(url, {
@@ -38,9 +51,32 @@ export default async function buildClient(
 
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
+  const emitterMap = createEmitterMap<any>();
+  const emitter = createEmitter<{ changes: DataChanges; indices?: number[] }>();
+  const emitChanges = (changes: DataChanges, indices?: number[]) => {
+    if (log) console.log(state.combined);
+    const changedTypes = Object.keys(changes);
+    if (changedTypes.length > 0) {
+      for (const type of Object.keys(changes)) {
+        for (const id of Object.keys(changes[type])) {
+          for (const field of Object.keys(changes[type][id])) {
+            emitterMap.emit(
+              `${type}.${id}.${field}`,
+              noUndef(_.get(state.combined, [type, id, field])),
+            );
+          }
+        }
+      }
+      emitter.emit({ changes, indices });
+    }
+  };
+
+  const set = (...args) => emitChanges(setClient(state, args));
+
   let requestQueue: {
     request: QueryRequest;
     resolve: (firstIds: Obj<Obj<string>>) => void;
+    index: number;
   }[] = [];
   const processQueue = _.throttle(
     async () => {
@@ -50,68 +86,137 @@ export default async function buildClient(
         url,
         batch.map(b => ({ ...b.request, normalize: true })),
       );
-      setServer(schema, state, responses[0].data);
+      emitChanges(
+        setServer(schema, state, responses[0].data),
+        Array.from(new Set(batch.map(({ index }) => index))),
+      );
       batch.forEach((b, i) => b.resolve(responses[i].firstIds!));
     },
     100,
     { leading: false },
   );
-  const batchFetch = async (requests: QueryRequest[]) => {
+  const batchFetch = async (requests: QueryRequest[], index: number) => {
     const promises = requests.map(
       request =>
         new Promise<Obj<Obj<string>>>(resolve =>
-          requestQueue.push({ request, resolve }),
+          requestQueue.push({ request, resolve, index }),
         ),
     );
     processQueue();
     return await Promise.all(promises);
   };
 
-  const getEmitter = createEmitterMap<any>();
-  const readEmitter = createEmitter<DataChanges>();
-  const emitChanges = (changes: DataChanges) => {
-    const changedTypes = Object.keys(changes);
-    if (changedTypes.length > 0) {
-      for (const type of Object.keys(changes)) {
-        const v1 = state.combined[type];
-        getEmitter.emit(type, v1);
-        for (const id of Object.keys(changes[type])) {
-          const v2 = v1 && v1[id];
-          getEmitter.emit(`${type}.${id}`, v2);
-          for (const field of Object.keys(changes[type][id])) {
-            const v3 = v2 && v2[field];
-            getEmitter.emit(`${type}.${id}.${field}`, v3);
+  let queryCount = 0;
+  return {
+    field(
+      fields: FieldOptions | FieldOptions[],
+      listener?: (value: any) => void,
+    ) {
+      const fieldsArray = Array.isArray(fields) ? fields : [fields];
+
+      const keysObj: Obj<true> = {};
+      const allKeysObj: Obj<true> = {};
+      const infoObj: Obj<{
+        scalar: ScalarName;
+        isList?: true;
+        rules: Rules;
+        optional?: true;
+        showIf?: Obj;
+      }> = {};
+      for (const { key, rules, optional, showIf } of fieldsArray) {
+        const field = schema[key[0]][key[2]];
+        if (fieldIs.scalar(field)) {
+          const allRules = { ...rules || {}, ...field.rules || {} };
+          if (field.rules && field.rules.lt) {
+            allRules.lt = `${key[0]}.${key[1]}.${field.rules.lt}`;
           }
+          if (field.rules && field.rules.gt) {
+            allRules.gt = `${key[0]}.${key[1]}.${field.rules.gt}`;
+          }
+
+          if (allRules.lt) allKeysObj[allRules.lt] = true;
+          if (allRules.gt) allKeysObj[allRules.gt] = true;
+          Object.keys(showIf || {}).forEach(k => (allKeysObj[k] = true));
+
+          const keyString = key.join('.');
+          keysObj[keyString] = true;
+          allKeysObj[keyString] = true;
+          infoObj[keyString] = {
+            scalar: field.scalar,
+            isList: field.isList,
+            rules: allRules,
+            optional,
+            showIf,
+          };
         }
       }
-      getEmitter.emit('', state.combined);
-      readEmitter.emit(changes);
-    }
-  };
 
-  return {
-    get(...args) {
-      if (args.length === 0) return state.combined;
-      if (typeof args[args.length - 1] === 'string') {
-        return _.get(state.combined, args.join('.'));
+      const allKeys = Object.keys(allKeysObj);
+      const values = keysToObject(allKeys, key =>
+        noUndef(_.get(state.combined, key)),
+      );
+
+      const keys = Object.keys(keysObj);
+      const getResult = () => {
+        const showing = keys.map(
+          key =>
+            infoObj[key].showIf
+              ? Object.keys(infoObj[key].showIf).every(
+                  k => values[k] === infoObj[key].showIf![k],
+                )
+              : true,
+        );
+        const invalid = !keys.every(
+          (key, i) =>
+            !showing[i] ||
+            (values[key] === null && infoObj[key].optional) ||
+            validate(
+              infoObj[key].scalar,
+              infoObj[key].rules,
+              values[key],
+              values,
+            ),
+        );
+        return Array.isArray(fields)
+          ? { invalid, showing }
+          : {
+              scalar: infoObj[keys[0]].scalar,
+              isList: infoObj[keys[0]].isList,
+              value: values[keys[0]],
+              onChange: value => set(...fields.key, value),
+              invalid,
+            };
+      };
+
+      if (!listener) return getResult();
+      listener(getResult());
+      if (allKeys.length === 1) {
+        return emitterMap.watch(allKeys[0], value => {
+          values[allKeys[0]] = value;
+          listener(getResult());
+        });
       }
-      const listener = args.pop();
-      const key = args.join('.');
-      listener(key ? _.get(state.combined, key) : state.combined);
-      return getEmitter.watch(key, listener);
-    },
-
-    set(...args) {
-      emitChanges(setClient(state, args));
+      return emitter.watch(({ changes }) => {
+        const changedKeys = allKeys.filter(key => _.get(changes, key));
+        if (changedKeys.length > 0) {
+          for (const key of changedKeys) {
+            values[key] = noUndef(_.get(state.combined, key));
+          }
+          listener(getResult());
+        }
+      }) as any;
     },
 
     query(...args) {
-      const [queryString, variables, idsOnly, listener] = args as [
-        string,
-        Obj,
-        boolean,
-        ((value: Obj | symbol) => void) | undefined
-      ];
+      const queryIndex = queryCount++;
+
+      const hasListener = typeof args[args.length - 1] === 'function';
+      const queryString: string = args[0];
+      const { variables, idsOnly }: QueryOptions =
+        (!hasListener || args.length === 3 ? args[1] : undefined) || {};
+      const listener: ((value: Obj | null) => void) | undefined = hasListener
+        ? args[args.length - 1]
+        : undefined;
 
       let value = {};
       const info = parseQuery(schema, queryString, variables, idsOnly);
@@ -127,12 +232,12 @@ export default async function buildClient(
       let liveFetches = 0;
       const runFetch = async () => {
         if (listener && liveFetches === 0) {
-          listener(Symbol.for('loading'));
+          listener(null);
         }
         const requests = queryRequests(state, info, variables, trace, ids);
         if (requests.length > 0) {
           liveFetches += 1;
-          const response = (await batchFetch(requests))[0];
+          const response = (await batchFetch(requests, queryIndex))[0];
           if (!requests[0].variables.ids) firstIds = response;
           liveFetches -= 1;
         }
@@ -147,22 +252,26 @@ export default async function buildClient(
       };
 
       runFetch();
-      const unlisten = readEmitter.watch(changes => {
-        if (!rootUpdaters || rootUpdaters.some(updater => updater(changes))) {
-          rootUpdaters = null;
-          runFetch();
-        } else if (listener && running) {
-          listener(value);
+      const unlisten = emitter.watch(({ changes, indices }) => {
+        if (!indices || !indices.includes(queryIndex)) {
+          if (!rootUpdaters || rootUpdaters.some(updater => updater(changes))) {
+            rootUpdaters = null;
+            runFetch();
+          } else if (listener && running) {
+            listener(value);
+          }
         }
       });
 
       if (!listener) return firstPromise;
-      return () => {
+      return (() => {
         running = false;
         unlisten();
-      };
+      }) as any;
     },
-  } as any;
+
+    set,
+  };
 
   // async mutate(data: any) {
   //     const typesNames = Object.keys(data);

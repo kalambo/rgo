@@ -1,3 +1,2 @@
-export { default as buildClient, Client } from './client';
-export { Field, fieldIs, isValid, QueryArgs } from './core';
+export { default as buildClient, Client, FieldOptions } from './client';
 export { default as buildServer, connectors } from './server';

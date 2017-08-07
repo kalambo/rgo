@@ -13,7 +13,7 @@ export default function queryRequests(
     base: string;
     partials: Obj<string>;
   },
-  variables: Obj,
+  variables: Obj = {},
   trace: Obj<{ start: number; end?: number }>,
   ids: Obj<string[]>,
 ) {

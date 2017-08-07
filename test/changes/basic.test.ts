@@ -74,11 +74,9 @@ describe('changes: root', () => {
           lastName
         }
       }`,
-      {},
-      false,
       value => {
         if (nextLoad) {
-          expect(value).toBe(Symbol.for('loading'));
+          expect(value).toBe(null);
           nextLoad = false;
         } else {
           count += 1;

@@ -1,6 +1,6 @@
 {
   "name": "kalambo",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Kalambo data system",
   "author": "Jon Whitehead",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "clean": "rimraf lib/*",
     "build": "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
     "test": "jest",
-    "prepublish": "yarn run test && yarn run build"
+    "prepare": "yarn run test && yarn run build"
   },
   "jest": {
     "transform": {
@@ -21,7 +21,7 @@
     "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/jest": "^20.0.5",
+    "@types/jest": "^20.0.6",
     "@types/uuid": "^3.4.0",
     "babel-cli": "^6.24.1",
     "babel-preset-env": "^1.6.0",
@@ -29,7 +29,7 @@
     "jest": "^20.0.4",
     "prettier": "^1.5.3",
     "rimraf": "^2.6.1",
-    "ts-jest": "^20.0.7",
+    "ts-jest": "^20.0.10",
     "typescript": "^2.4.2",
     "uuid": "^3.1.0"
   },

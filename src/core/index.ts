@@ -1,5 +1,4 @@
 export { default as parseArgs, parsePlainArgs } from './parseArgs';
-export { default as isValid } from './isValid';
 export { default as scalars } from './scalars';
 export {
   Args,
@@ -14,6 +13,7 @@ export {
   QueryRequest,
   QueryResponse,
   RelationField,
+  Rules,
   ScalarField,
   ScalarName,
 } from './typings';
@@ -31,3 +31,4 @@ export {
   runFilter,
   undefOr,
 } from './utils';
+export { default as validate } from './validate';

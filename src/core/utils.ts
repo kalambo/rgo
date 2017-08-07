@@ -94,11 +94,13 @@ export const locationOf = <T>(
 ) => binarySearch(element, array, compareFunc) + 1;
 
 export const createEmitter = <T>() => {
-  const listeners: ((value: T) => void)[] = [];
+  let listeners: ((value: T) => void)[] = [];
   return {
     watch(listener: (value: T) => void) {
       listeners.push(listener);
-      return () => listeners.filter(l => l !== listener);
+      return () => {
+        listeners = listeners.filter(l => l !== listener);
+      };
     },
     emit(value: T) {
       listeners.forEach(l => l(value));

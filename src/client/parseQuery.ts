@@ -60,7 +60,7 @@ const queryOperation = (keys: string[], ids?: boolean) => {
 export default function parseQuery(
   schema: Obj<Obj<Field>>,
   query: string,
-  variables: Obj,
+  variables: Obj = {},
   idsOnly?: boolean,
 ) {
   const partials: Obj<string> = {};

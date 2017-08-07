@@ -1,3 +1,6 @@
+import * as _ from 'lodash';
+
+import { Obj, Rules, ScalarName } from './typings';
 import { noUndef } from './utils';
 
 const formats = {
@@ -7,11 +10,11 @@ const formats = {
 const isEmail = (value: any) =>
   typeof value === 'string' && formats.email.test(value);
 
-export default function isValid(
-  scalar: string = '',
-  rules: any = {},
+export default function validate(
+  scalar: ScalarName,
+  rules: Rules = {},
   value: any,
-  obj: any = {},
+  data: Obj,
 ) {
   if (value === null) return false;
 
@@ -53,12 +56,12 @@ export default function isValid(
   }
 
   if (rules.lt) {
-    const otherValue = noUndef(obj[rules.lt]);
+    const otherValue = noUndef(_.get(data, rules.lt));
     if (otherValue !== null && value >= otherValue) return false;
   }
 
   if (rules.gt) {
-    const otherValue = noUndef(obj[rules.gt]);
+    const otherValue = noUndef(_.get(data, rules.gt));
     if (otherValue !== null && value <= otherValue) return false;
   }
 

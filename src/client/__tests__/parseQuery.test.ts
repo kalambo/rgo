@@ -1,5 +1,4 @@
 import { print } from 'graphql';
-import * as _ from 'lodash';
 
 import parseQuery from '../parseQuery';
 import { ClientState } from '../typings';
