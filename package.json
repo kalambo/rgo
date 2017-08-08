@@ -5,6 +5,7 @@
   "author": "Jon Whitehead",
   "license": "MIT",
   "main": "lib/index.js",
+  "module": "lib/client/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
     "prettier": "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",

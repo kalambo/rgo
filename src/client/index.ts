@@ -11,7 +11,6 @@ import {
   noUndef,
   Obj,
   QueryRequest,
-  QueryResponse,
   Rules,
   ScalarName,
   validate,
@@ -22,6 +21,7 @@ import queryRequests from './queryRequests';
 import readLayer from './readLayer';
 import { setClient, setServer } from './set';
 import {
+  AuthFetch,
   Client,
   ClientState,
   DataChanges,
@@ -29,12 +29,7 @@ import {
   QueryOptions,
 } from './typings';
 
-export type AuthFetch = (
-  url: string,
-  body: QueryRequest[],
-) => Promise<QueryResponse[]>;
-
-export default async function buildClient(
+export async function buildClient(
   url: string,
   authFetch: AuthFetch,
   log?: boolean,

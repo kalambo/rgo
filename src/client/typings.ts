@@ -3,10 +3,17 @@ import {
   ForeignRelationField,
   Obj,
   QueryArgs,
+  QueryRequest,
+  QueryResponse,
   RelationField,
   Rules,
   ScalarName,
 } from '../core';
+
+export type AuthFetch = (
+  url: string,
+  body: QueryRequest[],
+) => Promise<QueryResponse[]>;
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 
