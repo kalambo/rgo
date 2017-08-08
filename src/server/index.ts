@@ -72,6 +72,9 @@ export default function buildServer(types: Obj<DataType>) {
     },
     ...types[type].fields,
   }));
+  const typeConnectors = keysToObject(typeNames, type =>
+    types[type].connector(typeFields[type]),
+  );
 
   const queryTypes = keysToObject(
     typeNames,
@@ -132,7 +135,7 @@ export default function buildServer(types: Obj<DataType>) {
                     ? await auth.query(userId, queryArgs)
                     : queryArgs;
 
-                  const results = await types[field.type].connector.query({
+                  const results = await typeConnectors[field.type].query({
                     ...authArgs,
                     start: 0,
                     end: authArgs.start === authArgs.end ? 0 : undefined,
@@ -216,7 +219,7 @@ export default function buildServer(types: Obj<DataType>) {
           ) {
             if (args.ids) {
               return nullIfEmpty(
-                await types[type].connector.findByIds(args.ids),
+                await typeConnectors[type].findByIds(args.ids),
               );
             } else {
               const queryArgs = parseArgs(args, userId, typeFields[type], info);
@@ -231,11 +234,11 @@ export default function buildServer(types: Obj<DataType>) {
                   (await Promise.all([
                     authArgs.start === authArgs.trace.start
                       ? []
-                      : types[type].connector.query({
+                      : typeConnectors[type].query({
                           ...authArgs,
                           end: authArgs.trace.start,
                         }),
-                    types[type].connector.query({
+                    typeConnectors[type].query({
                       ...authArgs,
                       start: authArgs.trace.start,
                       end: authArgs.trace.end,
@@ -245,7 +248,7 @@ export default function buildServer(types: Obj<DataType>) {
                     (authArgs.end !== undefined &&
                       authArgs.end === authArgs.trace.end)
                       ? []
-                      : types[type].connector.query({
+                      : typeConnectors[type].query({
                           ...authArgs,
                           start: authArgs.trace.end,
                         }),
@@ -253,7 +256,7 @@ export default function buildServer(types: Obj<DataType>) {
                 );
               }
 
-              return nullIfEmpty(await types[type].connector.query(authArgs));
+              return nullIfEmpty(await typeConnectors[type].query(authArgs));
             }
           },
         })),
@@ -274,7 +277,7 @@ export default function buildServer(types: Obj<DataType>) {
             type: new GraphQLList(new GraphQLNonNull(inputTypes[type])),
           })),
           async resolve(_root, args, context: { userId: string | null }) {
-            return mutate(types, args, context);
+            return mutate(types, typeConnectors, args, context);
           },
         },
       },

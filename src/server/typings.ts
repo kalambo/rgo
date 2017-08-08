@@ -39,7 +39,7 @@ export interface TypeAuth {
 
 export interface DataType {
   fields: Obj<Field>;
-  connector: Connector;
+  connector: (fields: Obj<Field>) => Connector;
   newId: () => string;
   auth: TypeAuth;
 }

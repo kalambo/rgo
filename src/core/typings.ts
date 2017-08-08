@@ -21,8 +21,6 @@ export interface Rules {
 
 export type Data = Obj<Obj<Obj | null>>;
 
-export type DataKey = [string, string, string];
-
 export interface Args {
   filter?: string;
   sort?: string;

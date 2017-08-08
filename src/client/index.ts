@@ -1,4 +1,4 @@
-export { Client, FieldOptions } from './typings';
+export { Client, FieldConfig } from './typings';
 
 import * as _ from 'lodash';
 
@@ -25,7 +25,7 @@ import {
   Client,
   ClientState,
   DataChanges,
-  FieldOptions,
+  FieldConfig,
   QueryOptions,
 } from './typings';
 
@@ -109,12 +109,11 @@ export default async function buildClient(
   let queryCount = 0;
   return {
     field(
-      fields: FieldOptions | FieldOptions[],
+      fields: FieldConfig | FieldConfig[],
       listener?: (value: any) => void,
     ) {
       const fieldsArray = Array.isArray(fields) ? fields : [fields];
 
-      const keysObj: Obj<true> = {};
       const allKeysObj: Obj<true> = {};
       const infoObj: Obj<{
         scalar: ScalarName;
@@ -124,24 +123,23 @@ export default async function buildClient(
         showIf?: Obj;
       }> = {};
       for (const { key, rules, optional, showIf } of fieldsArray) {
-        const field = schema[key[0]][key[2]];
+        const [type, id, fieldName] = key.split('.');
+        const field = schema[type][fieldName];
         if (fieldIs.scalar(field)) {
           const allRules = { ...rules || {}, ...field.rules || {} };
           if (field.rules && field.rules.lt) {
-            allRules.lt = `${key[0]}.${key[1]}.${field.rules.lt}`;
+            allRules.lt = `${type}.${id}.${field.rules.lt}`;
           }
           if (field.rules && field.rules.gt) {
-            allRules.gt = `${key[0]}.${key[1]}.${field.rules.gt}`;
+            allRules.gt = `${type}.${id}.${field.rules.gt}`;
           }
 
           if (allRules.lt) allKeysObj[allRules.lt] = true;
           if (allRules.gt) allKeysObj[allRules.gt] = true;
           Object.keys(showIf || {}).forEach(k => (allKeysObj[k] = true));
 
-          const keyString = key.join('.');
-          keysObj[keyString] = true;
-          allKeysObj[keyString] = true;
-          infoObj[keyString] = {
+          allKeysObj[key] = true;
+          infoObj[key] = {
             scalar: field.scalar,
             isList: field.isList,
             rules: allRules,
@@ -156,19 +154,18 @@ export default async function buildClient(
         noUndef(_.get(state.combined, key)),
       );
 
-      const keys = Object.keys(keysObj);
       const getResult = () => {
-        const showing = keys.map(
-          key =>
+        const active = fieldsArray.map(
+          ({ key }) =>
             infoObj[key].showIf
               ? Object.keys(infoObj[key].showIf).every(
                   k => values[k] === infoObj[key].showIf![k],
                 )
               : true,
         );
-        const invalid = !keys.every(
-          (key, i) =>
-            !showing[i] ||
+        const invalid = !fieldsArray.every(
+          ({ key }, i) =>
+            !active[i] ||
             (values[key] === null && infoObj[key].optional) ||
             validate(
               infoObj[key].scalar,
@@ -178,12 +175,12 @@ export default async function buildClient(
             ),
         );
         return Array.isArray(fields)
-          ? { invalid, showing }
+          ? { invalid, active }
           : {
-              scalar: infoObj[keys[0]].scalar,
-              isList: infoObj[keys[0]].isList,
-              value: values[keys[0]],
-              onChange: value => set(...fields.key, value),
+              scalar: infoObj[fields.key].scalar,
+              isList: infoObj[fields.key].isList,
+              value: values[fields.key],
+              onChange: value => set(...fields.key.split('.'), value),
               invalid,
             };
       };

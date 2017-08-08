@@ -3,7 +3,6 @@ export { default as scalars } from './scalars';
 export {
   Args,
   Data,
-  DataKey,
   Field,
   fieldIs,
   ForeignRelationField,

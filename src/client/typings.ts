@@ -1,6 +1,5 @@
 import {
   Data,
-  DataKey,
   ForeignRelationField,
   Obj,
   QueryArgs,
@@ -33,8 +32,8 @@ export interface QueryLayer {
   path: string;
 }
 
-export interface FieldOptions {
-  key: DataKey;
+export interface FieldConfig {
+  key: string;
   rules?: Rules;
   optional?: true;
   showIf?: Obj;
@@ -53,12 +52,12 @@ export interface QueryOptions {
 }
 
 export interface Client {
-  field(field: FieldOptions): FieldState;
-  field(fields: FieldOptions[]): { invalid: boolean; showing: boolean[] };
-  field(field: FieldOptions, listener: (value: FieldState) => void): () => void;
+  field(field: FieldConfig): FieldState;
+  field(fields: FieldConfig[]): { invalid: boolean; active: boolean[] };
+  field(field: FieldConfig, listener: (value: FieldState) => void): () => void;
   field(
-    fields: FieldOptions[],
-    listener: (value: { invalid: boolean; showing: boolean[] }) => void,
+    fields: FieldConfig[],
+    listener: (value: { invalid: boolean; active: boolean[] }) => void,
   ): () => void;
 
   query(queryString: string, options?: QueryOptions): Promise<Obj>;
