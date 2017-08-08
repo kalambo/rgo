@@ -68,11 +68,20 @@ export interface Client {
   ): () => void;
 
   query(queryString: string, options?: QueryOptions): Promise<Obj>;
+  query(
+    queryString: string,
+    options: QueryOptions & { info: true },
+  ): Promise<{ data: Obj; cols: Obj }>;
   query(queryString: string, listener: (value: Obj | null) => void): () => void;
   query(
     queryString: string,
     options: QueryOptions,
-    listener: (value: Obj | null) => void,
+    listener: (data: Obj | null) => void,
+  ): () => void;
+  query(
+    queryString: string,
+    options: QueryOptions & { info: true },
+    listener: (value: { data: Obj; cols: Obj } | null) => void,
   ): () => void;
 
   set(value: Obj<Obj<Obj | null | undefined> | undefined>): void;

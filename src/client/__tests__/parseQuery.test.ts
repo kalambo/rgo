@@ -1,4 +1,4 @@
-import { print } from 'graphql';
+import { parse, print } from 'graphql';
 
 import parseQuery from '../parseQuery';
 import { ClientState } from '../typings';
@@ -28,7 +28,7 @@ describe('client: parseQuery', () => {
 
     const { layers, base, partials } = parseQuery(
       baseSchema,
-      `{
+      parse(`{
         Person(filter: "lastName=Cole") {
           id
           firstName
@@ -39,7 +39,7 @@ describe('client: parseQuery', () => {
             street
           }
         }
-      }`,
+      }`),
       {},
       true,
     );

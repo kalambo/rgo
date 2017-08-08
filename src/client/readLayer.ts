@@ -21,6 +21,7 @@ export default function readLayer(
   rootRecords: Obj<Obj>,
   state: ClientState,
   firstIds: Obj<Obj<string>>,
+  rootCols?: Obj<Obj>,
 ) {
   const filter = (id: string) =>
     runFilter(args.filter, id, state.combined[field.type][id]);
@@ -157,12 +158,32 @@ export default function readLayer(
       );
     }
   };
-
   rootIds.forEach(initRootRecords);
 
+  const recordCols = rootCols && keysToObject(Object.keys(records), () => ({}));
+
   const relationUpdaters = relations.map(relationLayer =>
-    readLayer(relationLayer, records, state, firstIds),
+    readLayer(relationLayer, records, state, firstIds, recordCols),
   );
+
+  if (rootCols) {
+    Object.keys(records).forEach(id => {
+      recordCols![id][''] = Math.max(
+        ...relations.map(({ root }) =>
+          recordCols![id][root.field].reduce((res, v) => res + v[''], 0),
+        ),
+        1,
+      );
+    });
+    rootIds.forEach(rootId => {
+      rootCols[rootId][root.field] = rootRecordIds[rootId].map(
+        id => (id ? recordCols![id] : { '': 1 }),
+      );
+      if (rootCols[rootId][root.field].length === 0) {
+        rootCols[rootId][root.field] = [{ '': 1 }];
+      }
+    });
+  }
 
   return (changes: DataChanges) => {
     if (relationUpdaters.some(updater => updater(changes))) return true;

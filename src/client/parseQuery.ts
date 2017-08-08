@@ -1,8 +1,8 @@
 import {
   ArgumentNode,
+  DocumentNode,
   FieldNode,
   OperationDefinitionNode,
-  parse,
   print,
 } from 'graphql';
 
@@ -59,7 +59,7 @@ const queryOperation = (keys: string[], ids?: boolean) => {
 
 export default function parseQuery(
   schema: Obj<Obj<Field>>,
-  query: string,
+  queryDoc: DocumentNode,
   variables: Obj = {},
   idsOnly?: boolean,
 ) {
@@ -142,7 +142,6 @@ export default function parseQuery(
     };
   };
 
-  const queryDoc = parse(query);
   const rootSelection = (queryDoc.definitions[0] as OperationDefinitionNode)
     .selectionSet.selections as FieldNode[];
   const layers = rootSelection.map(node =>

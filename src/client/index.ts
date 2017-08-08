@@ -1,6 +1,12 @@
 export { Client, FieldConfig } from './typings';
 
 import * as _ from 'lodash';
+import {
+  buildClientSchema,
+  introspectionQuery,
+  parse,
+  validate as graphQLValidate,
+} from 'graphql';
 
 import {
   createEmitter,
@@ -13,7 +19,7 @@ import {
   QueryRequest,
   Rules,
   ScalarName,
-  validate,
+  validate as validateField,
 } from '../core';
 
 import parseQuery from './parseQuery';
@@ -32,17 +38,24 @@ import {
 export async function buildClient(
   url: string,
   authFetch: AuthFetch,
+  validate?: boolean,
   log?: boolean,
 ): Promise<Client> {
-  const schema: Obj<Obj<Field>> = JSON.parse(
-    (await (await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: '{ SCHEMA }' }),
-    })).json()).data,
-  );
+  const [schemaResponse, introspectionResponse] = await (await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify([
+      { query: '{ SCHEMA }' },
+      ...(validate ? [{ query: introspectionQuery }] : []),
+    ]),
+  })).json();
+
+  const schema: Obj<Obj<Field>> = JSON.parse(schemaResponse.data);
+  const graphQLSchema = validate
+    ? buildClientSchema(introspectionResponse.data)
+    : null;
 
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
@@ -162,7 +175,7 @@ export async function buildClient(
           ({ key }, i) =>
             !active[i] ||
             (values[key] === null && infoObj[key].optional) ||
-            validate(
+            validateField(
               infoObj[key].scalar,
               infoObj[key].rules,
               values[key],
@@ -200,18 +213,28 @@ export async function buildClient(
     },
 
     query(...args) {
-      const queryIndex = queryCount++;
-
       const hasListener = typeof args[args.length - 1] === 'function';
       const queryString: string = args[0];
-      const { variables, idsOnly }: QueryOptions =
+      const {
+        variables,
+        idsOnly,
+        info: withInfo,
+      }: QueryOptions & { info?: true } =
         (!hasListener || args.length === 3 ? args[1] : undefined) || {};
       const listener: ((value: Obj | null) => void) | undefined = hasListener
         ? args[args.length - 1]
         : undefined;
 
-      let value = {};
-      const info = parseQuery(schema, queryString, variables, idsOnly);
+      const queryDoc = parse(queryString);
+      if (validate && graphQLValidate(graphQLSchema!, queryDoc).length > 0) {
+        throw new Error('Invalid query');
+      }
+
+      const queryIndex = queryCount++;
+
+      let data = {};
+      let cols = {};
+      const info = parseQuery(schema, queryDoc, variables, idsOnly);
       let rootUpdaters: ((changes: DataChanges) => boolean)[] | null = null;
       const trace: Obj<{ start: number; end?: number }> = {};
       const ids: Obj<string[]> = {};
@@ -234,12 +257,27 @@ export async function buildClient(
           liveFetches -= 1;
         }
         if (liveFetches === 0) {
-          value = {};
+          data = {};
+          cols = {};
           rootUpdaters = info.layers.map(layer =>
-            readLayer(layer, { '': value }, state, firstIds),
+            readLayer(
+              layer,
+              { '': data },
+              state,
+              firstIds,
+              withInfo && { '': cols },
+            ),
           );
-          firstResolve(value);
-          if (listener && running) listener(value);
+          if (withInfo) {
+            cols[''] = Math.max(
+              ...info.layers.map(({ root }) =>
+                cols[root.field].reduce((res, v) => res + v[''], 0),
+              ),
+              1,
+            );
+          }
+          firstResolve(withInfo ? { data, cols } : data);
+          if (listener && running) listener(withInfo ? { data, cols } : data);
         }
       };
 
@@ -250,7 +288,7 @@ export async function buildClient(
             rootUpdaters = null;
             runFetch();
           } else if (listener && running) {
-            listener(value);
+            listener(withInfo ? { data, cols } : data);
           }
         }
       });

@@ -292,18 +292,18 @@ export default function buildServer(types: Obj<DataType>) {
   async function server(request: QueryRequest | QueryRequest[], context?: any) {
     const queries = Array.isArray(request) ? request : [request];
 
-    if (queries.length === 1 && queries[0].query === '{ SCHEMA }') {
-      return {
-        data: JSON.stringify(
-          typeFields,
-          (_, v) => (typeof v === 'function' ? true : v),
-        ),
-      };
-    }
-
     const data: Data = {};
     const results: QueryResponse[] = await Promise.all(
       queries.map(async ({ query, variables, normalize }) => {
+        if (query === '{ SCHEMA }') {
+          return {
+            data: JSON.stringify(
+              typeFields,
+              (_, v) => (typeof v === 'function' ? true : v),
+            ),
+          };
+        }
+
         const firstIds: Obj<Obj<string>> = {};
         const queryDoc = parse(query);
         const result = (await execute(
