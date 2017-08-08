@@ -1,6 +1,6 @@
 {
   "name": "kalambo",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Kalambo data system",
   "author": "Jon Whitehead",
   "license": "MIT",
@@ -22,17 +22,13 @@
   },
   "devDependencies": {
     "@types/jest": "^20.0.6",
-    "@types/mongodb": "^2.2.9",
-    "@types/sequelize": "^4.0.67",
     "@types/uuid": "^3.4.0",
     "babel-cli": "^6.24.1",
     "babel-preset-env": "^1.6.0",
     "fetch-mock": "^5.12.1",
     "jest": "^20.0.4",
-    "mongodb": "^2.2.30",
     "prettier": "^1.5.3",
     "rimraf": "^2.6.1",
-    "sequelize": "^4.4.2",
     "ts-jest": "^20.0.10",
     "typescript": "^2.4.2",
     "uuid": "^3.1.0"
@@ -40,10 +36,13 @@
   "dependencies": {
     "@types/flat": "^0.0.28",
     "@types/graphql": "^0.10.2",
+    "@types/mongodb": "^2.2.9",
     "@types/pegjs": "^0.10.0",
+    "@types/sequelize": "^4.0.67",
     "flat": "^4.0.0",
     "graphql": "^0.10.5",
     "lodash": "^4.17.4",
-    "pegjs": "^0.10.0"
+    "pegjs": "^0.10.0",
+    "sequelize": "^4.4.2"
   }
 }
