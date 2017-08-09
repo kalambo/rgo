@@ -59,7 +59,7 @@ describe('client: parseQuery', () => {
           trace: undefined,
           unsorted: true,
         },
-        scalarFields: { id: true },
+        scalarFields: { id: 'String' },
         relations: [
           {
             root: { type: 'Person', field: 'address' },
@@ -75,7 +75,7 @@ describe('client: parseQuery', () => {
               trace: undefined,
               unsorted: true,
             },
-            scalarFields: { id: true },
+            scalarFields: { id: 'String' },
             relations: [],
             path: 'Person_address',
           },
@@ -93,7 +93,7 @@ describe('client: parseQuery', () => {
               trace: undefined,
               unsorted: true,
             },
-            scalarFields: { id: true },
+            scalarFields: { id: 'String' },
             relations: [],
             path: 'Person_places',
           },

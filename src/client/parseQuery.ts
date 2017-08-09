@@ -16,6 +16,8 @@ import {
   parseArgs,
   parsePlainArgs,
   RelationField,
+  ScalarField,
+  ScalarName,
 } from '../core';
 
 import { QueryLayer } from './typings';
@@ -62,6 +64,7 @@ export default function parseQuery(
   queryDoc: DocumentNode,
   variables: Obj = {},
   idsOnly?: boolean,
+  addIds?: boolean,
 ) {
   const partials: Obj<string> = {};
 
@@ -74,14 +77,18 @@ export default function parseQuery(
     const isList = fieldIs.foreignRelation(field) || field.isList;
 
     const fieldNodes = node.selectionSet!.selections as FieldNode[];
-    const scalarFields: Obj<true> = idsOnly
-      ? { id: true }
-      : keysToObject<string, true>(
+    const scalarFields: Obj<ScalarName> = idsOnly
+      ? { id: 'String' }
+      : keysToObject(
           fieldNodes
             .filter(({ selectionSet }) => !selectionSet)
             .map(({ name }) => name.value),
-          () => true,
+          fieldName =>
+            fieldName === 'id'
+              ? 'String'
+              : (schema[field.type][fieldName] as ScalarField).scalar,
         );
+    if (addIds) scalarFields.id = 'String';
 
     const args = processArgs(schema, variables, node.arguments, field.type);
     if (isList) {

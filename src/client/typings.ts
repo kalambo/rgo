@@ -34,7 +34,7 @@ export interface QueryLayer {
     filterFields: string[];
     structuralFields: string[];
   };
-  scalarFields: Obj<true>;
+  scalarFields: Obj<ScalarName>;
   relations: QueryLayer[];
   path: string;
 }
@@ -71,7 +71,7 @@ export interface Client {
   query(
     queryString: string,
     options: QueryOptions & { info: true },
-  ): Promise<{ data: Obj; cols: Obj }>;
+  ): Promise<{ data: Obj; info: { types: Obj; spans: Obj } }>;
   query(queryString: string, listener: (value: Obj | null) => void): () => void;
   query(
     queryString: string,
@@ -81,7 +81,9 @@ export interface Client {
   query(
     queryString: string,
     options: QueryOptions & { info: true },
-    listener: (value: { data: Obj; cols: Obj } | null) => void,
+    listener: (
+      value: { data: Obj; info: { types: Obj; spans: Obj } } | null,
+    ) => void,
   ): () => void;
 
   set(value: Obj<Obj<Obj | null | undefined> | undefined>): void;

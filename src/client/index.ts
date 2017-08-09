@@ -233,8 +233,8 @@ export async function buildClient(
       const queryIndex = queryCount++;
 
       let data = {};
-      let cols = {};
-      const info = parseQuery(schema, queryDoc, variables, idsOnly);
+      let info = { types: {}, spans: {} };
+      const parsed = parseQuery(schema, queryDoc, variables, idsOnly, withInfo);
       let rootUpdaters: ((changes: DataChanges) => boolean)[] | null = null;
       const trace: Obj<{ start: number; end?: number }> = {};
       const ids: Obj<string[]> = {};
@@ -249,7 +249,7 @@ export async function buildClient(
         if (listener && liveFetches === 0) {
           listener(null);
         }
-        const requests = queryRequests(state, info, variables, trace, ids);
+        const requests = queryRequests(state, parsed, variables, trace, ids);
         if (requests.length > 0) {
           liveFetches += 1;
           const response = (await batchFetch(requests, queryIndex))[0];
@@ -258,26 +258,31 @@ export async function buildClient(
         }
         if (liveFetches === 0) {
           data = {};
-          cols = {};
-          rootUpdaters = info.layers.map(layer =>
+          info = { types: {}, spans: {} };
+          rootUpdaters = parsed.layers.map(layer =>
             readLayer(
               layer,
               { '': data },
               state,
               firstIds,
-              withInfo && { '': cols },
+              withInfo && {
+                types: info.types,
+                spans: { '': info.spans },
+              },
             ),
           );
           if (withInfo) {
-            cols[''] = Math.max(
-              ...info.layers.map(({ root }) =>
-                cols[root.field].reduce((res, v) => res + v[''], 0),
+            info.spans[''] = Math.max(
+              ...parsed.layers.map(({ root }) =>
+                info.spans[root.field].reduce((res, v) => res + v[''], 0),
               ),
               1,
             );
           }
-          firstResolve(withInfo ? { data, cols } : data);
-          if (listener && running) listener(withInfo ? { data, cols } : data);
+          firstResolve(withInfo ? { data, info } : data);
+          if (listener && running) {
+            listener(withInfo ? { data, info } : data);
+          }
         }
       };
 
@@ -288,7 +293,7 @@ export async function buildClient(
             rootUpdaters = null;
             runFetch();
           } else if (listener && running) {
-            listener(withInfo ? { data, cols } : data);
+            listener(withInfo ? { data, info } : data);
           }
         }
       });

@@ -21,7 +21,7 @@ export default function readLayer(
   rootRecords: Obj<Obj>,
   state: ClientState,
   firstIds: Obj<Obj<string>>,
-  rootCols?: Obj<Obj>,
+  rootInfo?: { types: Obj; spans: Obj<Obj> },
 ) {
   const filter = (id: string) =>
     runFilter(args.filter, id, state.combined[field.type][id]);
@@ -160,27 +160,32 @@ export default function readLayer(
   };
   rootIds.forEach(initRootRecords);
 
-  const recordCols = rootCols && keysToObject(Object.keys(records), () => ({}));
+  const recordInfo = rootInfo && {
+    types: (rootInfo.types[root.field] = { '': field.type, ...scalarFields }),
+    spans: keysToObject(Object.keys(records), () => ({})),
+  };
 
   const relationUpdaters = relations.map(relationLayer =>
-    readLayer(relationLayer, records, state, firstIds, recordCols),
+    readLayer(relationLayer, records, state, firstIds, recordInfo),
   );
 
-  if (rootCols) {
+  if (rootInfo) {
     Object.keys(records).forEach(id => {
-      recordCols![id][''] = Math.max(
-        ...relations.map(({ root }) =>
-          recordCols![id][root.field].reduce((res, v) => res + v[''], 0),
-        ),
-        1,
+      const relationCounts = relations.map(({ root }) =>
+        recordInfo!.spans[id][root.field].reduce((res, v) => res + v[''], 0),
       );
+      recordInfo!.spans[id][''] = Math.max(...relationCounts, 1);
+      relations.forEach(({ root }, i) => {
+        const diff = recordInfo!.spans[id][''] - relationCounts[i];
+        if (diff > 0) recordInfo!.spans[id][root.field].push(diff);
+      });
     });
     rootIds.forEach(rootId => {
-      rootCols[rootId][root.field] = rootRecordIds[rootId].map(
-        id => (id ? recordCols![id] : { '': 1 }),
+      rootInfo.spans[rootId][root.field] = rootRecordIds[rootId].map(
+        id => (id ? recordInfo!.spans[id] : { '': 1 }),
       );
-      if (rootCols[rootId][root.field].length === 0) {
-        rootCols[rootId][root.field] = [{ '': 1 }];
+      if (rootInfo.spans[rootId][root.field].length === 0) {
+        rootInfo.spans[rootId][root.field] = [{ '': 1 }];
       }
     });
   }
