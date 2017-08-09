@@ -305,6 +305,7 @@ export default function buildServer(types: Obj<DataType>) {
         }
 
         const firstIds: Obj<Obj<string>> = {};
+        let idsQuery: boolean = false;
         const queryDoc = parse(query);
         const result = (await execute(
           schema,
@@ -334,9 +335,13 @@ export default function buildServer(types: Obj<DataType>) {
             .filter(({ selectionSet }) => selectionSet)
             .map(node => node.name.value);
           const args = parsePlainArgs(argNodes, variables);
+          if (args.ids) idsQuery = true;
 
           data[field.type] = data[field.type] || {};
-          if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
+          if (
+            !idsQuery &&
+            (fieldIs.foreignRelation(field) || (field.isList && args.sort))
+          ) {
             firstIds[path] = {};
           }
           Object.keys(queryResults).forEach(rootId => {
@@ -413,7 +418,7 @@ export default function buildServer(types: Obj<DataType>) {
             variables,
           ),
         );
-        return { firstIds };
+        return idsQuery ? {} : { firstIds };
       }),
     );
 

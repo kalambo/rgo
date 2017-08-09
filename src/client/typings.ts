@@ -82,7 +82,11 @@ export interface Client {
     queryString: string,
     options: QueryOptions & { info: true },
     listener: (
-      value: { data: Obj; info: { types: Obj; spans: Obj } } | null,
+      value: {
+        data: Obj;
+        info: { types: Obj; spans: Obj };
+        changes?: Data;
+      } | null,
     ) => void,
   ): () => void;
 

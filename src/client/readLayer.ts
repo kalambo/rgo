@@ -160,8 +160,19 @@ export default function readLayer(
   };
   rootIds.forEach(initRootRecords);
 
+  if (rootInfo) {
+    rootInfo.types[field.type] = {
+      ...rootInfo.types[field.type],
+      ...scalarFields,
+      ...keysToObject(
+        relations,
+        ({ field }) => field.type,
+        ({ root }) => root.field,
+      ),
+    };
+  }
   const recordInfo = rootInfo && {
-    types: (rootInfo.types[root.field] = { '': field.type, ...scalarFields }),
+    types: rootInfo.types,
     spans: keysToObject(Object.keys(records), () => ({})),
   };
 

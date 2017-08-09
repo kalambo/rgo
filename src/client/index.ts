@@ -293,7 +293,21 @@ export async function buildClient(
             rootUpdaters = null;
             runFetch();
           } else if (listener && running) {
-            listener(withInfo ? { data, info } : data);
+            listener(
+              withInfo
+                ? {
+                    data,
+                    info,
+                    changes: keysToObject(Object.keys(changes), type =>
+                      keysToObject(Object.keys(changes[type]), id =>
+                        keysToObject(Object.keys(changes[type][id]), field =>
+                          noUndef(_.get(state.combined, [type, id, field])),
+                        ),
+                      ),
+                    ),
+                  }
+                : data,
+            );
           }
         }
       });

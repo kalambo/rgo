@@ -32,6 +32,7 @@ export interface Args {
     traceStart?: number;
     traceEnd?: number;
   };
+  ids?: string[];
 }
 
 export interface QueryArgs {

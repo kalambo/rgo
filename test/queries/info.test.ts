@@ -45,12 +45,8 @@ describe('queries: basic', () => {
       },
       info: {
         types: {
-          Person: {
-            '': 'Person',
-            id: 'String',
-            firstName: 'String',
-            address: { '': 'Address', id: 'String', city: 'String' },
-          },
+          Person: { id: 'String', firstName: 'String', address: 'Address' },
+          Address: { id: 'String', city: 'String' },
         },
         spans: {
           '': 5,
@@ -96,12 +92,8 @@ describe('queries: basic', () => {
       },
       info: {
         types: {
-          Person: {
-            '': 'Person',
-            id: 'String',
-            firstName: 'String',
-            address: { '': 'Address', id: 'String', city: 'String' },
-          },
+          Person: { id: 'String', firstName: 'String', address: 'Address' },
+          Address: { id: 'String', city: 'String' },
         },
         spans: {
           '': 2,
@@ -152,12 +144,8 @@ describe('queries: basic', () => {
       },
       info: {
         types: {
-          Person: {
-            '': 'Person',
-            id: 'String',
-            firstName: 'String',
-            places: { '': 'Address', id: 'String', city: 'String' },
-          },
+          Person: { id: 'String', firstName: 'String', places: 'Address' },
+          Address: { id: 'String', city: 'String' },
         },
         spans: {
           '': 6,
@@ -207,12 +195,8 @@ describe('queries: basic', () => {
       },
       info: {
         types: {
-          Person: {
-            '': 'Person',
-            id: 'String',
-            firstName: 'String',
-            places: { '': 'Address', id: 'String', city: 'String' },
-          },
+          Person: { id: 'String', firstName: 'String', places: 'Address' },
+          Address: { id: 'String', city: 'String' },
         },
         spans: {
           '': 5,
@@ -269,12 +253,12 @@ describe('queries: basic', () => {
       info: {
         types: {
           Person: {
-            '': 'Person',
             id: 'String',
             firstName: 'String',
-            address: { '': 'Address', id: 'String', city: 'String' },
-            places: { '': 'Address', id: 'String', city: 'String' },
+            address: 'Address',
+            places: 'Address',
           },
+          Address: { id: 'String', city: 'String' },
         },
         spans: {
           '': 6,
