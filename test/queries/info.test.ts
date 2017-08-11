@@ -43,21 +43,15 @@ describe('queries: basic', () => {
           { id: 'E', firstName: null, address: null },
         ],
       },
-      info: {
-        types: {
-          Person: { id: 'String', firstName: 'String', address: 'Address' },
-          Address: { id: 'String', city: 'String' },
-        },
-        spans: {
-          '': 5,
-          Person: [
-            { '': 1, address: [{ '': 1 }] },
-            { '': 1, address: [{ '': 1 }] },
-            { '': 1, address: [{ '': 1 }] },
-            { '': 1, address: [{ '': 1 }] },
-            { '': 1, address: [{ '': 1 }] },
-          ],
-        },
+      spans: {
+        '': 5,
+        Person: [
+          { '': 1, address: [{ '': 1 }] },
+          { '': 1, address: [{ '': 1 }] },
+          { '': 1, address: [{ '': 1 }] },
+          { '': 1, address: [{ '': 1 }] },
+          { '': 1, address: [{ '': 1 }] },
+        ],
       },
     });
   });
@@ -90,18 +84,12 @@ describe('queries: basic', () => {
           },
         ],
       },
-      info: {
-        types: {
-          Person: { id: 'String', firstName: 'String', address: 'Address' },
-          Address: { id: 'String', city: 'String' },
-        },
-        spans: {
-          '': 2,
-          Person: [
-            { '': 1, address: [{ '': 1 }] },
-            { '': 1, address: [{ '': 1 }] },
-          ],
-        },
+      spans: {
+        '': 2,
+        Person: [
+          { '': 1, address: [{ '': 1 }] },
+          { '': 1, address: [{ '': 1 }] },
+        ],
       },
     });
   });
@@ -142,18 +130,12 @@ describe('queries: basic', () => {
           },
         ],
       },
-      info: {
-        types: {
-          Person: { id: 'String', firstName: 'String', places: 'Address' },
-          Address: { id: 'String', city: 'String' },
-        },
-        spans: {
-          '': 6,
-          Person: [
-            { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
-            { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
-          ],
-        },
+      spans: {
+        '': 6,
+        Person: [
+          { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
+          { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
+        ],
       },
     });
   });
@@ -193,18 +175,12 @@ describe('queries: basic', () => {
           },
         ],
       },
-      info: {
-        types: {
-          Person: { id: 'String', firstName: 'String', places: 'Address' },
-          Address: { id: 'String', city: 'String' },
-        },
-        spans: {
-          '': 5,
-          Person: [
-            { '': 2, places: [{ '': 1 }, { '': 1 }] },
-            { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
-          ],
-        },
+      spans: {
+        '': 5,
+        Person: [
+          { '': 2, places: [{ '': 1 }, { '': 1 }] },
+          { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
+        ],
       },
     });
   });
@@ -250,31 +226,20 @@ describe('queries: basic', () => {
           },
         ],
       },
-      info: {
-        types: {
-          Person: {
-            id: 'String',
-            firstName: 'String',
-            address: 'Address',
-            places: 'Address',
+      spans: {
+        '': 6,
+        Person: [
+          {
+            '': 3,
+            address: [{ '': 1 }, 2],
+            places: [{ '': 1 }, { '': 1 }, { '': 1 }],
           },
-          Address: { id: 'String', city: 'String' },
-        },
-        spans: {
-          '': 6,
-          Person: [
-            {
-              '': 3,
-              address: [{ '': 1 }, 2],
-              places: [{ '': 1 }, { '': 1 }, { '': 1 }],
-            },
-            {
-              '': 3,
-              address: [{ '': 1 }, 2],
-              places: [{ '': 1 }, { '': 1 }, { '': 1 }],
-            },
-          ],
-        },
+          {
+            '': 3,
+            address: [{ '': 1 }, 2],
+            places: [{ '': 1 }, { '': 1 }, { '': 1 }],
+          },
+        ],
       },
     });
   });

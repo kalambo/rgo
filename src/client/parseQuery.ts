@@ -16,15 +16,13 @@ import {
   parseArgs,
   parsePlainArgs,
   RelationField,
-  ScalarField,
-  ScalarName,
 } from '../core';
 
 import { QueryLayer } from './typings';
 
 const processArgs = (
   schema: Obj<Obj<Field>>,
-  variables: Obj,
+  variables: Obj = {},
   argNodes: ArgumentNode[] = [],
   type: string,
 ) => {
@@ -77,18 +75,15 @@ export default function parseQuery(
     const isList = fieldIs.foreignRelation(field) || field.isList;
 
     const fieldNodes = node.selectionSet!.selections as FieldNode[];
-    const scalarFields: Obj<ScalarName> = idsOnly
-      ? { id: 'String' }
-      : keysToObject(
+    const scalarFields: Obj<true> = idsOnly
+      ? { id: true }
+      : keysToObject<string, true>(
           fieldNodes
             .filter(({ selectionSet }) => !selectionSet)
             .map(({ name }) => name.value),
-          fieldName =>
-            fieldName === 'id'
-              ? 'String'
-              : (schema[field.type][fieldName] as ScalarField).scalar,
+          () => true,
         );
-    if (addIds) scalarFields.id = 'String';
+    if (addIds) scalarFields.id = true;
 
     const args = processArgs(schema, variables, node.arguments, field.type);
     if (isList) {

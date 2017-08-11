@@ -21,7 +21,7 @@ export default function readLayer(
   rootRecords: Obj<Obj>,
   state: ClientState,
   firstIds: Obj<Obj<string>>,
-  rootInfo?: { types: Obj; spans: Obj<Obj> },
+  rootSpans?: Obj<Obj>,
 ) {
   const filter = (id: string) =>
     runFilter(args.filter, id, state.combined[field.type][id]);
@@ -160,49 +160,36 @@ export default function readLayer(
   };
   rootIds.forEach(initRootRecords);
 
-  if (rootInfo) {
-    rootInfo.types[field.type] = {
-      ...rootInfo.types[field.type],
-      ...scalarFields,
-      ...keysToObject(
-        relations,
-        ({ field }) => field.type,
-        ({ root }) => root.field,
-      ),
-    };
-  }
-  const recordInfo = rootInfo && {
-    types: rootInfo.types,
-    spans: keysToObject(Object.keys(records), () => ({})),
-  };
+  const recordSpans =
+    rootSpans && keysToObject(Object.keys(records), () => ({}));
 
   const relationUpdaters = relations.map(relationLayer =>
-    readLayer(relationLayer, records, state, firstIds, recordInfo),
+    readLayer(relationLayer, records, state, firstIds, recordSpans),
   );
 
-  if (rootInfo) {
+  if (rootSpans) {
     Object.keys(records).forEach(id => {
       const relationCounts = relations.map(({ root }) =>
-        recordInfo!.spans[id][root.field].reduce((res, v) => res + v[''], 0),
+        recordSpans![id][root.field].reduce((res, v) => res + v[''], 0),
       );
-      recordInfo!.spans[id][''] = Math.max(...relationCounts, 1);
+      recordSpans![id][''] = Math.max(...relationCounts, 1);
       relations.forEach(({ root }, i) => {
-        const diff = recordInfo!.spans[id][''] - relationCounts[i];
-        if (diff > 0) recordInfo!.spans[id][root.field].push(diff);
+        const diff = recordSpans![id][''] - relationCounts[i];
+        if (diff > 0) recordSpans![id][root.field].push(diff);
       });
     });
     rootIds.forEach(rootId => {
-      rootInfo.spans[rootId][root.field] = rootRecordIds[rootId].map(
-        id => (id ? recordInfo!.spans[id] : { '': 1 }),
+      rootSpans[rootId][root.field] = rootRecordIds[rootId].map(
+        id => (id ? recordSpans![id] : { '': 1 }),
       );
-      if (rootInfo.spans[rootId][root.field].length === 0) {
-        rootInfo.spans[rootId][root.field] = [{ '': 1 }];
+      if (rootSpans[rootId][root.field].length === 0) {
+        rootSpans[rootId][root.field] = [{ '': 1 }];
       }
     });
   }
 
-  return (changes: DataChanges) => {
-    if (relationUpdaters.some(updater => updater(changes))) return true;
+  return (changes: DataChanges, update: boolean) => {
+    if (relationUpdaters.some(updater => updater(changes, update))) return true;
 
     for (const id of Object.keys(changes[field.type] || {})) {
       for (const f of args.structuralFields) {
@@ -224,13 +211,15 @@ export default function readLayer(
       }
     }
 
-    for (const id of Object.keys(changes[field.type] || {})) {
-      if (records[id]) {
-        for (const f of Object.keys(changes[field.type][id] || {})) {
-          if (scalarFields[f]) {
-            const value = ((state.combined[field.type] || {})[id] || {})[f];
-            if (value === undefined) delete records[id][f];
-            else records[id][f] = value;
+    if (update) {
+      for (const id of Object.keys(changes[field.type] || {})) {
+        if (records[id]) {
+          for (const f of Object.keys(changes[field.type][id] || {})) {
+            if (scalarFields[f]) {
+              const value = ((state.combined[field.type] || {})[id] || {})[f];
+              if (value === undefined) delete records[id][f];
+              else records[id][f] = value;
+            }
           }
         }
       }

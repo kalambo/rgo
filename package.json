@@ -1,6 +1,6 @@
 {
   "name": "kalambo",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Kalambo data system",
   "author": "Jon Whitehead",
   "license": "MIT",
@@ -39,11 +39,11 @@
     "@types/graphql": "^0.10.2",
     "@types/mongodb": "^2.2.9",
     "@types/pegjs": "^0.10.0",
-    "@types/sequelize": "^4.0.67",
+    "@types/sequelize": "^4.0.68",
     "flat": "^4.0.0",
     "graphql": "^0.10.5",
     "lodash": "^4.17.4",
     "pegjs": "^0.10.0",
-    "sequelize": "^4.4.2"
+    "sequelize": "^4.4.3"
   }
 }

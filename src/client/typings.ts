@@ -34,7 +34,7 @@ export interface QueryLayer {
     filterFields: string[];
     structuralFields: string[];
   };
-  scalarFields: Obj<ScalarName>;
+  scalarFields: Obj<true>;
   relations: QueryLayer[];
   path: string;
 }
@@ -59,6 +59,8 @@ export interface QueryOptions {
 }
 
 export interface Client {
+  types: Obj<Obj<string>>;
+
   field(field: FieldConfig): FieldState;
   field(fields: FieldConfig[]): { invalid: boolean; active: boolean[] };
   field(field: FieldConfig, listener: (value: FieldState) => void): () => void;
@@ -71,23 +73,23 @@ export interface Client {
   query(
     queryString: string,
     options: QueryOptions & { info: true },
-  ): Promise<{ data: Obj; info: { types: Obj; spans: Obj } }>;
-  query(queryString: string, listener: (value: Obj | null) => void): () => void;
+  ): Promise<{ data: Obj; spans: Obj }>;
+  query(
+    queryString: string,
+    onLoad: (data: Obj | null) => void,
+    onChange: ((changes: Data) => void) | true,
+  ): () => void;
   query(
     queryString: string,
     options: QueryOptions,
-    listener: (data: Obj | null) => void,
+    onLoad: (data: Obj | null) => void,
+    onChange: ((changes: Data) => void) | true,
   ): () => void;
   query(
     queryString: string,
     options: QueryOptions & { info: true },
-    listener: (
-      value: {
-        data: Obj;
-        info: { types: Obj; spans: Obj };
-        changes?: Data;
-      } | null,
-    ) => void,
+    onLoad: (value: { data: Obj; spans: Obj } | null) => void,
+    onChange: ((changes: Data) => void) | true,
   ): () => void;
 
   set(value: Obj<Obj<Obj | null | undefined> | undefined>): void;

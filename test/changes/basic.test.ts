@@ -66,7 +66,7 @@ describe('changes: root', () => {
     });
 
     let count = -1;
-    let nextLoad = true;
+    let nextLoad = false;
     client.query(
       `{
         Person(sort: "firstName", skip: 1, show: 2) {
@@ -89,6 +89,7 @@ describe('changes: root', () => {
           }
         }
       },
+      true,
     );
   });
 });

@@ -1,16 +1,12 @@
 export { Client, FieldConfig } from './typings';
 
 import * as _ from 'lodash';
-import {
-  buildClientSchema,
-  introspectionQuery,
-  parse,
-  validate as graphQLValidate,
-} from 'graphql';
+import { parse } from 'graphql';
 
 import {
   createEmitter,
   createEmitterMap,
+  Data,
   Field,
   fieldIs,
   keysToObject,
@@ -38,24 +34,17 @@ import {
 export async function buildClient(
   url: string,
   authFetch: AuthFetch,
-  validate?: boolean,
   log?: boolean,
 ): Promise<Client> {
-  const [schemaResponse, introspectionResponse] = await (await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify([
-      { query: '{ SCHEMA }' },
-      ...(validate ? [{ query: introspectionQuery }] : []),
-    ]),
-  })).json();
-
-  const schema: Obj<Obj<Field>> = JSON.parse(schemaResponse.data);
-  const graphQLSchema = validate
-    ? buildClientSchema(introspectionResponse.data)
-    : null;
+  const schema: Obj<Obj<Field>> = JSON.parse(
+    (await (await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: '{ SCHEMA }' }),
+    })).json()).data,
+  );
 
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
@@ -116,6 +105,13 @@ export async function buildClient(
 
   let queryCount = 0;
   return {
+    types: keysToObject(Object.keys(schema), type =>
+      keysToObject(Object.keys(schema[type]), fieldName => {
+        const field = schema[type][fieldName];
+        return fieldIs.scalar(field) ? field.scalar : field.type;
+      }),
+    ),
+
     field(
       fields: FieldConfig | FieldConfig[],
       listener?: (value: any) => void,
@@ -213,29 +209,25 @@ export async function buildClient(
     },
 
     query(...args) {
-      const hasListener = typeof args[args.length - 1] === 'function';
-      const queryString: string = args[0];
-      const {
-        variables,
-        idsOnly,
-        info: withInfo,
-      }: QueryOptions & { info?: true } =
-        (!hasListener || args.length === 3 ? args[1] : undefined) || {};
-      const listener: ((value: Obj | null) => void) | undefined = hasListener
-        ? args[args.length - 1]
-        : undefined;
-
-      const queryDoc = parse(queryString);
-      if (validate && graphQLValidate(graphQLSchema!, queryDoc).length > 0) {
-        throw new Error('Invalid query');
-      }
-
       const queryIndex = queryCount++;
 
+      const queryDoc = parse(args[0]);
+      const [options, onLoad, onChange] = (args.length === 3
+        ? [undefined, ...args.slice(1)]
+        : args.slice(1)) as [
+        (QueryOptions & { info?: true }) | undefined,
+        ((data: Obj | { data: Obj; spans: Obj } | null) => void) | undefined,
+        ((changes: Data) => void) | true | undefined
+      ];
+      const { variables, idsOnly, info: withInfo } =
+        options || ({} as QueryOptions & { info?: true });
+
       let data = {};
-      let info = { types: {}, spans: {} };
+      let spans = {};
       const parsed = parseQuery(schema, queryDoc, variables, idsOnly, withInfo);
-      let rootUpdaters: ((changes: DataChanges) => boolean)[] | null = null;
+      let rootUpdaters:
+        | ((changes: DataChanges, update: boolean) => boolean)[]
+        | null = null;
       const trace: Obj<{ start: number; end?: number }> = {};
       const ids: Obj<string[]> = {};
       let firstIds: Obj<Obj<string>>;
@@ -244,11 +236,10 @@ export async function buildClient(
       const firstPromise = new Promise(resolve => (firstResolve = resolve));
       let running = true;
 
-      let liveFetches = 0;
+      let liveFetches = -1;
       const runFetch = async () => {
-        if (listener && liveFetches === 0) {
-          listener(null);
-        }
+        if (liveFetches === -1) liveFetches = 0;
+        else if (liveFetches === 0 && onLoad) onLoad(null);
         const requests = queryRequests(state, parsed, variables, trace, ids);
         if (requests.length > 0) {
           liveFetches += 1;
@@ -258,30 +249,27 @@ export async function buildClient(
         }
         if (liveFetches === 0) {
           data = {};
-          info = { types: {}, spans: {} };
+          spans = {};
           rootUpdaters = parsed.layers.map(layer =>
             readLayer(
               layer,
               { '': data },
               state,
               firstIds,
-              withInfo && {
-                types: info.types,
-                spans: { '': info.spans },
-              },
+              withInfo && { '': spans },
             ),
           );
           if (withInfo) {
-            info.spans[''] = Math.max(
+            spans[''] = Math.max(
               ...parsed.layers.map(({ root }) =>
-                info.spans[root.field].reduce((res, v) => res + v[''], 0),
+                spans[root.field].reduce((res, v) => res + v[''], 0),
               ),
               1,
             );
           }
-          firstResolve(withInfo ? { data, info } : data);
-          if (listener && running) {
-            listener(withInfo ? { data, info } : data);
+          firstResolve(withInfo ? { data, spans } : data);
+          if (onLoad && running) {
+            onLoad(withInfo ? { data, spans } : data);
           }
         }
       };
@@ -289,30 +277,31 @@ export async function buildClient(
       runFetch();
       const unlisten = emitter.watch(({ changes, indices }) => {
         if (!indices || !indices.includes(queryIndex)) {
-          if (!rootUpdaters || rootUpdaters.some(updater => updater(changes))) {
+          if (
+            !rootUpdaters ||
+            rootUpdaters.some(updater => updater(changes, onChange === true))
+          ) {
             rootUpdaters = null;
             runFetch();
-          } else if (listener && running) {
-            listener(
-              withInfo
-                ? {
-                    data,
-                    info,
-                    changes: keysToObject(Object.keys(changes), type =>
-                      keysToObject(Object.keys(changes[type]), id =>
-                        keysToObject(Object.keys(changes[type][id]), field =>
-                          noUndef(_.get(state.combined, [type, id, field])),
-                        ),
-                      ),
+          } else if (onLoad && running) {
+            if (onChange === true) {
+              onLoad(data);
+            } else {
+              onChange!(
+                keysToObject(Object.keys(changes), type =>
+                  keysToObject(Object.keys(changes[type]), id =>
+                    keysToObject(Object.keys(changes[type][id]), field =>
+                      noUndef(_.get(state.combined, [type, id, field])),
                     ),
-                  }
-                : data,
-            );
+                  ),
+                ),
+              );
+            }
           }
         }
       });
 
-      if (!listener) return firstPromise;
+      if (!onLoad) return firstPromise;
       return (() => {
         running = false;
         unlisten();
