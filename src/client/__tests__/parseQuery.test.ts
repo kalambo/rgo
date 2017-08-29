@@ -10,22 +10,6 @@ const clean = (s: string) => s.replace(/\n +/g, '\n').trim();
 
 describe('client: parseQuery', () => {
   test('basic', () => {
-    // const state: ClientState = {
-    //   server: _.cloneDeep(baseData),
-    //   client: {},
-    //   combined: _.cloneDeep(baseData),
-    //   diff: {},
-    // };
-    // state.client = {
-    //   Person: { A: null, F: { firstName: 'Cierra' } },
-    //   Address: { A: { city: 'Torpchester' }, B: null },
-    // };
-    // delete state.combined.Person.A;
-    // state.combined.Person.F = { firstName: 'Cierra' };
-    // state.combined.Address.A.city = 'Torpchester';
-    // delete state.combined.Address.B;
-    // state.diff = { Person: { A: -1, F: 1 }, Address: { A: 0, B: -1 } };
-
     const { layers, base, partials } = parseQuery(
       baseSchema,
       parse(`{
@@ -50,12 +34,12 @@ describe('client: parseQuery', () => {
         field: { type: 'Person', isList: true },
         args: {
           filter: { lastName: { $eq: 'Cole' } },
-          sort: [['createdAt', 'desc'], ['id', 'asc']],
+          sort: [['createdat', 'desc'], ['id', 'asc']],
           start: 0,
           end: undefined,
           fields: undefined,
           filterFields: ['lastName'],
-          structuralFields: ['lastName', 'createdAt', 'id'],
+          structuralFields: ['lastName', 'createdat', 'id'],
           trace: undefined,
           unsorted: true,
         },
@@ -66,12 +50,12 @@ describe('client: parseQuery', () => {
             field: { type: 'Address' },
             args: {
               filter: {},
-              sort: [['createdAt', 'desc'], ['id', 'asc']],
+              sort: [['createdat', 'desc'], ['id', 'asc']],
               start: 0,
               end: undefined,
               fields: undefined,
               filterFields: [],
-              structuralFields: ['createdAt', 'id'],
+              structuralFields: ['createdat', 'id'],
               trace: undefined,
               unsorted: true,
             },
@@ -84,12 +68,12 @@ describe('client: parseQuery', () => {
             field: { type: 'Address', isList: true },
             args: {
               filter: {},
-              sort: [['createdAt', 'desc'], ['id', 'asc']],
+              sort: [['createdat', 'desc'], ['id', 'asc']],
               start: 2,
               end: undefined,
               fields: undefined,
               filterFields: [],
-              structuralFields: ['createdAt', 'id'],
+              structuralFields: ['createdat', 'id'],
               trace: undefined,
               unsorted: true,
             },
@@ -109,15 +93,15 @@ describe('client: parseQuery', () => {
           address {
             city
             id
-            createdAt
+            createdat
           }
           places(skip: 2, info: $Person_places) {
             street
             id
-            createdAt
+            createdat
           }
           lastName
-          createdAt
+          createdat
         }
       }`),
     );
@@ -129,15 +113,15 @@ describe('client: parseQuery', () => {
           address {
             city
             id
-            createdAt
+            createdat
           }
           places(skip: 2, info: $Person_places) {
             street
             id
-            createdAt
+            createdat
           }
           lastName
-          createdAt
+          createdat
         }
       }`),
     );
@@ -146,7 +130,7 @@ describe('client: parseQuery', () => {
         Address(ids: $ids) {
           street
           id
-          createdAt
+          createdat
         }
       }`),
     );

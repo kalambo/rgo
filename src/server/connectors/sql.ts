@@ -16,9 +16,9 @@ const sqlScalars = {
   Boolean: Sequelize.BOOLEAN,
   Int: Sequelize.INTEGER,
   Float: Sequelize.FLOAT,
-  String: Sequelize.STRING,
+  String: Sequelize.TEXT,
   Date: Sequelize.DATE,
-  File: Sequelize.STRING,
+  File: Sequelize.TEXT,
   JSON: Sequelize.JSON,
 };
 
@@ -36,12 +36,12 @@ export default function sql(
             const field = fields[f] as RelationField | ScalarField;
             const fieldType = fieldIs.scalar(field)
               ? sqlScalars[field.scalar]
-              : Sequelize.STRING;
+              : Sequelize.TEXT;
             if (field.isList) return { type: Sequelize.ARRAY(fieldType) };
             return { type: fieldType };
           },
         ),
-        id: { type: Sequelize.STRING, primaryKey: true },
+        id: { type: Sequelize.TEXT, primaryKey: true },
       },
       { timestamps: false, freezeTableName: true },
     );

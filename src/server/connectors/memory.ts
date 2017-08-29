@@ -19,7 +19,10 @@ export default function memoryConnector(
           sort,
         );
 
-        return records.filter(filterFunc).sort(compareFunc).slice(start, end);
+        return records
+          .filter(filterFunc)
+          .sort(compareFunc)
+          .slice(start, end);
       },
 
       async findById(id) {

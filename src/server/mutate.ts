@@ -77,8 +77,8 @@ export default async function mutate(
         }
 
         const fullData = {
-          ...!prev ? { createdAt: time } : {},
-          modifiedAt: time,
+          ...!prev ? { createdat: time } : {},
+          modifiedat: time,
           ...data,
           ...formulae,
         };

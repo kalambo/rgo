@@ -162,7 +162,7 @@ export async function buildClient(
         const active = fieldsArray.map(
           ({ key }) =>
             infoObj[key].showIf
-              ? Object.keys(infoObj[key].showIf).every(
+              ? Object.keys(infoObj[key].showIf!).every(
                   k => values[k] === infoObj[key].showIf![k],
                 )
               : true,

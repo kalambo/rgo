@@ -1,6 +1,6 @@
 {
   "name": "kalambo",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Kalambo data system",
   "author": "Jon Whitehead",
   "license": "MIT",
@@ -8,9 +8,11 @@
   "module": "lib/client/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "prettier": "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
+    "prettier":
+      "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
     "clean": "rimraf lib/*",
-    "build": "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
+    "build":
+      "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
     "test": "jest",
     "prepare": "yarn run test && yarn run build"
   },
@@ -22,28 +24,28 @@
     "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/jest": "^20.0.6",
-    "@types/uuid": "^3.4.0",
-    "babel-cli": "^6.24.1",
+    "@types/jest": "^20.0.8",
+    "@types/uuid": "^3.4.1",
+    "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.0",
-    "fetch-mock": "^5.12.1",
+    "fetch-mock": "^5.12.2",
     "jest": "^20.0.4",
-    "prettier": "^1.5.3",
+    "prettier": "^1.6.0",
     "rimraf": "^2.6.1",
     "ts-jest": "^20.0.10",
-    "typescript": "^2.4.2",
+    "typescript": "2.5.1",
     "uuid": "^3.1.0"
   },
   "dependencies": {
     "@types/flat": "^0.0.28",
     "@types/graphql": "^0.10.2",
-    "@types/mongodb": "^2.2.9",
+    "@types/mongodb": "^2.2.11",
     "@types/pegjs": "^0.10.0",
-    "@types/sequelize": "^4.0.68",
+    "@types/sequelize": "^4.0.72",
     "flat": "^4.0.0",
-    "graphql": "^0.10.5",
+    "graphql": "^0.11.1",
     "lodash": "^4.17.4",
     "pegjs": "^0.10.0",
-    "sequelize": "^4.4.3"
+    "sequelize": "^4.7.5"
   }
 }

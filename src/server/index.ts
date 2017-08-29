@@ -64,10 +64,10 @@ export default function buildServer(types: Obj<DataType>) {
     id: {
       scalar: 'String',
     },
-    createdAt: {
+    createdat: {
       scalar: 'Date',
     },
-    modifiedAt: {
+    modifiedat: {
       scalar: 'Date',
     },
     ...types[type].fields,
@@ -340,7 +340,9 @@ export default function buildServer(types: Obj<DataType>) {
           data[field.type] = data[field.type] || {};
           if (
             !idsQuery &&
-            (fieldIs.foreignRelation(field) || (field.isList && args.sort))
+            (!root.type ||
+              fieldIs.foreignRelation(field) ||
+              (field.isList && args.sort))
           ) {
             firstIds[path] = {};
           }

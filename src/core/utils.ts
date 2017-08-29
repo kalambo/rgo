@@ -29,12 +29,15 @@ export const keysToObject = <T, U>(
   valueMap: (k: T, i: number) => U | undefined,
   keyMap?: (k: T, i: number) => string,
 ) =>
-  keys.reduce((res, k, i) => {
-    const newValue = valueMap(k, i);
-    return newValue === undefined
-      ? res
-      : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
-  }, {} as Obj<U>);
+  keys.reduce(
+    (res, k, i) => {
+      const newValue = valueMap(k, i);
+      return newValue === undefined
+        ? res
+        : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
+    },
+    {} as Obj<U>,
+  );
 
 export const mapObject = (
   obj: any,

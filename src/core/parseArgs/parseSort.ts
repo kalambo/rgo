@@ -26,7 +26,7 @@ whiteSpace
 
 export default function parseSort(s: string = '') {
   const sort = parser(s) as [string, 'asc' | 'desc'][];
-  if (!sort.some(([f]) => f === 'createdAt')) sort.push(['createdAt', 'desc']);
+  if (!sort.some(([f]) => f === 'createdat')) sort.push(['createdat', 'desc']);
   if (!sort.some(([f]) => f === 'id')) sort.push(['id', 'asc']);
 
   return sort;

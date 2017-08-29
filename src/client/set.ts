@@ -152,7 +152,7 @@ export function setServer(
         if ((client[type] && client[type][id]) !== null) {
           combined[type][id] = combined[type][id] || {};
         }
-        for (const field of Object.keys(value[type][id])) {
+        for (const field of Object.keys(value[type][id]!)) {
           const f = schema[type][field];
           const decode = fieldIs.scalar(f) && scalars[f.scalar].decode;
           const fieldValue =
