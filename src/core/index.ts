@@ -17,6 +17,7 @@ export {
   ScalarName,
 } from './typings';
 export {
+  allKeys,
   createCompare,
   createEmitter,
   createEmitterMap,

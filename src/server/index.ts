@@ -44,15 +44,11 @@ const argTypes = {
   sort: { type: GraphQLString },
   skip: { type: GraphQLInt },
   show: { type: GraphQLInt },
-  info: {
+  offset: { type: GraphQLInt },
+  trace: {
     type: new GraphQLInputObjectType({
-      name: 'Info',
-      fields: {
-        extraSkip: { type: GraphQLInt },
-        extraShow: { type: GraphQLInt },
-        traceStart: { type: GraphQLInt },
-        traceEnd: { type: GraphQLInt },
-      },
+      name: 'Trace',
+      fields: { start: { type: GraphQLInt }, end: { type: GraphQLInt } },
     }),
   },
 };
@@ -360,11 +356,12 @@ export default function buildServer(types: Obj<DataType>) {
             queryResults[rootId].forEach(
               (record, index) =>
                 record &&
-                (!args.info ||
-                  args.info.traceStart === undefined ||
-                  index < args.info.traceStart ||
-                  args.info.traceEnd === undefined ||
-                  index >= args.info.traceEnd) &&
+                (idsQuery ||
+                  !args.trace ||
+                  args.trace.start === undefined ||
+                  index < args.trace.start ||
+                  args.trace.end === undefined ||
+                  index >= args.trace.end) &&
                 (data[field.type][record.id] = {
                   ...data[field.type][record.id],
                   ...keysToObject(scalarFields, f => record[f]),
@@ -376,7 +373,7 @@ export default function buildServer(types: Obj<DataType>) {
             );
             if (firstIds[path]) {
               firstIds[path][rootId] = (queryResults[rootId][
-                args.info ? args.info.extraSkip : 0
+                args.offset || 0
               ] || {}).id;
             }
           });

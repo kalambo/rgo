@@ -30,10 +30,10 @@
     "babel-preset-env": "^1.6.0",
     "fetch-mock": "^5.12.2",
     "jest": "^20.0.4",
-    "prettier": "^1.6.0",
+    "prettier": "^1.6.1",
     "rimraf": "^2.6.1",
-    "ts-jest": "^20.0.10",
-    "typescript": "2.5.1",
+    "ts-jest": "^20.0.13",
+    "typescript": "^2.5.2",
     "uuid": "^3.1.0"
   },
   "dependencies": {
@@ -41,11 +41,11 @@
     "@types/graphql": "^0.10.2",
     "@types/mongodb": "^2.2.11",
     "@types/pegjs": "^0.10.0",
-    "@types/sequelize": "^4.0.72",
+    "@types/sequelize": "^4.0.73",
     "flat": "^4.0.0",
-    "graphql": "^0.11.1",
+    "graphql": "^0.11.2",
     "lodash": "^4.17.4",
     "pegjs": "^0.10.0",
-    "sequelize": "^4.7.5"
+    "sequelize": "^4.8.0"
   }
 }

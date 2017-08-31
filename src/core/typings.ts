@@ -26,11 +26,10 @@ export interface Args {
   sort?: string;
   skip?: number;
   show?: number;
-  info?: {
-    extraSkip: number;
-    extraShow: number;
-    traceStart?: number;
-    traceEnd?: number;
+  offset?: number;
+  trace?: {
+    start?: number;
+    end?: number;
   };
   ids?: string[];
 }
@@ -42,6 +41,7 @@ export interface QueryArgs {
   end?: number;
   fields?: string[];
   trace?: { start: number; end?: number };
+  ids?: string[];
 }
 
 export type Formula = (

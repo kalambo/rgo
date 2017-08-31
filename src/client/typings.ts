@@ -29,14 +29,17 @@ export type DataChanges = Obj<Obj<Obj<true>>>;
 export interface QueryLayer {
   root: { type?: string; field: string };
   field: ForeignRelationField | RelationField;
-  args: QueryArgs & {
-    unsorted: boolean;
-    filterFields: string[];
-    structuralFields: string[];
-  };
+  args: QueryArgs;
+  structuralFields: string[];
   scalarFields: Obj<true>;
   relations: QueryLayer[];
   path: string;
+  getArgsState: (
+    state: ClientState,
+  ) => {
+    extra: { start: number; end: number };
+    ids: string[];
+  };
 }
 
 export interface FieldConfig {
@@ -52,6 +55,11 @@ export interface FieldState {
   onChange: (value: any) => void;
   invalid: boolean;
 }
+export interface FieldsState {
+  invalid: boolean;
+  active: boolean[];
+  // mutate: () => Promise<void>;
+}
 
 export interface QueryOptions {
   variables?: Obj;
@@ -62,11 +70,12 @@ export interface Client {
   types: Obj<Obj<string>>;
 
   field(field: FieldConfig): FieldState;
-  field(fields: FieldConfig[]): { invalid: boolean; active: boolean[] };
   field(field: FieldConfig, listener: (value: FieldState) => void): () => void;
-  field(
+
+  fields(fields: FieldConfig[]): FieldsState;
+  fields(
     fields: FieldConfig[],
-    listener: (value: { invalid: boolean; active: boolean[] }) => void,
+    listener: (value: FieldsState) => void,
   ): () => void;
 
   query(queryString: string, options?: QueryOptions): Promise<Obj>;

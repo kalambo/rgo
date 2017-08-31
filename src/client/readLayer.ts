@@ -17,7 +17,15 @@ const isOrIncludes = <T>(value: T | T[], elem: T) =>
 const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
 
 export default function readLayer(
-  { root, field, args, scalarFields, relations, path }: QueryLayer,
+  {
+    root,
+    field,
+    args,
+    structuralFields,
+    scalarFields,
+    relations,
+    path,
+  }: QueryLayer,
   rootRecords: Obj<Obj>,
   state: ClientState,
   firstIds: Obj<Obj<string>>,
@@ -73,7 +81,7 @@ export default function readLayer(
       const value = state.combined[root.type][rootId]![root.field];
       if (fieldIs.relation(field)) {
         if (field.isList) {
-          if (args.unsorted) {
+          if (!args.sort.length) {
             rootRecordIds[rootId] = ((value || []) as string[]).map(
               id => (filteredIds.includes(id) ? id : null),
             );
@@ -100,7 +108,7 @@ export default function readLayer(
 
     if (rootRecordIds[rootId].length === 0) {
       rootRecords[rootId][root.field] = null;
-    } else if (fieldIs.relation(field) && field.isList && args.unsorted) {
+    } else if (fieldIs.relation(field) && field.isList && !args.sort.length) {
       rootRecords[rootId][root.field] = rootRecordIds[rootId].map(getRecord);
     } else if (fieldIs.foreignRelation(field) || field.isList) {
       const queryFirst = {
@@ -192,7 +200,7 @@ export default function readLayer(
     if (relationUpdaters.some(updater => updater(changes, update))) return true;
 
     for (const id of Object.keys(changes[field.type] || {})) {
-      for (const f of args.structuralFields) {
+      for (const f of structuralFields) {
         if ((changes[field.type][id] || {})[f]) return true;
       }
       if (

@@ -3,6 +3,7 @@ import {
   GraphQLResolveInfo,
   FieldNode,
   StringValueNode,
+  ValueNode,
 } from 'graphql';
 
 import { Args, Field, Obj, QueryArgs } from '../typings';
@@ -11,13 +12,19 @@ import { keysToObject, undefOr } from '../utils';
 import parseFilter from './parseFilter';
 import parseSort from './parseSort';
 
+const parseValue = (value: ValueNode, variables: Obj) => {
+  if (value.kind === 'Variable') return variables[value.name.value];
+  if (value.kind === 'IntValue') return parseInt(value.value, 10);
+  return (value as StringValueNode).value;
+};
 export const parsePlainArgs = (argNodes: ArgumentNode[] = [], variables: Obj) =>
   keysToObject(
     argNodes,
     ({ value }) => {
-      if (value.kind === 'Variable') return variables[value.name.value];
-      if (value.kind === 'IntValue') return parseInt(value.value, 10);
-      return (value as StringValueNode).value;
+      if (value.kind === 'ListValue') {
+        return value.values.map(v => parseValue(v, variables));
+      }
+      return parseValue(value, variables);
     },
     ({ name }) => name.value,
   ) as Args;
@@ -29,26 +36,19 @@ export default function parseArgs(
   info?: GraphQLResolveInfo,
 ): QueryArgs {
   try {
-    const extraSkip = (args.info && args.info.extraSkip) || 0;
-    const extraShow = (args.info && args.info.extraShow) || 0;
-    const start = Math.max((args.skip || 0) - extraSkip, 0);
+    const start = Math.max(args.skip || 0, 0);
     return {
       filter: parseFilter(args.filter, userId, fields),
       sort: parseSort(args.sort),
       start,
-      end: undefOr(args.show, start + extraSkip + args.show! + extraShow),
+      end: undefOr(args.show, start + args.show!),
       fields:
         info &&
         info.fieldNodes[0].selectionSet!.selections.map(
           (f: FieldNode) => f.name.value,
         ),
-      trace:
-        args.info && args.info.traceStart !== undefined
-          ? {
-              start: args.info.traceStart,
-              end: args.info.traceEnd,
-            }
-          : undefined,
+      trace: undefOr(args.trace && args.trace.start, args.trace),
+      ids: args.ids,
     };
   } catch (error) {
     return {
