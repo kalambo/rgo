@@ -58,13 +58,13 @@ export default function buildServer(types: Obj<DataType>) {
 
   const typeFields = keysToObject<string, Obj<Field>>(typeNames, type => ({
     id: {
-      scalar: 'String',
+      scalar: 'string',
     },
     createdat: {
-      scalar: 'Date',
+      scalar: 'date',
     },
     modifiedat: {
-      scalar: 'Date',
+      scalar: 'date',
     },
     ...types[type].fields,
   }));

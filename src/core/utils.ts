@@ -133,6 +133,19 @@ export const createEmitterMap = <T>() => {
   };
 };
 
+export const promisifyEmitter = <T>(
+  emitter: (listener: (value: T) => void) => () => void,
+  listener?: (value: T) => void,
+) => {
+  if (listener) return emitter(listener);
+  return new Promise<T>(resolve => {
+    const unlisten = emitter(value => {
+      setTimeout(() => unlisten());
+      resolve(value);
+    });
+  });
+};
+
 const compareValues = (a, b) => {
   if (a === b) return 0;
   if (typeof a === 'string') return a.localeCompare(b) as 0 | 1 | -1;

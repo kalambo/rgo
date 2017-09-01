@@ -20,29 +20,37 @@ export default function watcher(
   onChange: (data: Data, indices: number[]) => void,
 ) {
   const queryListeners: Obj<(firstIds?: Obj<Obj<string>>) => void> = {};
-  const queries: Obj<string[]> = {};
+  const nextQueries: Obj<string[]> = {};
+  let fieldQueries: { queries: string[]; onReady: () => void }[] = [];
 
   const process = throttle(
     async () => {
       const allQueries: string[] = [];
-      const indices = Object.keys(queries).map(k => parseInt(k, 10));
-      if (indices.length) {
-        const firstIndicies: Obj<number> = {};
-        for (const i of indices) {
-          firstIndicies[i] = allQueries.length;
-          allQueries.push(...queries[i]);
-          delete queries[i];
-        }
+      const indices = Object.keys(nextQueries).map(k => parseInt(k, 10));
+      const firstIndicies: Obj<number> = {};
+      for (const i of indices) {
+        firstIndicies[i] = allQueries.length;
+        allQueries.push(...nextQueries[i]);
+        delete nextQueries[i];
+      }
+      for (const { queries } of fieldQueries) {
+        allQueries.push(...queries);
+      }
+      if (allQueries.length > 0) {
         const responses = await authFetch(
           url,
           allQueries.map(query => ({ query, normalize: true })),
         );
         onChange(responses[0].data, indices);
         for (const i of indices) {
-          if (!queries[i]) {
+          if (!nextQueries[i]) {
             queryListeners[i](responses[firstIndicies[i]].firstIds);
           }
         }
+        for (const { onReady } of fieldQueries) {
+          onReady();
+        }
+        fieldQueries = [];
       }
     },
     100,
@@ -52,20 +60,48 @@ export default function watcher(
   return {
     process,
 
+    addFields(keys: string[], onReady: () => void) {
+      const keyMap = {};
+      for (const [type, id, field] of keys.map(k => k.split('.'))) {
+        if (id[0] !== '$') {
+          keyMap[type] = keyMap[type] || {};
+          keyMap[type][id] = keyMap[type][id] || {};
+          keyMap[type][id][field] = true;
+        }
+      }
+      const queries: string[] = [];
+      for (const type of Object.keys(keyMap)) {
+        for (const id of Object.keys(keyMap[type])) {
+          queries.push(`{
+            ${type}(ids: ["${id}"]) {
+              id
+              ${Object.keys(keyMap[type][id]).join('\n')}
+            }
+          }`);
+        }
+      }
+      if (queries.length > 0) {
+        fieldQueries.push({ queries, onReady });
+        process();
+      } else {
+        onReady();
+      }
+    },
+
     addQuery(
       queryIndex,
-      onClear: () => void,
       onLoad: (firstIds?: Obj<Obj<string>>) => void,
+      onClear: () => void,
     ): (layers?: QueryLayer[], state?: ClientState) => void {
       const prevIds: Obj<string[]> = {};
       const prevSlice: Obj<{ start: number; end?: number }> = {};
       return (layers, state) => {
-        delete queries[queryIndex];
+        delete nextQueries[queryIndex];
         if (!layers) {
           delete queryListeners[queryIndex];
         } else {
           let alreadyFetched = true;
-          const newQueries: string[] = [];
+          const queries: string[] = [];
           const processLayer = ({
             root,
             field,
@@ -94,7 +130,7 @@ export default function watcher(
                 : ids;
               prevIds[path] = ids;
               if (ids.length > 0) {
-                newQueries.push(`{
+                queries.push(`{
                   ${root.field}(ids:${JSON.stringify(newIds)}) ${inner}
                 }`);
               }
@@ -131,10 +167,10 @@ export default function watcher(
           const baseQuery = `{
             ${layers.map(processLayer).join('\n')}
           }`;
-          if (!alreadyFetched) newQueries.unshift(baseQuery);
-          if (newQueries.length > 0) {
+          if (!alreadyFetched) queries.unshift(baseQuery);
+          if (queries.length > 0) {
             if (queryListeners[queryIndex]) onClear();
-            queries[queryIndex] = newQueries;
+            nextQueries[queryIndex] = queries;
           } else {
             onLoad();
           }

@@ -13,13 +13,13 @@ import {
 import { Connector } from '../typings';
 
 const sqlScalars = {
-  Boolean: Sequelize.BOOLEAN,
-  Int: Sequelize.INTEGER,
-  Float: Sequelize.FLOAT,
-  String: Sequelize.TEXT,
-  Date: Sequelize.DATE,
-  File: Sequelize.TEXT,
-  JSON: Sequelize.JSON,
+  boolean: Sequelize.BOOLEAN,
+  int: Sequelize.INTEGER,
+  float: Sequelize.FLOAT,
+  string: Sequelize.TEXT,
+  date: Sequelize.DATE,
+  file: Sequelize.TEXT,
+  json: Sequelize.JSON,
 };
 
 export default function sql(

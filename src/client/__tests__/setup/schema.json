@@ -1,15 +1,15 @@
 {
-  "Address": {
-    "street": { "scalar": "String" },
-    "city": { "scalar": "String" },
-    "zipCode": { "scalar": "String" },
-    "people": { "type": "Person", "foreign": "places" }
+  "address": {
+    "street": { "scalar": "string" },
+    "city": { "scalar": "string" },
+    "zipcode": { "scalar": "string" },
+    "people": { "type": "person", "foreign": "places" }
   },
-  "Person": {
-    "firstName": { "scalar": "String" },
-    "lastName": { "scalar": "String" },
-    "email": { "scalar": "String" },
-    "address": { "type": "Address" },
-    "places": { "type": "Address", "isList": true }
+  "person": {
+    "firstname": { "scalar": "string" },
+    "lastname": { "scalar": "string" },
+    "email": { "scalar": "string" },
+    "address": { "type": "address" },
+    "places": { "type": "address", "isList": true }
   }
 }

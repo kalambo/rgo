@@ -1,13 +1,13 @@
 export type Obj<T = any> = { [key: string]: T };
 
 export type ScalarName =
-  | 'Boolean'
-  | 'Int'
-  | 'Float'
-  | 'String'
-  | 'Date'
-  | 'File'
-  | 'JSON';
+  | 'boolean'
+  | 'int'
+  | 'float'
+  | 'string'
+  | 'date'
+  | 'file'
+  | 'json';
 
 export interface Rules {
   equals?: any;

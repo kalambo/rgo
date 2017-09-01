@@ -8,8 +8,8 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          Person(sort: "firstName") {
-            firstName
+          person(sort: "firstname") {
+            firstname
             address {
               city
             }
@@ -17,12 +17,12 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      Person: [
-        { firstName: 'Delphia', address: { city: 'Tobyhaven' } },
-        { firstName: 'Ena', address: { city: 'Princeview' } },
-        { firstName: 'Esperanza', address: { city: 'Lynchfurt' } },
-        { firstName: 'Griffin', address: { city: 'Jeannebury' } },
-        { firstName: null, address: null },
+      person: [
+        { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
+        { firstname: 'Ena', address: { city: 'Princeview' } },
+        { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
+        { firstname: 'Griffin', address: { city: 'Jeannebury' } },
+        { firstname: null, address: null },
       ],
     });
   });
@@ -31,8 +31,8 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          Person(sort: "firstName", skip: 1, show: 2) {
-            firstName
+          person(sort: "firstname", skip: 1, show: 2) {
+            firstname
             address {
               city
             }
@@ -40,9 +40,9 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      Person: [
-        { firstName: 'Ena', address: { city: 'Princeview' } },
-        { firstName: 'Esperanza', address: { city: 'Lynchfurt' } },
+      person: [
+        { firstname: 'Ena', address: { city: 'Princeview' } },
+        { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
       ],
     });
   });
@@ -51,8 +51,8 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          Person(sort: "firstName", skip: 1, show: 2) {
-            firstName
+          person(sort: "firstname", skip: 1, show: 2) {
+            firstname
             places {
               city
             }
@@ -60,13 +60,13 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      Person: [
+      person: [
         {
-          firstName: 'Ena',
+          firstname: 'Ena',
           places: [null, { city: 'Princeview' }, { city: 'Jeannebury' }],
         },
         {
-          firstName: 'Esperanza',
+          firstname: 'Esperanza',
           places: [
             { city: 'Lynchfurt' },
             { city: 'Tobyhaven' },
@@ -81,8 +81,8 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          Person(sort: "firstName", skip: 1, show: 2) {
-            firstName
+          person(sort: "firstname", skip: 1, show: 2) {
+            firstname
             places(sort: "city") {
               city
             }
@@ -90,13 +90,13 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      Person: [
+      person: [
         {
-          firstName: 'Ena',
+          firstname: 'Ena',
           places: [{ city: 'Jeannebury' }, { city: 'Princeview' }],
         },
         {
-          firstName: 'Esperanza',
+          firstname: 'Esperanza',
           places: [
             { city: 'Lynchfurt' },
             { city: 'Princeview' },

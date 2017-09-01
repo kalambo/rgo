@@ -28,6 +28,7 @@ export {
   mapArray,
   mapObject,
   noUndef,
+  promisifyEmitter,
   runFilter,
   undefOr,
 } from './utils';

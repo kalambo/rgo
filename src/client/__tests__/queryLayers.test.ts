@@ -13,9 +13,9 @@ describe('client: queryLayers', () => {
     const layers = queryLayers(
       baseSchema,
       parse(`{
-        Person(filter: "lastName=Cole") {
+        person(filter: "lastname=Cole") {
           id
-          firstName
+          firstname
           address {
             city
           }
@@ -31,10 +31,10 @@ describe('client: queryLayers', () => {
     expect(JSON.stringify(layers)).toEqual(
       JSON.stringify([
         {
-          root: { field: 'Person' },
-          field: { type: 'Person', isList: true },
+          root: { field: 'person' },
+          field: { type: 'person', isList: true },
           args: {
-            filter: { lastName: { $eq: 'Cole' } },
+            filter: { lastname: { $eq: 'Cole' } },
             sort: [['createdat', 'desc'], ['id', 'asc']],
             start: 0,
             end: undefined,
@@ -42,12 +42,12 @@ describe('client: queryLayers', () => {
             trace: undefined,
             ids: undefined,
           },
-          structuralFields: ['lastName', 'createdat', 'id'],
+          structuralFields: ['lastname', 'createdat', 'id'],
           scalarFields: { id: true },
           relations: [
             {
-              root: { type: 'Person', field: 'address' },
-              field: { type: 'Address' },
+              root: { type: 'person', field: 'address' },
+              field: { type: 'address' },
               args: {
                 filter: {},
                 sort: [],
@@ -60,11 +60,11 @@ describe('client: queryLayers', () => {
               structuralFields: [],
               scalarFields: { id: true },
               relations: [],
-              path: 'Person_address',
+              path: 'person_address',
             },
             {
-              root: { type: 'Person', field: 'places' },
-              field: { type: 'Address', isList: true },
+              root: { type: 'person', field: 'places' },
+              field: { type: 'address', isList: true },
               args: {
                 filter: {},
                 sort: [['street', 'asc'], ['createdat', 'desc'], ['id', 'asc']],
@@ -77,61 +77,12 @@ describe('client: queryLayers', () => {
               structuralFields: ['street', 'createdat', 'id'],
               scalarFields: { id: true },
               relations: [],
-              path: 'Person_places',
+              path: 'person_places',
             },
           ],
-          path: 'Person',
+          path: 'person',
         },
       ]),
     );
-    // expect(clean(base)).toEqual(
-    //   clean(`query($Person_places: Info, $Person: Info) {
-    //     Person(filter: "lastName=Cole", info: $Person) {
-    //       id
-    //       firstName
-    //       address {
-    //         city
-    //         id
-    //         createdat
-    //       }
-    //       places(skip: 2, info: $Person_places) {
-    //         street
-    //         id
-    //         createdat
-    //       }
-    //       lastName
-    //       createdat
-    //     }
-    //   }`),
-    // );
-    // expect(clean(partials.Person)).toEqual(
-    //   clean(`query($ids: [String!], $Person_places: Info) {
-    //     Person(ids: $ids) {
-    //       id
-    //       firstName
-    //       address {
-    //         city
-    //         id
-    //         createdat
-    //       }
-    //       places(skip: 2, info: $Person_places) {
-    //         street
-    //         id
-    //         createdat
-    //       }
-    //       lastName
-    //       createdat
-    //     }
-    //   }`),
-    // );
-    // expect(clean(partials.Person_places)).toEqual(
-    //   clean(`query($ids: [String!]) {
-    //     Address(ids: $ids) {
-    //       street
-    //       id
-    //       createdat
-    //     }
-    //   }`),
-    // );
   });
 });

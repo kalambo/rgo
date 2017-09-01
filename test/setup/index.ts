@@ -18,34 +18,34 @@ const authFetch = async (url: string, body: any[]) =>
 
 export const setupClient = async () => {
   const server = buildServer({
-    Address: {
+    address: {
       fields: {
-        street: { scalar: 'String' },
-        city: { scalar: 'String' },
-        zipCode: { scalar: 'String' },
-        people: { type: 'Person', foreign: 'places' },
+        street: { scalar: 'string' },
+        city: { scalar: 'string' },
+        zipcode: { scalar: 'string' },
+        people: { type: 'person', foreign: 'places' },
       },
       connector: connectors.memory(
-        Object.keys(baseData.Address).map(id => ({
+        Object.keys(baseData.address).map(id => ({
           id,
-          ...baseData.Address[id],
+          ...baseData.address[id],
         })),
       ),
       newId: () => uuid(),
       auth: {},
     },
-    Person: {
+    person: {
       fields: {
-        firstName: { scalar: 'String' },
-        lastName: { scalar: 'String' },
-        email: { scalar: 'String' },
-        address: { type: 'Address' },
-        places: { type: 'Address', isList: true },
+        firstname: { scalar: 'string' },
+        lastname: { scalar: 'string' },
+        email: { scalar: 'string' },
+        address: { type: 'address' },
+        places: { type: 'address', isList: true },
       },
       connector: connectors.memory(
-        Object.keys(baseData.Person).map(id => ({
+        Object.keys(baseData.person).map(id => ({
           id,
-          ...baseData.Person[id],
+          ...baseData.person[id],
         })),
       ),
       newId: () => uuid(),
@@ -68,8 +68,8 @@ export const clearClient = () => {
 };
 
 export const simpleQuery = `{
-  Person(sort: "firstName", skip: 1, show: 2) {
-    firstName
+  person(sort: "firstname", skip: 1, show: 2) {
+    firstname
     address {
       city
     }
@@ -77,8 +77,8 @@ export const simpleQuery = `{
 }`;
 
 export const relationQuery = `{
-  Person(sort: "firstName", skip: 1, show: 2) {
-    firstName
+  person(sort: "firstname", skip: 1, show: 2) {
+    firstname
     places {
       city
     }
@@ -86,8 +86,8 @@ export const relationQuery = `{
 }`;
 
 export const sortedRelationQuery = `{
-  Person(sort: "firstName", skip: 1, show: 2) {
-    firstName
+  person(sort: "firstname", skip: 1, show: 2) {
+    firstname
     places(sort: "city") {
       city
     }

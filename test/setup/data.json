@@ -1,67 +1,67 @@
 {
-  "Person": {
+  "person": {
     "A": {
-      "firstName": "Esperanza",
-      "lastName": "Boyle",
+      "firstname": "Esperanza",
+      "lastname": "Boyle",
       "email": "Braeden_OKon88@yahoo.com",
       "address": "A",
       "places": ["A", "B", "C"]
     },
     "B": {
-      "firstName": "Delphia",
-      "lastName": "Cole",
+      "firstname": "Delphia",
+      "lastname": "Cole",
       "email": "Althea.Trantow54@hotmail.com",
       "address": "B",
       "places": ["B", "C", null]
     },
     "C": {
-      "firstName": "Ena",
-      "lastName": "Cartwright",
+      "firstname": "Ena",
+      "lastname": "Cartwright",
       "email": "Lacy_Marks69@yahoo.com",
       "address": "C",
       "places": [null, "C", "D"]
     },
     "D": {
-      "firstName": "Griffin",
-      "lastName": "Farrell",
+      "firstname": "Griffin",
+      "lastname": "Farrell",
       "email": "Keshawn78@hotmail.com",
       "address": "D",
       "places": ["D"]
     },
     "E": {
-      "firstName": null,
-      "lastName": "Hansen",
+      "firstname": null,
+      "lastname": "Hansen",
       "email": "Misael12@gmail.com",
       "address": null,
       "places": null
     }
   },
-  "Address": {
+  "address": {
     "A": {
       "street": "23106 Frederique Street",
       "city": "Lynchfurt",
-      "zipCode": "17381",
+      "zipcode": "17381",
       "people": ["D"]
     },
     "B": {
       "street": "39691 Crooks Centers",
       "city": "Tobyhaven",
-      "zipCode": "08963"
+      "zipcode": "08963"
     },
     "C": {
       "street": "79464 Ottis Heights",
       "city": "Princeview",
-      "zipCode": "23194"
+      "zipcode": "23194"
     },
     "D": {
       "street": "407 Jakubowski Vista",
       "city": "Jeannebury",
-      "zipCode": "56075"
+      "zipcode": "56075"
     },
     "E": {
       "street": "99228 Witting Mountains",
       "city": "Rileyfurt",
-      "zipCode": "43912"
+      "zipcode": "43912"
     }
   }
 }

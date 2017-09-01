@@ -18,7 +18,7 @@ export default function validate(
 ) {
   if (value === null) return false;
 
-  if (scalar === 'File') {
+  if (scalar === 'file') {
     if (value && value.fileName && !value.fileId) return false;
   }
 

@@ -6,9 +6,9 @@ afterEach(clearClient);
 describe('changes: root', () => {
   test('test', async done => {
     const query = `{
-      Person(sort: "firstName", skip: 1, show: 2) {
-        firstName
-        lastName
+      person(sort: "firstname", skip: 1, show: 2) {
+        firstname
+        lastname
       }
     }`;
 
@@ -16,52 +16,52 @@ describe('changes: root', () => {
     const updates: { func: () => void; load?: true }[] = [];
 
     results.push({
-      Person: [
-        { firstName: 'Ena', lastName: 'Cartwright' },
-        { firstName: 'Esperanza', lastName: 'Boyle' },
+      person: [
+        { firstname: 'Ena', lastname: 'Cartwright' },
+        { firstname: 'Esperanza', lastname: 'Boyle' },
       ],
     });
 
     updates.push({
-      func: () => client.set('Person', 'C', { lastName: 'Collier' }),
+      func: () => client.set('person', 'C', { lastname: 'Collier' }),
     });
     results.push({
-      Person: [
-        { firstName: 'Ena', lastName: 'Collier' },
-        { firstName: 'Esperanza', lastName: 'Boyle' },
+      person: [
+        { firstname: 'Ena', lastname: 'Collier' },
+        { firstname: 'Esperanza', lastname: 'Boyle' },
       ],
     });
 
     updates.push({
-      func: () => client.set('Person', 'F', { firstName: 'Brent' }),
+      func: () => client.set('person', 'F', { firstname: 'Brent' }),
       load: true,
     });
     results.push({
-      Person: [
-        { firstName: 'Delphia', lastName: 'Cole' },
-        { firstName: 'Ena', lastName: 'Collier' },
+      person: [
+        { firstname: 'Delphia', lastname: 'Cole' },
+        { firstname: 'Ena', lastname: 'Collier' },
       ],
     });
 
     updates.push({
-      func: () => client.set('Person', 'G', { firstName: 'Elissa' }),
+      func: () => client.set('person', 'G', { firstname: 'Elissa' }),
       load: true,
     });
     results.push({
-      Person: [
-        { firstName: 'Delphia', lastName: 'Cole' },
-        { firstName: 'Elissa', lastName: null },
+      person: [
+        { firstname: 'Delphia', lastname: 'Cole' },
+        { firstname: 'Elissa', lastname: null },
       ],
     });
 
     updates.push({
-      func: () => client.set('Person', 'B', null),
+      func: () => client.set('person', 'B', null),
       load: true,
     });
     results.push({
-      Person: [
-        { firstName: 'Elissa', lastName: null },
-        { firstName: 'Ena', lastName: 'Collier' },
+      person: [
+        { firstname: 'Elissa', lastname: null },
+        { firstname: 'Ena', lastname: 'Collier' },
       ],
     });
 
@@ -69,9 +69,9 @@ describe('changes: root', () => {
     let nextLoad = false;
     client.query(
       `{
-        Person(sort: "firstName", skip: 1, show: 2) {
-          firstName
-          lastName
+        person(sort: "firstname", skip: 1, show: 2) {
+          firstname
+          lastname
         }
       }`,
       value => {

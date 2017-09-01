@@ -68,19 +68,19 @@ const buildScalarTypes = (types: Obj<ScalarConfig>) =>
   }));
 
 export default {
-  Boolean: { type: GraphQLBoolean },
-  Int: { type: GraphQLInt },
-  Float: { type: GraphQLFloat },
-  String: { type: GraphQLString },
+  boolean: { type: GraphQLBoolean },
+  int: { type: GraphQLInt },
+  float: { type: GraphQLFloat },
+  string: { type: GraphQLString },
   ...buildScalarTypes({
-    Date: {
+    date: {
       encode: value => (value ? new Date(value).getTime() : null),
       decode: value => new Date(value),
       kinds: [Kind.INT, Kind.STRING],
     },
-    File: {
+    file: {
       kinds: [Kind.STRING],
     },
-    JSON: {},
+    json: {},
   }),
 } as Obj<Scalar>;

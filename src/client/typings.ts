@@ -45,7 +45,7 @@ export interface QueryLayer {
 export interface FieldConfig {
   key: string;
   rules?: Rules;
-  optional?: true;
+  required?: true;
   showIf?: Obj;
 }
 export interface FieldState {
@@ -69,10 +69,10 @@ export interface QueryOptions {
 export interface Client {
   types: Obj<Obj<string>>;
 
-  field(field: FieldConfig): FieldState;
+  field(field: FieldConfig): Promise<FieldState>;
   field(field: FieldConfig, listener: (value: FieldState) => void): () => void;
 
-  fields(fields: FieldConfig[]): FieldsState;
+  fields(fields: FieldConfig[]): Promise<FieldsState>;
   fields(
     fields: FieldConfig[],
     listener: (value: FieldsState) => void,

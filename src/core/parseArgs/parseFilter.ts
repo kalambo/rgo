@@ -65,10 +65,10 @@ whiteSpace
 `).parse;
 
 const typeMaps = {
-  Boolean: v => mapArray(v, x => ({ true: true, false: false }[x] || null)),
-  Int: v => mapArray(v, x => parseInt(x, 10)),
-  Float: v => mapArray(v, x => parseFloat(x)),
-  Date: v => mapArray(v, x => parseDateString(x)),
+  boolean: v => mapArray(v, x => ({ true: true, false: false }[x] || null)),
+  int: v => mapArray(v, x => parseInt(x, 10)),
+  float: v => mapArray(v, x => parseFloat(x)),
+  date: v => mapArray(v, x => parseDateString(x)),
 };
 
 export default function parseFilter(

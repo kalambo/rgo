@@ -12,6 +12,7 @@ import {
   keysToObject,
   noUndef,
   Obj,
+  promisifyEmitter,
   Rules,
   ScalarField,
   ScalarName,
@@ -50,7 +51,11 @@ export async function buildClient(
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
   const emitterMap = createEmitterMap<any>();
-  const emitter = createEmitter<{ changes: DataChanges; indices?: number[] }>();
+  const emitter = createEmitter<{
+    changes: DataChanges;
+    changedData: Data;
+    indices?: number[];
+  }>();
   const emitChanges = (changes: DataChanges, indices?: number[]) => {
     if (log) console.log(state.combined);
     const changedTypes = Object.keys(changes);
@@ -65,7 +70,14 @@ export async function buildClient(
           }
         }
       }
-      emitter.emit({ changes, indices });
+      const changedData = keysToObject(Object.keys(changes), type =>
+        keysToObject(Object.keys(changes[type]), id =>
+          keysToObject(Object.keys(changes[type][id]), field =>
+            noUndef(_.get(state.combined, [type, id, field])),
+          ),
+        ),
+      );
+      emitter.emit({ changes, changedData, indices });
       watcher.process();
     }
   };
@@ -81,7 +93,7 @@ export async function buildClient(
     scalar: ScalarName;
     isList?: true;
     rules: Rules;
-    optional?: true;
+    required?: true;
     showIf?: Obj;
   }
   const watchFields = <T>(
@@ -89,57 +101,66 @@ export async function buildClient(
     getResult: (info: Obj<FieldInfo>, values: Obj) => T,
     listener?: (value: T) => void,
   ) => {
-    const allKeysObj: Obj<true> = {};
-    const info = keysToObject<FieldConfig, FieldInfo>(
-      Array.isArray(config) ? config : [config],
-      ({ key, rules, optional, showIf }) => {
-        const [type, id, fieldName] = key.split('.');
-        const field = schema[type][fieldName] as ScalarField;
-        const allRules = { ...rules || {}, ...field.rules || {} };
-        if (field.rules && field.rules.lt) {
-          allRules.lt = `${type}.${id}.${field.rules.lt}`;
-        }
-        if (field.rules && field.rules.gt) {
-          allRules.gt = `${type}.${id}.${field.rules.gt}`;
-        }
-        if (allRules.lt) allKeysObj[allRules.lt] = true;
-        if (allRules.gt) allKeysObj[allRules.gt] = true;
-        if (Array.isArray(config)) {
-          Object.keys(showIf || {}).forEach(k => (allKeysObj[k] = true));
-        }
-        allKeysObj[key] = true;
-        return {
-          scalar: field.scalar,
-          isList: field.isList,
-          rules: allRules,
-          optional,
-          showIf,
-        };
-      },
-      ({ key }) => key,
-    );
-    const allKeys = Object.keys(allKeysObj);
-    const values = keysToObject(allKeys, key =>
-      noUndef(_.get(state.combined, key)),
-    );
+    return promisifyEmitter(innerListener => {
+      const allKeysObj: Obj<true> = {};
+      const info = keysToObject<FieldConfig, FieldInfo>(
+        Array.isArray(config) ? config : [config],
+        ({ key, rules, required, showIf }) => {
+          const [type, id, fieldName] = key.split('.');
+          const field = schema[type][fieldName] as ScalarField;
+          const allRules = { ...rules || {}, ...field.rules || {} };
+          if (field.rules && field.rules.lt) {
+            allRules.lt = `${type}.${id}.${field.rules.lt}`;
+          }
+          if (field.rules && field.rules.gt) {
+            allRules.gt = `${type}.${id}.${field.rules.gt}`;
+          }
+          if (allRules.lt) allKeysObj[allRules.lt] = true;
+          if (allRules.gt) allKeysObj[allRules.gt] = true;
+          if (Array.isArray(config)) {
+            Object.keys(showIf || {}).forEach(k => (allKeysObj[k] = true));
+          }
+          allKeysObj[key] = true;
+          return {
+            scalar: field.scalar,
+            isList: field.isList,
+            rules: allRules,
+            required,
+            showIf,
+          };
+        },
+        ({ key }) => key,
+      );
+      const allKeys = Object.keys(allKeysObj);
 
-    if (!listener) return getResult(info, values);
-    listener(getResult(info, values));
-    if (allKeys.length === 1) {
-      return emitterMap.watch(allKeys[0], value => {
-        values[allKeys[0]] = value;
-        listener(getResult(info, values));
+      let running = true;
+      let unlisten;
+      watcher.addFields(allKeys, () => {
+        const values = keysToObject(allKeys, key =>
+          noUndef(_.get(state.combined, key)),
+        );
+        if (running) innerListener(getResult(info, values));
+        unlisten =
+          allKeys.length === 1
+            ? emitterMap.watch(allKeys[0], value => {
+                values[allKeys[0]] = value;
+                if (running) innerListener(getResult(info, values));
+              })
+            : emitter.watch(({ changes, changedData }) => {
+                const changedKeys = allKeys.filter(key => _.get(changes, key));
+                if (changedKeys.length > 0) {
+                  for (const key of changedKeys) {
+                    values[key] = _.get(changedData, key);
+                  }
+                  if (running) innerListener(getResult(info, values));
+                }
+              });
       });
-    }
-    return emitter.watch(({ changes }) => {
-      const changedKeys = allKeys.filter(key => _.get(changes, key));
-      if (changedKeys.length > 0) {
-        for (const key of changedKeys) {
-          values[key] = noUndef(_.get(state.combined, key));
-        }
-        listener(getResult(info, values));
-      }
-    }) as any;
+      return () => {
+        running = false;
+        if (unlisten) unlisten();
+      };
+    }, listener);
   };
 
   return {
@@ -159,7 +180,7 @@ export async function buildClient(
           value: values[field.key],
           onChange: value => set(...field.key.split('.'), value),
           invalid: !(
-            (values[field.key] === null && info[field.key].optional) ||
+            (values[field.key] === null && !info[field.key].required) ||
             validateField(
               info[field.key].scalar,
               info[field.key].rules,
@@ -169,7 +190,7 @@ export async function buildClient(
           ),
         }),
         listener,
-      );
+      ) as any;
     },
 
     fields(
@@ -190,7 +211,7 @@ export async function buildClient(
           const invalid = !fields.every(
             ({ key }, i) =>
               !active[i] ||
-              (values[key] === null && info[key].optional) ||
+              (values[key] === null && !info[key].required) ||
               validateField(
                 info[key].scalar,
                 info[key].rules,
@@ -207,12 +228,10 @@ export async function buildClient(
           };
         },
         listener,
-      );
+      ) as any;
     },
 
     query(...args) {
-      const queryIndex = queryCounter++;
-
       const queryDoc = parse(args[0]);
       const [options, onLoad, onChange] = (args.length === 3
         ? [undefined, ...args.slice(1)]
@@ -224,90 +243,77 @@ export async function buildClient(
       const { variables, idsOnly, info: withInfo } =
         options || ({} as QueryOptions & { info?: true });
 
-      const layers = queryLayers(
-        schema,
-        queryDoc,
-        variables,
-        idsOnly,
-        withInfo,
-      );
+      return promisifyEmitter(onLoadInner => {
+        const queryIndex = queryCounter++;
 
-      let data = {};
-      let spans = {};
-      let rootUpdaters:
-        | ((changes: DataChanges, update: boolean) => boolean)[]
-        | null = null;
-      let firstIds: Obj<Obj<string>>;
+        const layers = queryLayers(
+          schema,
+          queryDoc,
+          variables,
+          idsOnly,
+          withInfo,
+        );
 
-      let firstResolve: (value: any) => void;
-      const firstPromise = new Promise(resolve => (firstResolve = resolve));
-      let running = true;
+        let data = {};
+        let spans = {};
+        let rootUpdaters:
+          | ((changes: DataChanges, update: boolean) => boolean)[]
+          | null = null;
+        let firstIds: Obj<Obj<string>>;
 
-      const updateQuery = watcher.addQuery(
-        queryIndex,
-        () => {
-          if (onLoad && running) onLoad(null);
-        },
-        newFirstIds => {
-          if (newFirstIds) firstIds = newFirstIds;
-          data = {};
-          spans = {};
-          rootUpdaters = layers.map(layer =>
-            readLayer(
-              layer,
-              { '': data },
-              state,
-              firstIds,
-              withInfo && { '': spans },
-            ),
-          );
-          if (withInfo) {
-            spans[''] = Math.max(
-              ...layers.map(({ root }) =>
-                spans[root.field].reduce((res, v) => res + v[''], 0),
+        let running = true;
+        const updateQuery = watcher.addQuery(
+          queryIndex,
+          newFirstIds => {
+            if (newFirstIds) firstIds = newFirstIds;
+            data = {};
+            spans = {};
+            rootUpdaters = layers.map(layer =>
+              readLayer(
+                layer,
+                { '': data },
+                state,
+                firstIds,
+                withInfo && { '': spans },
               ),
-              1,
             );
-          }
-          firstResolve(withInfo ? { data, spans } : data);
-          if (!onLoad) updateQuery();
-          else if (running) onLoad(withInfo ? { data, spans } : data);
-        },
-      );
-      updateQuery(layers, state);
-
-      const unlisten = emitter.watch(({ changes, indices }) => {
-        if (!indices || !indices.includes(queryIndex)) {
-          if (
-            !rootUpdaters ||
-            rootUpdaters.some(updater => updater(changes, onChange === true))
-          ) {
-            rootUpdaters = null;
-            updateQuery(layers, state);
-          } else if (onLoad && running) {
-            if (onChange === true) {
-              onLoad(data);
-            } else {
-              onChange!(
-                keysToObject(Object.keys(changes), type =>
-                  keysToObject(Object.keys(changes[type]), id =>
-                    keysToObject(Object.keys(changes[type][id]), field =>
-                      noUndef(_.get(state.combined, [type, id, field])),
-                    ),
-                  ),
+            if (withInfo) {
+              spans[''] = Math.max(
+                ...layers.map(({ root }) =>
+                  spans[root.field].reduce((res, v) => res + v[''], 0),
                 ),
+                1,
               );
             }
-          }
-        }
-      });
+            if (running) onLoadInner(withInfo ? { data, spans } : data);
+          },
+          () => {
+            if (running) onLoadInner(null);
+          },
+        );
+        updateQuery(layers, state);
 
-      if (!onLoad) return firstPromise;
-      return (() => {
-        running = false;
-        updateQuery();
-        unlisten();
-      }) as any;
+        const unlisten = emitter.watch(({ changes, changedData, indices }) => {
+          if (!indices || !indices.includes(queryIndex)) {
+            if (
+              !rootUpdaters ||
+              rootUpdaters.some(updater => updater(changes, onChange === true))
+            ) {
+              rootUpdaters = null;
+              updateQuery(layers, state);
+            } else if (running) {
+              if (onChange === true) onLoadInner(data);
+              else onChange!(changedData);
+            }
+          }
+        });
+
+        return () => {
+          running = false;
+          updateQuery();
+          unlisten();
+        };
+      }, onLoad) as any;
     },
 
     set,
