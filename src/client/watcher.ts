@@ -8,10 +8,10 @@ const ops = { $ne: '!=', $lte: '<=', $gte: '>=', $eq: '=', $lt: '<', $gt: '>' };
 const printFilter = filter => {
   const key = Object.keys(filter)[0];
   if (!key) return '';
-  if (key === '$and') return `(${filter[key].map(printFilter).join(' , ')})`;
+  if (key === '$and') return `(${filter[key].map(printFilter).join(', ')})`;
   if (key === '$or') return `(${filter[key].map(printFilter).join(' | ')})`;
   const op = Object.keys(filter[key])[0];
-  return `${key} ${ops[op]} ${filter[key][op]}`;
+  return `${key}${ops[op]}${filter[key][op]}`;
 };
 
 export default function watcher(
@@ -21,7 +21,10 @@ export default function watcher(
 ) {
   const queryListeners: Obj<(firstIds?: Obj<Obj<string>>) => void> = {};
   const nextQueries: Obj<string[]> = {};
-  let fieldQueries: { queries: string[]; onReady: () => void }[] = [];
+
+  const fieldsMap: Obj<Obj<Obj<number>>> = {};
+  let nextFieldsMap: Obj<Obj<Obj<true>>> = {};
+  let fieldListeners: (() => void)[] = [];
 
   const process = throttle(
     async () => {
@@ -33,9 +36,19 @@ export default function watcher(
         allQueries.push(...nextQueries[i]);
         delete nextQueries[i];
       }
-      for (const { queries } of fieldQueries) {
-        allQueries.push(...queries);
+      for (const type of Object.keys(nextFieldsMap)) {
+        for (const id of Object.keys(nextFieldsMap[type])) {
+          allQueries.push(`{
+            ${type}(ids: ["${id}"]) {
+              id
+              ${Object.keys(nextFieldsMap[type][id]).join('\n')}
+            }
+          }`);
+        }
       }
+      nextFieldsMap = {};
+      const currentFieldListeners = fieldListeners;
+      fieldListeners = [];
       if (allQueries.length > 0) {
         const responses = await authFetch(
           url,
@@ -47,10 +60,9 @@ export default function watcher(
             queryListeners[i](responses[firstIndicies[i]].firstIds);
           }
         }
-        for (const { onReady } of fieldQueries) {
-          onReady();
+        for (const listener of currentFieldListeners) {
+          listener();
         }
-        fieldQueries = [];
       }
     },
     100,
@@ -61,31 +73,33 @@ export default function watcher(
     process,
 
     addFields(keys: string[], onReady: () => void) {
-      const keyMap = {};
-      for (const [type, id, field] of keys.map(k => k.split('.'))) {
-        if (id[0] !== '$') {
-          keyMap[type] = keyMap[type] || {};
-          keyMap[type][id] = keyMap[type][id] || {};
-          keyMap[type][id][field] = true;
+      let alreadyLoaded = true;
+      const splitKeys = keys
+        .map(k => k.split('.'))
+        .filter(([_, id]) => id[0] !== '$');
+      for (const [type, id, field] of splitKeys) {
+        fieldsMap[type] = fieldsMap[type] || {};
+        fieldsMap[type][id] = fieldsMap[type][id] || {};
+        if (!fieldsMap[type][id][field]) {
+          alreadyLoaded = false;
+          fieldsMap[type][id][field] = 0;
+          nextFieldsMap[type] = nextFieldsMap[type] || {};
+          nextFieldsMap[type][id] = nextFieldsMap[type][id] || {};
+          nextFieldsMap[type][id][field] = true;
         }
+        fieldsMap[type][id][field]++;
       }
-      const queries: string[] = [];
-      for (const type of Object.keys(keyMap)) {
-        for (const id of Object.keys(keyMap[type])) {
-          queries.push(`{
-            ${type}(ids: ["${id}"]) {
-              id
-              ${Object.keys(keyMap[type][id]).join('\n')}
-            }
-          }`);
-        }
-      }
-      if (queries.length > 0) {
-        fieldQueries.push({ queries, onReady });
+      if (!alreadyLoaded) {
+        fieldListeners.push(onReady);
         process();
       } else {
         onReady();
       }
+      return () => {
+        for (const [type, id, field] of splitKeys) {
+          fieldsMap[type][id][field]--;
+        }
+      };
     },
 
     addQuery(

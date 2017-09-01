@@ -135,7 +135,7 @@ export async function buildClient(
 
       let running = true;
       let unlisten;
-      watcher.addFields(allKeys, () => {
+      const unwatch = watcher.addFields(allKeys, () => {
         const values = keysToObject(allKeys, key =>
           noUndef(_.get(state.combined, key)),
         );
@@ -158,6 +158,7 @@ export async function buildClient(
       });
       return () => {
         running = false;
+        unwatch();
         if (unlisten) unlisten();
       };
     }, listener);

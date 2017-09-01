@@ -140,7 +140,8 @@ export const promisifyEmitter = <T>(
   if (listener) return emitter(listener);
   return new Promise<T>(resolve => {
     const unlisten = emitter(value => {
-      setTimeout(() => unlisten());
+      if (unlisten) unlisten();
+      else setTimeout(() => unlisten());
       resolve(value);
     });
   });
