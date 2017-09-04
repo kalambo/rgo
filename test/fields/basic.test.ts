@@ -6,7 +6,7 @@ afterEach(clearClient);
 describe('fields: basic', () => {
   test('simple', async () => {
     expect(
-      JSON.stringify(await client.field({ key: 'person.A.firstname' })),
+      JSON.stringify(await client.field({ key: 'people.A.firstname' })),
     ).toEqual(
       JSON.stringify({ scalar: 'string', value: 'Esperanza', invalid: false }),
     );

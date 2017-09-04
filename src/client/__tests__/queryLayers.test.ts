@@ -13,7 +13,7 @@ describe('client: queryLayers', () => {
     const layers = queryLayers(
       baseSchema,
       parse(`{
-        person(filter: "lastname=Cole") {
+        people(filter: "lastname=Cole") {
           id
           firstname
           address {
@@ -31,8 +31,8 @@ describe('client: queryLayers', () => {
     expect(JSON.stringify(layers)).toEqual(
       JSON.stringify([
         {
-          root: { field: 'person' },
-          field: { type: 'person', isList: true },
+          root: { field: 'people' },
+          field: { type: 'people', isList: true },
           args: {
             filter: { lastname: { $eq: 'Cole' } },
             sort: [['createdat', 'desc'], ['id', 'asc']],
@@ -46,8 +46,8 @@ describe('client: queryLayers', () => {
           scalarFields: { id: true },
           relations: [
             {
-              root: { type: 'person', field: 'address' },
-              field: { type: 'address' },
+              root: { type: 'people', field: 'address' },
+              field: { type: 'addresses' },
               args: {
                 filter: {},
                 sort: [],
@@ -60,11 +60,11 @@ describe('client: queryLayers', () => {
               structuralFields: [],
               scalarFields: { id: true },
               relations: [],
-              path: 'person_address',
+              path: 'people_address',
             },
             {
-              root: { type: 'person', field: 'places' },
-              field: { type: 'address', isList: true },
+              root: { type: 'people', field: 'places' },
+              field: { type: 'addresses', isList: true },
               args: {
                 filter: {},
                 sort: [['street', 'asc'], ['createdat', 'desc'], ['id', 'asc']],
@@ -77,10 +77,10 @@ describe('client: queryLayers', () => {
               structuralFields: ['street', 'createdat', 'id'],
               scalarFields: { id: true },
               relations: [],
-              path: 'person_places',
+              path: 'people_places',
             },
           ],
-          path: 'person',
+          path: 'people',
         },
       ]),
     );

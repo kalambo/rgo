@@ -105,4 +105,6 @@ export interface Client {
   set(type: string, value: Obj<Obj | null | undefined> | undefined): void;
   set(type: string, id: string, value: Obj | null | undefined): void;
   set(type: string, id: string, field: string, value: any): void;
+
+  mutate(keys: string[]): Promise<void>;
 }

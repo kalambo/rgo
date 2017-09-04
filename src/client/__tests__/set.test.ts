@@ -28,16 +28,16 @@ describe('client: set', () => {
     );
 
     const changes2 = setServer(baseSchema, state, {
-      address: { A: null, F: { city: 'Troyville' } },
+      addresses: { A: null, F: { city: 'Troyville' } },
     });
-    delete expected.server.address.A;
-    expected.server.address.F = { city: 'Troyville' };
-    delete expected.combined.address.A;
-    expected.combined.address.F = { city: 'Troyville' };
+    delete expected.server.addresses.A;
+    expected.server.addresses.F = { city: 'Troyville' };
+    delete expected.combined.addresses.A;
+    expected.combined.addresses.F = { city: 'Troyville' };
 
     expect(state).toEqual(expected);
     expect(changes2).toEqual({
-      address: {
+      addresses: {
         A: { street: true, city: true, zipcode: true, people: true },
         F: { city: true },
       },
@@ -45,23 +45,23 @@ describe('client: set', () => {
 
     const changes3 = setClient(state, [
       {
-        address: { A: { city: 'Torpchester' }, B: { city: 'Homenickstad' } },
-        person: { A: null },
+        addresses: { A: { city: 'Torpchester' }, B: { city: 'Homenickstad' } },
+        people: { A: null },
       },
     ]);
     expected.client = {
-      address: { A: { city: 'Torpchester' }, B: { city: 'Homenickstad' } },
-      person: { A: null },
+      addresses: { A: { city: 'Torpchester' }, B: { city: 'Homenickstad' } },
+      people: { A: null },
     };
-    expected.combined.address.A = { city: 'Torpchester' };
-    expected.combined.address.B.city = 'Homenickstad';
-    delete expected.combined.person.A;
-    expected.diff = { address: { A: 1, B: 0 }, person: { A: -1 } };
+    expected.combined.addresses.A = { city: 'Torpchester' };
+    expected.combined.addresses.B.city = 'Homenickstad';
+    delete expected.combined.people.A;
+    expected.diff = { addresses: { A: 1, B: 0 }, people: { A: -1 } };
 
     expect(state).toEqual(expected);
     expect(changes3).toEqual({
-      address: { A: { city: true }, B: { city: true } },
-      person: {
+      addresses: { A: { city: true }, B: { city: true } },
+      people: {
         A: {
           firstname: true,
           lastname: true,

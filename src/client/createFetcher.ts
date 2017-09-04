@@ -1,6 +1,16 @@
-import { throttle } from 'lodash';
+import * as _ from 'lodash';
 
-import { Data, fieldIs, Obj, undefOr } from '../core';
+import {
+  allKeys,
+  Data,
+  Field,
+  fieldIs,
+  keysToObject,
+  mapArray,
+  Obj,
+  scalars,
+  undefOr,
+} from '../core';
 
 import { AuthFetch, ClientState, QueryLayer } from './typings';
 
@@ -14,54 +24,115 @@ const printFilter = filter => {
   return `${key}${ops[op]}${filter[key][op]}`;
 };
 
-export default function watcher(
+export default function createFetcher(
   url: string,
   authFetch: AuthFetch,
+  schema: Obj<Obj<Field>>,
   onChange: (data: Data, indices: number[]) => void,
 ) {
-  const queryListeners: Obj<(firstIds?: Obj<Obj<string>>) => void> = {};
-  const nextQueries: Obj<string[]> = {};
+  let nextListeners: (() => void)[] = [];
 
   const fieldsMap: Obj<Obj<Obj<number>>> = {};
   let nextFieldsMap: Obj<Obj<Obj<true>>> = {};
-  let fieldListeners: (() => void)[] = [];
 
-  const process = throttle(
+  const queryListeners: Obj<(firstIds?: Obj<Obj<string>>) => void> = {};
+  const nextQueries: Obj<string[]> = {};
+
+  let mutationData: Data = {};
+
+  const process = _.throttle(
     async () => {
-      const allQueries: string[] = [];
-      const indices = Object.keys(nextQueries).map(k => parseInt(k, 10));
-      const firstIndicies: Obj<number> = {};
-      for (const i of indices) {
-        firstIndicies[i] = allQueries.length;
-        allQueries.push(...nextQueries[i]);
-        delete nextQueries[i];
-      }
+      const queries: { query: string; variables?: Obj }[] = [];
+      const listeners = nextListeners;
+      nextListeners = [];
+
       for (const type of Object.keys(nextFieldsMap)) {
         for (const id of Object.keys(nextFieldsMap[type])) {
-          allQueries.push(`{
-            ${type}(ids: ["${id}"]) {
-              id
-              ${Object.keys(nextFieldsMap[type][id]).join('\n')}
-            }
-          }`);
+          queries.push({
+            query: `{
+              ${type}(ids: ["${id}"]) {
+                id
+                ${Object.keys(nextFieldsMap[type][id]).join('\n')}
+              }
+            }`,
+          });
         }
       }
       nextFieldsMap = {};
-      const currentFieldListeners = fieldListeners;
-      fieldListeners = [];
-      if (allQueries.length > 0) {
+
+      const indices = Object.keys(nextQueries).map(k => parseInt(k, 10));
+      const firstIndicies: Obj<number> = {};
+      for (const i of indices) {
+        firstIndicies[i] = queries.length;
+        queries.push(...nextQueries[i].map(query => ({ query })));
+        delete nextQueries[i];
+      }
+
+      const mutationTypes = Object.keys(mutationData);
+      if (mutationTypes.length > 0) {
+        const mutationsArrays = keysToObject(mutationTypes, type =>
+          Object.keys(mutationData[type]).map(id => ({
+            id,
+            ...keysToObject(Object.keys(mutationData[type][id]!), f => {
+              const value = mutationData[type][id]![f];
+              const field = schema[type][f];
+              const encode =
+                fieldIs.scalar(field) && scalars[field.scalar].encode;
+              return value === null || !encode
+                ? value
+                : mapArray(value, encode);
+            }),
+          })),
+        );
+        queries.push({
+          query: `
+            mutation Mutate(${mutationTypes
+              .map(t => `$${t}: [${t}Input!]`)
+              .join(', ')}) {
+              mutate(${mutationTypes.map(t => `${t}: $${t}`).join(', ')}) {
+                ${mutationTypes.map(
+                  t => `${t} {
+                  ${[
+                    ...allKeys(mutationsArrays[t]),
+                    ...Object.keys(schema[t]).filter(f => {
+                      const field = schema[t][f];
+                      return fieldIs.scalar(field)
+                        ? !!field.formula
+                        : fieldIs.foreignRelation(field);
+                    }),
+                    'modifiedat',
+                  ]
+                    .map(
+                      f => (fieldIs.scalar(schema[t][f]) ? f : `${f} { id }`),
+                    )
+                    .join('\n')}
+                }`,
+                )}
+              }
+            }
+          `,
+          variables: mutationsArrays,
+        });
+      }
+      mutationData = {};
+
+      if (queries.length > 0) {
         const responses = await authFetch(
           url,
-          allQueries.map(query => ({ query, normalize: true })),
+          queries.map(({ query, variables }) => ({
+            query,
+            variables,
+            normalize: true,
+          })),
         );
         onChange(responses[0].data, indices);
+        for (const listener of listeners) {
+          listener();
+        }
         for (const i of indices) {
           if (!nextQueries[i]) {
             queryListeners[i](responses[firstIndicies[i]].firstIds);
           }
-        }
-        for (const listener of currentFieldListeners) {
-          listener();
         }
       }
     },
@@ -90,7 +161,7 @@ export default function watcher(
         fieldsMap[type][id][field]++;
       }
       if (!alreadyLoaded) {
-        fieldListeners.push(onReady);
+        nextListeners.push(onReady);
         process();
       } else {
         onReady();
@@ -105,7 +176,7 @@ export default function watcher(
     addQuery(
       queryIndex,
       onLoad: (firstIds?: Obj<Obj<string>>) => void,
-      onClear: () => void,
+      onClear?: () => void,
     ): (layers?: QueryLayer[], state?: ClientState) => void {
       const prevIds: Obj<string[]> = {};
       const prevSlice: Obj<{ start: number; end?: number }> = {};
@@ -183,7 +254,7 @@ export default function watcher(
           }`;
           if (!alreadyFetched) queries.unshift(baseQuery);
           if (queries.length > 0) {
-            if (queryListeners[queryIndex]) onClear();
+            if (queryListeners[queryIndex] && onClear) onClear();
             nextQueries[queryIndex] = queries;
           } else {
             onLoad();
@@ -194,6 +265,14 @@ export default function watcher(
           }
         }
       };
+    },
+
+    addMutation(values: { key: string; value: any }[], onReady: () => void) {
+      for (const { key, value } of values) {
+        _.set(mutationData, key, value);
+      }
+      nextListeners.push(onReady);
+      process();
     },
   };
 }

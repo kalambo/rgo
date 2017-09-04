@@ -12,102 +12,102 @@ afterEach(clearClient);
 
 describe('queries: removed', () => {
   test('simple: 1st', async () => {
-    client.set('person', 'B', null);
+    client.set('people', 'B', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
       ],
     });
   });
   test('simple: 2nd', async () => {
-    client.set('person', 'C', null);
+    client.set('people', 'C', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
       ],
     });
   });
   test('simple: 3rd', async () => {
-    client.set('person', 'A', null);
+    client.set('people', 'A', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
       ],
     });
   });
   test('simple: 4th', async () => {
-    client.set('person', 'D', null);
+    client.set('people', 'D', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
       ],
     });
   });
   test('simple: 5th', async () => {
-    client.set('person', 'E', null);
+    client.set('people', 'E', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
       ],
     });
   });
   test('simple: 1st, 2nd', async () => {
-    client.set('person', 'B', null);
-    client.set('person', 'C', null);
+    client.set('people', 'B', null);
+    client.set('people', 'C', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
         { firstname: null, address: null },
       ],
     });
   });
   test('simple: 1st, 3rd', async () => {
-    client.set('person', 'B', null);
-    client.set('person', 'A', null);
+    client.set('people', 'B', null);
+    client.set('people', 'A', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
         { firstname: null, address: null },
       ],
     });
   });
   test('simple: 2nd, 4th', async () => {
-    client.set('person', 'C', null);
-    client.set('person', 'D', null);
+    client.set('people', 'C', null);
+    client.set('people', 'D', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [
+      people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
         { firstname: null, address: null },
       ],
     });
   });
   test('simple: 1st, 2nd, 4th', async () => {
-    client.set('person', 'B', null);
-    client.set('person', 'C', null);
-    client.set('person', 'D', null);
+    client.set('people', 'B', null);
+    client.set('people', 'C', null);
+    client.set('people', 'D', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: [{ firstname: null, address: null }],
+      people: [{ firstname: null, address: null }],
     });
   });
   test('simple: 1st, 2nd, 4th, 5th', async () => {
-    client.set('person', 'B', null);
-    client.set('person', 'C', null);
-    client.set('person', 'D', null);
-    client.set('person', 'E', null);
+    client.set('people', 'B', null);
+    client.set('people', 'C', null);
+    client.set('people', 'D', null);
+    client.set('people', 'E', null);
     expect(await client.query(simpleQuery)).toEqual({
-      person: null,
+      people: null,
     });
   });
 
   test('relation: 1st', async () => {
-    client.set('address', 'B', null);
+    client.set('addresses', 'B', null);
     expect(await client.query(relationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [null, { city: 'Princeview' }, { city: 'Jeannebury' }],
@@ -120,9 +120,9 @@ describe('queries: removed', () => {
     });
   });
   test('relation: 2nd', async () => {
-    client.set('address', 'C', null);
+    client.set('addresses', 'C', null);
     expect(await client.query(relationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [null, null, { city: 'Jeannebury' }],
@@ -135,9 +135,9 @@ describe('queries: removed', () => {
     });
   });
   test('relation: 3rd', async () => {
-    client.set('address', 'A', null);
+    client.set('addresses', 'A', null);
     expect(await client.query(relationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [null, { city: 'Princeview' }, { city: 'Jeannebury' }],
@@ -150,9 +150,9 @@ describe('queries: removed', () => {
     });
   });
   test('relation: 4th', async () => {
-    client.set('address', 'D', null);
+    client.set('addresses', 'D', null);
     expect(await client.query(relationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [null, { city: 'Princeview' }, null],
@@ -169,9 +169,9 @@ describe('queries: removed', () => {
     });
   });
   test('relation: 5th', async () => {
-    client.set('address', 'E', null);
+    client.set('addresses', 'E', null);
     expect(await client.query(relationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [null, { city: 'Princeview' }, { city: 'Jeannebury' }],
@@ -189,9 +189,9 @@ describe('queries: removed', () => {
   });
 
   test('sorted relation: 1st', async () => {
-    client.set('address', 'B', null);
+    client.set('addresses', 'B', null);
     expect(await client.query(sortedRelationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [{ city: 'Jeannebury' }, { city: 'Princeview' }],
@@ -204,9 +204,9 @@ describe('queries: removed', () => {
     });
   });
   test('sorted relation: 2nd', async () => {
-    client.set('address', 'C', null);
+    client.set('addresses', 'C', null);
     expect(await client.query(sortedRelationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [{ city: 'Jeannebury' }],
@@ -219,9 +219,9 @@ describe('queries: removed', () => {
     });
   });
   test('sorted relation: 3rd', async () => {
-    client.set('address', 'A', null);
+    client.set('addresses', 'A', null);
     expect(await client.query(sortedRelationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [{ city: 'Jeannebury' }, { city: 'Princeview' }],
@@ -234,9 +234,9 @@ describe('queries: removed', () => {
     });
   });
   test('sorted relation: 4th', async () => {
-    client.set('address', 'D', null);
+    client.set('addresses', 'D', null);
     expect(await client.query(sortedRelationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [{ city: 'Princeview' }],
@@ -253,9 +253,9 @@ describe('queries: removed', () => {
     });
   });
   test('sorted relation: 5th', async () => {
-    client.set('address', 'E', null);
+    client.set('addresses', 'E', null);
     expect(await client.query(sortedRelationQuery)).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [{ city: 'Jeannebury' }, { city: 'Princeview' }],

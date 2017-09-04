@@ -1,15 +1,15 @@
 {
-  "address": {
+  "addresses": {
     "street": { "scalar": "string" },
     "city": { "scalar": "string" },
     "zipcode": { "scalar": "string" },
-    "people": { "type": "person", "foreign": "places" }
+    "people": { "type": "people", "foreign": "places" }
   },
-  "person": {
+  "people": {
     "firstname": { "scalar": "string" },
     "lastname": { "scalar": "string" },
     "email": { "scalar": "string" },
-    "address": { "type": "address" },
-    "places": { "type": "address", "isList": true }
+    "address": { "type": "addresses" },
+    "places": { "type": "addresses", "isList": true }
   }
 }

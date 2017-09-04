@@ -8,7 +8,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname") {
+          people(sort: "firstname") {
             firstname
             address {
               city
@@ -17,7 +17,7 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      person: [
+      people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -31,7 +31,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", skip: 1, show: 2) {
             firstname
             address {
               city
@@ -40,7 +40,7 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      person: [
+      people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
       ],
@@ -51,7 +51,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", skip: 1, show: 2) {
             firstname
             places {
               city
@@ -60,7 +60,7 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [null, { city: 'Princeview' }, { city: 'Jeannebury' }],
@@ -81,7 +81,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", skip: 1, show: 2) {
             firstname
             places(sort: "city") {
               city
@@ -90,7 +90,7 @@ describe('queries: basic', () => {
         }`,
       ),
     ).toEqual({
-      person: [
+      people: [
         {
           firstname: 'Ena',
           places: [{ city: 'Jeannebury' }, { city: 'Princeview' }],

@@ -1,3 +1,5 @@
+import * as _ from 'lodash';
+
 import { createCompare, Field, Obj, runFilter } from '../../core';
 
 import { Connector } from '../typings';
@@ -19,17 +21,19 @@ export default function memoryConnector(
           sort,
         );
 
-        return records
-          .filter(filterFunc)
-          .sort(compareFunc)
-          .slice(start, end);
+        return _.cloneDeep(
+          records
+            .filter(filterFunc)
+            .sort(compareFunc)
+            .slice(start, end),
+        );
       },
 
       async findById(id) {
-        return records.find(record => record.id === id);
+        return _.cloneDeep(records.find(record => record.id === id) || null);
       },
       async findByIds(ids) {
-        return records.filter(record => ids.includes(record.id));
+        return _.cloneDeep(records.filter(record => ids.includes(record.id)));
       },
 
       async insert(id, data) {

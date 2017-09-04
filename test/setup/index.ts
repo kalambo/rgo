@@ -18,34 +18,34 @@ const authFetch = async (url: string, body: any[]) =>
 
 export const setupClient = async () => {
   const server = buildServer({
-    address: {
+    addresses: {
       fields: {
         street: { scalar: 'string' },
         city: { scalar: 'string' },
         zipcode: { scalar: 'string' },
-        people: { type: 'person', foreign: 'places' },
+        people: { type: 'people', foreign: 'places' },
       },
       connector: connectors.memory(
-        Object.keys(baseData.address).map(id => ({
+        Object.keys(baseData.addresses).map(id => ({
           id,
-          ...baseData.address[id],
+          ...baseData.addresses[id],
         })),
       ),
       newId: () => uuid(),
       auth: {},
     },
-    person: {
+    people: {
       fields: {
         firstname: { scalar: 'string' },
         lastname: { scalar: 'string' },
         email: { scalar: 'string' },
-        address: { type: 'address' },
-        places: { type: 'address', isList: true },
+        address: { type: 'addresses' },
+        places: { type: 'addresses', isList: true },
       },
       connector: connectors.memory(
-        Object.keys(baseData.person).map(id => ({
+        Object.keys(baseData.people).map(id => ({
           id,
-          ...baseData.person[id],
+          ...baseData.people[id],
         })),
       ),
       newId: () => uuid(),
@@ -68,7 +68,7 @@ export const clearClient = () => {
 };
 
 export const simpleQuery = `{
-  person(sort: "firstname", skip: 1, show: 2) {
+  people(sort: "firstname", skip: 1, show: 2) {
     firstname
     address {
       city
@@ -77,7 +77,7 @@ export const simpleQuery = `{
 }`;
 
 export const relationQuery = `{
-  person(sort: "firstname", skip: 1, show: 2) {
+  people(sort: "firstname", skip: 1, show: 2) {
     firstname
     places {
       city
@@ -86,7 +86,7 @@ export const relationQuery = `{
 }`;
 
 export const sortedRelationQuery = `{
-  person(sort: "firstname", skip: 1, show: 2) {
+  people(sort: "firstname", skip: 1, show: 2) {
     firstname
     places(sort: "city") {
       city

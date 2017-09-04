@@ -6,7 +6,7 @@ afterEach(clearClient);
 describe('changes: root', () => {
   test('test', async done => {
     const query = `{
-      person(sort: "firstname", skip: 1, show: 2) {
+      people(sort: "firstname", skip: 1, show: 2) {
         firstname
         lastname
       }
@@ -16,50 +16,50 @@ describe('changes: root', () => {
     const updates: { func: () => void; load?: true }[] = [];
 
     results.push({
-      person: [
+      people: [
         { firstname: 'Ena', lastname: 'Cartwright' },
         { firstname: 'Esperanza', lastname: 'Boyle' },
       ],
     });
 
     updates.push({
-      func: () => client.set('person', 'C', { lastname: 'Collier' }),
+      func: () => client.set('people', 'C', { lastname: 'Collier' }),
     });
     results.push({
-      person: [
+      people: [
         { firstname: 'Ena', lastname: 'Collier' },
         { firstname: 'Esperanza', lastname: 'Boyle' },
       ],
     });
 
     updates.push({
-      func: () => client.set('person', 'F', { firstname: 'Brent' }),
+      func: () => client.set('people', 'F', { firstname: 'Brent' }),
       load: true,
     });
     results.push({
-      person: [
+      people: [
         { firstname: 'Delphia', lastname: 'Cole' },
         { firstname: 'Ena', lastname: 'Collier' },
       ],
     });
 
     updates.push({
-      func: () => client.set('person', 'G', { firstname: 'Elissa' }),
+      func: () => client.set('people', 'G', { firstname: 'Elissa' }),
       load: true,
     });
     results.push({
-      person: [
+      people: [
         { firstname: 'Delphia', lastname: 'Cole' },
         { firstname: 'Elissa', lastname: null },
       ],
     });
 
     updates.push({
-      func: () => client.set('person', 'B', null),
+      func: () => client.set('people', 'B', null),
       load: true,
     });
     results.push({
-      person: [
+      people: [
         { firstname: 'Elissa', lastname: null },
         { firstname: 'Ena', lastname: 'Collier' },
       ],
@@ -69,7 +69,7 @@ describe('changes: root', () => {
     let nextLoad = false;
     client.query(
       `{
-        person(sort: "firstname", skip: 1, show: 2) {
+        people(sort: "firstname", skip: 1, show: 2) {
           firstname
           lastname
         }

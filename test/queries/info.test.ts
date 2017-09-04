@@ -8,7 +8,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname") {
+          people(sort: "firstname") {
             firstname
             address {
               city
@@ -19,7 +19,7 @@ describe('queries: basic', () => {
       ),
     ).toEqual({
       data: {
-        person: [
+        people: [
           {
             id: 'B',
             firstname: 'Delphia',
@@ -45,7 +45,7 @@ describe('queries: basic', () => {
       },
       spans: {
         '': 5,
-        person: [
+        people: [
           { '': 1, address: [{ '': 1 }] },
           { '': 1, address: [{ '': 1 }] },
           { '': 1, address: [{ '': 1 }] },
@@ -60,7 +60,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", skip: 1, show: 2) {
             firstname
             address {
               city
@@ -71,7 +71,7 @@ describe('queries: basic', () => {
       ),
     ).toEqual({
       data: {
-        person: [
+        people: [
           {
             id: 'C',
             firstname: 'Ena',
@@ -86,7 +86,7 @@ describe('queries: basic', () => {
       },
       spans: {
         '': 2,
-        person: [
+        people: [
           { '': 1, address: [{ '': 1 }] },
           { '': 1, address: [{ '': 1 }] },
         ],
@@ -98,7 +98,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", skip: 1, show: 2) {
             firstname
             places {
               city
@@ -109,7 +109,7 @@ describe('queries: basic', () => {
       ),
     ).toEqual({
       data: {
-        person: [
+        people: [
           {
             id: 'C',
             firstname: 'Ena',
@@ -132,7 +132,7 @@ describe('queries: basic', () => {
       },
       spans: {
         '': 6,
-        person: [
+        people: [
           { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
           { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
         ],
@@ -144,7 +144,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", skip: 1, show: 2) {
             firstname
             places(sort: "city") {
               city
@@ -155,7 +155,7 @@ describe('queries: basic', () => {
       ),
     ).toEqual({
       data: {
-        person: [
+        people: [
           {
             id: 'C',
             firstname: 'Ena',
@@ -177,7 +177,7 @@ describe('queries: basic', () => {
       },
       spans: {
         '': 5,
-        person: [
+        people: [
           { '': 2, places: [{ '': 1 }, { '': 1 }] },
           { '': 3, places: [{ '': 1 }, { '': 1 }, { '': 1 }] },
         ],
@@ -189,7 +189,7 @@ describe('queries: basic', () => {
     expect(
       await client.query(
         `{
-          person(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", skip: 1, show: 2) {
             firstname
             address {
               city
@@ -203,7 +203,7 @@ describe('queries: basic', () => {
       ),
     ).toEqual({
       data: {
-        person: [
+        people: [
           {
             id: 'C',
             firstname: 'Ena',
@@ -228,7 +228,7 @@ describe('queries: basic', () => {
       },
       spans: {
         '': 6,
-        person: [
+        people: [
           {
             '': 3,
             address: [{ '': 1 }, 2],

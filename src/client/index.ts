@@ -22,7 +22,7 @@ import {
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
 import { setClient, setServer } from './set';
-import createWatcher from './watcher';
+import createFetcher from './createFetcher';
 import {
   AuthFetch,
   Client,
@@ -57,7 +57,7 @@ export async function buildClient(
     indices?: number[];
   }>();
   const emitChanges = (changes: DataChanges, indices?: number[]) => {
-    if (log) console.log(state.combined);
+    if (log) console.log(_.cloneDeep(state));
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
       for (const type of Object.keys(changes)) {
@@ -78,12 +78,12 @@ export async function buildClient(
         ),
       );
       emitter.emit({ changes, changedData, indices });
-      watcher.process();
+      fetcher.process();
     }
   };
 
   let queryCounter = 0;
-  const watcher = createWatcher(url, authFetch, (data, indices) => {
+  const fetcher = createFetcher(url, authFetch, schema, (data, indices) => {
     emitChanges(setServer(schema, state, data), indices);
   });
 
@@ -135,7 +135,7 @@ export async function buildClient(
 
       let running = true;
       let unlisten;
-      const unwatch = watcher.addFields(allKeys, () => {
+      const unwatch = fetcher.addFields(allKeys, () => {
         const values = keysToObject(allKeys, key =>
           noUndef(_.get(state.combined, key)),
         );
@@ -162,6 +162,19 @@ export async function buildClient(
         if (unlisten) unlisten();
       };
     }, listener);
+  };
+
+  const mutate = async (keys: string[]) => {
+    let resolvePromise: () => void;
+    const promise = new Promise<void>(resolve => (resolvePromise = resolve));
+    fetcher.addMutation(
+      keys.map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
+      () => {
+        set(keys.reduce((res, k) => _.set(res, k, undefined), {}));
+        resolvePromise();
+      },
+    );
+    return promise;
   };
 
   return {
@@ -223,9 +236,13 @@ export async function buildClient(
           return {
             active,
             invalid,
-            // async mutate() {
-            //   if (!invalid) await mutate(fields.map(({ key }) => key));
-            // },
+            async mutate() {
+              if (invalid) return false;
+              await mutate(
+                fields.filter((_, i) => active[i]).map(({ key }) => key),
+              );
+              return true;
+            },
           };
         },
         listener,
@@ -263,7 +280,7 @@ export async function buildClient(
         let firstIds: Obj<Obj<string>>;
 
         let running = true;
-        const updateQuery = watcher.addQuery(
+        const updateQuery = fetcher.addQuery(
           queryIndex,
           newFirstIds => {
             if (newFirstIds) firstIds = newFirstIds;
@@ -318,50 +335,7 @@ export async function buildClient(
     },
 
     set,
+
+    mutate,
   };
 }
-
-// const mutate = async (keys: string[]) => {
-//   const mutationData = keys.reduce(
-//     (res, k) => _.set(res, k, noUndef(_.get(state.combined, k))),
-//     {},
-//   );
-//   const types = Object.keys(mutationData);
-//   const mutations = keysToObject(types, type =>
-//     Object.keys(mutationData[type]).map(id => ({
-//       id,
-//       ...keysToObject(Object.keys(mutationData[type][id]), f => {
-//         const value = mutationData[type][id][f];
-//         const field = schema[type][f];
-//         const encode = fieldIs.scalar(field) && scalars[field.scalar].encode;
-//         return value === null || !encode ? value : mapArray(value, encode);
-//       }),
-//     })),
-//   );
-
-//   const query = `
-//     mutation Mutate(${types.map(t => `$${t}: [${t}Input!]`).join(', ')}) {
-//       mutate(${types.map(t => `${t}: $${t}`).join(', ')}) {
-//         ${types.map(
-//           t => `${t} {
-//           ${[
-//             ...allKeys(mutations[t]),
-//             ...Object.keys(schema[t]).filter(f => {
-//               const field = schema[t][f];
-//               return fieldIs.scalar(field)
-//                 ? !!field.formula
-//                 : fieldIs.foreignRelation(field);
-//             }),
-//             'modifiedat',
-//           ]
-//             .map(f => (fieldIs.scalar(schema[t][f]) ? f : `${f} { id }`))
-//             .join('\n')}
-//         }`,
-//         )}
-//       }
-//     }
-//   `;
-//   await batchFetch([{ query, variables: mutations }]);
-
-//   set(state, keys.reduce((res, k) => _.set(res, k, undefined), {}));
-// };
