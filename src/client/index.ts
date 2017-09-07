@@ -48,6 +48,8 @@ export async function buildClient(
     })).json()).data,
   );
 
+  const newIds = keysToObject(Object.keys(schema), () => 0);
+
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
 
   const emitterMap = createEmitterMap<any>();
@@ -93,7 +95,7 @@ export async function buildClient(
     scalar: ScalarName;
     isList?: true;
     rules: Rules;
-    required?: true;
+    required?: boolean;
     showIf?: Obj;
   }
   const watchFields = <T>(
@@ -164,13 +166,18 @@ export async function buildClient(
     }, listener);
   };
 
-  const mutate = async (keys: string[]) => {
+  const mutate = async (keys: string[], clearKeys?: string[]) => {
     let resolvePromise: () => void;
     const promise = new Promise<void>(resolve => (resolvePromise = resolve));
     fetcher.addMutation(
       keys.map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
       () => {
-        set(keys.reduce((res, k) => _.set(res, k, undefined), {}));
+        set(
+          [...keys, ...(clearKeys || [])].reduce(
+            (res, k) => _.set(res, k, undefined),
+            {},
+          ),
+        );
         resolvePromise();
       },
     );
@@ -184,6 +191,8 @@ export async function buildClient(
         return fieldIs.scalar(field) ? field.scalar : field.type;
       }),
     ),
+
+    newId: (type: string) => `$${newIds[type]++}`,
 
     field(field: FieldConfig, listener?: (value: FieldState) => void) {
       return watchFields(
@@ -240,6 +249,7 @@ export async function buildClient(
               if (invalid) return false;
               await mutate(
                 fields.filter((_, i) => active[i]).map(({ key }) => key),
+                fields.filter((_, i) => !active[i]).map(({ key }) => key),
               );
               return true;
             },

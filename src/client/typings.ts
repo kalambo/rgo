@@ -45,7 +45,7 @@ export interface QueryLayer {
 export interface FieldConfig {
   key: string;
   rules?: Rules;
-  required?: true;
+  required?: boolean;
   showIf?: Obj;
 }
 export interface FieldState {
@@ -58,7 +58,7 @@ export interface FieldState {
 export interface FieldsState {
   invalid: boolean;
   active: boolean[];
-  // mutate: () => Promise<void>;
+  mutate: () => Promise<boolean>;
 }
 
 export interface QueryOptions {
@@ -68,6 +68,8 @@ export interface QueryOptions {
 
 export interface Client {
   types: Obj<Obj<string>>;
+
+  newId: (type: string) => string;
 
   field(field: FieldConfig): Promise<FieldState>;
   field(field: FieldConfig, listener: (value: FieldState) => void): () => void;
@@ -106,5 +108,5 @@ export interface Client {
   set(type: string, id: string, value: Obj | null | undefined): void;
   set(type: string, id: string, field: string, value: any): void;
 
-  mutate(keys: string[]): Promise<void>;
+  mutate(keys: string[], clearKeys?: string[]): Promise<void>;
 }

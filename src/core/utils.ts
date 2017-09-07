@@ -14,11 +14,6 @@ export const isObject = v =>
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
-export const allKeys = (objects: any[]) =>
-  Array.from(
-    new Set(objects.reduce((res, o) => [...res, ...Object.keys(o)], [])),
-  ) as string[];
-
 export interface MapConfig {
   valueMaps?: Obj<((value: any) => any) | true>;
   newKeys?: Obj<string>;

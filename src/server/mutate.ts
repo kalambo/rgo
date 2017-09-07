@@ -1,12 +1,15 @@
 import { fieldIs, keysToObject, Obj } from '../core';
 
-import { Connector, DataType } from './typings';
+import { Connector, DataType, Mutation } from './typings';
 
 export default async function mutate(
   types: Obj<DataType>,
   connectors: Obj<Connector>,
   args,
-  { userId }: { userId: string | null },
+  {
+    userId,
+    mutationsLog,
+  }: { userId: string | null; mutationsLog: Obj<Mutation[]> },
 ) {
   const typeNames = Object.keys(args);
 
@@ -19,7 +22,7 @@ export default async function mutate(
       ),
   }));
 
-  const mutations = keysToObject(typeNames, () => [] as any[]);
+  const mutations = keysToObject(typeNames, () => [] as Mutation[]);
   for (const type of typeNames) {
     for (const { id, ...mutation } of args[type]) {
       const mId = newIds[type][id] || id;
@@ -28,8 +31,8 @@ export default async function mutate(
         const field = types[type].fields[f];
         if (fieldIs.relation(field) && mutation[f]) {
           if (field.isList)
-            mutation[f] = mutation[f].map(v => newIds[type][v] || v);
-          else mutation[f] = newIds[type][mutation[f]] || mutation[f];
+            mutation[f] = mutation[f].map(v => newIds[field.type][v] || v);
+          else mutation[f] = newIds[field.type][mutation[f]] || mutation[f];
         }
       }
 
@@ -38,7 +41,7 @@ export default async function mutate(
         (id === mId && (await connectors[type].findById(mId))) || null;
       if (prev) delete prev.id;
 
-      const mutateArgs = { id: mId, data, prev };
+      const mutateArgs: Mutation = { id: mId, data, prev };
 
       let allow = true;
       if (data && prev && types[type].auth.update)
@@ -58,8 +61,9 @@ export default async function mutate(
     }
   }
 
-  const results = keysToObject(typeNames, () => [] as any[]);
+  const results = keysToObject(typeNames, () => [] as Obj[]);
   for (const type of typeNames) {
+    mutationsLog[type] = mutationsLog[type] || [];
     for (const { id, data, prev } of mutations[type]) {
       if (data) {
         const time = new Date();
@@ -97,12 +101,14 @@ export default async function mutate(
           );
           await connectors[type].insert(id, fullData);
         }
+        mutationsLog[type].push({ id, data: fullData, prev });
         results[type].push({ id, ...prev, ...fullData });
       } else {
         console.log(
           `kalambo-mutate-delete, ${type}:${id}, old: ${JSON.stringify(prev)}`,
         );
         await connectors[type].delete(id);
+        mutationsLog[type].push({ id, data, prev });
         results[type].push({ id });
       }
     }

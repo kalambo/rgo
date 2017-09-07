@@ -35,7 +35,7 @@ import {
 
 import batch from './batch';
 import mutate from './mutate';
-import { DataType } from './typings';
+import { DataType, Mutation } from './typings';
 
 const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
 
@@ -53,7 +53,10 @@ const argTypes = {
   },
 };
 
-export default function buildServer(types: Obj<DataType>) {
+export default function buildServer(
+  types: Obj<DataType>,
+  onMutate?: (mutations: Obj<Mutation[]>) => void | Promise<void>,
+) {
   const typeNames = Object.keys(types);
 
   const typeFields = keysToObject<string, Obj<Field>>(typeNames, type => ({
@@ -272,7 +275,7 @@ export default function buildServer(types: Obj<DataType>) {
           args: keysToObject(typeNames, type => ({
             type: new GraphQLList(new GraphQLNonNull(inputTypes[type])),
           })),
-          async resolve(_root, args, context: { userId: string | null }) {
+          async resolve(_root, args, context) {
             return mutate(types, typeConnectors, args, context);
           },
         },
@@ -289,6 +292,7 @@ export default function buildServer(types: Obj<DataType>) {
     const queries = Array.isArray(request) ? request : [request];
 
     const data: Data = {};
+    const mutationsLog: Obj<Mutation[]> = {};
     const results: QueryResponse[] = await Promise.all(
       queries.map(async ({ query, variables, normalize }) => {
         if (query === '{ SCHEMA }') {
@@ -305,7 +309,7 @@ export default function buildServer(types: Obj<DataType>) {
           schema,
           queryDoc,
           null,
-          { ...context, rootQuery: query },
+          { ...context, rootQuery: query, mutationsLog },
           variables,
         )).data!;
         if (!normalize) return { data: result };
@@ -460,6 +464,10 @@ export default function buildServer(types: Obj<DataType>) {
         }
       }),
     );
+
+    if (onMutate && Object.keys(mutationsLog).length > 0) {
+      await onMutate(mutationsLog);
+    }
 
     const firstNormalize = queries.findIndex(({ normalize }) => !!normalize);
     if (firstNormalize !== -1) results[firstNormalize].data = data;

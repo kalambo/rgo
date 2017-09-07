@@ -1,7 +1,6 @@
 import * as _ from 'lodash';
 
 import {
-  allKeys,
   Data,
   Field,
   fieldIs,
@@ -23,6 +22,22 @@ const printFilter = filter => {
   const op = Object.keys(filter[key])[0];
   return `${key}${ops[op]}${filter[key][op]}`;
 };
+
+const mutationFields = (mutations: Obj[], schemaType: Obj<Field>) =>
+  [
+    ...Array.from(
+      new Set(
+        mutations.reduce<string[]>((res, o) => [...res, ...Object.keys(o)], []),
+      ),
+    ),
+    ...Object.keys(schemaType).filter(f => {
+      const field = schemaType[f];
+      return fieldIs.scalar(field)
+        ? !!field.formula
+        : fieldIs.foreignRelation(field);
+    }),
+    'modifiedat',
+  ].map(f => (fieldIs.scalar(schemaType[f]) ? f : `${f} { id }`));
 
 export default function createFetcher(
   url: string,
@@ -90,24 +105,15 @@ export default function createFetcher(
               .map(t => `$${t}: [${t}Input!]`)
               .join(', ')}) {
               mutate(${mutationTypes.map(t => `${t}: $${t}`).join(', ')}) {
-                ${mutationTypes.map(
-                  t => `${t} {
-                  ${[
-                    ...allKeys(mutationsArrays[t]),
-                    ...Object.keys(schema[t]).filter(f => {
-                      const field = schema[t][f];
-                      return fieldIs.scalar(field)
-                        ? !!field.formula
-                        : fieldIs.foreignRelation(field);
-                    }),
-                    'modifiedat',
-                  ]
-                    .map(
-                      f => (fieldIs.scalar(schema[t][f]) ? f : `${f} { id }`),
-                    )
-                    .join('\n')}
-                }`,
-                )}
+                ${mutationTypes
+                  .map(
+                    t => `${t} {
+                      ${mutationFields(mutationsArrays[t], schema[t]).join(
+                        '\n',
+                      )}
+                    }`,
+                  )
+                  .join('\n')}
               }
             }
           `,

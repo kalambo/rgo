@@ -67,13 +67,13 @@ export default function sql(
       },
 
       async insert(id, data) {
-        model.create({ id, ...data });
+        await model.create({ id, ...data }, { raw: true });
       },
       async update(id, data) {
-        model.update(data, { where: { id } });
+        await model.update(data, { where: { id } });
       },
       async delete(id) {
-        model.destroy({ where: { id } });
+        await model.destroy({ where: { id } });
       },
 
       async dump() {
@@ -81,7 +81,7 @@ export default function sql(
       },
       async restore(data) {
         await model.destroy();
-        model.bulkCreate(data);
+        await model.bulkCreate(data);
       },
     };
   };

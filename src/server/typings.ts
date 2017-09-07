@@ -14,6 +14,12 @@ export interface Connector {
   restore: (data: any[]) => Promise<void>;
 }
 
+export interface Mutation {
+  id: string;
+  data: Obj | null;
+  prev: Obj | null;
+}
+
 export interface TypeAuth {
   query?: (
     userId: string | null,
@@ -22,18 +28,18 @@ export interface TypeAuth {
   insert?: (
     userId: string | null,
     id: string,
-    data: any,
+    data: Obj | null,
   ) => boolean | Promise<boolean>;
   update?: (
     userId: string | null,
     id: string,
-    data: any,
-    prev: any,
+    data: Obj | null,
+    prev: Obj | null,
   ) => boolean | Promise<boolean>;
   delete?: (
     userId: string | null,
     id: string,
-    prev: any,
+    prev: Obj | null,
   ) => boolean | Promise<boolean>;
 }
 
