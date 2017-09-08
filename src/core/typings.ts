@@ -92,4 +92,5 @@ export interface QueryRequest {
 export interface QueryResponse {
   data?: any;
   firstIds?: Obj<Obj<string>>;
+  newIds?: Obj<Obj<string>>;
 }

@@ -47,6 +47,7 @@ export interface FieldConfig {
   rules?: Rules;
   required?: boolean;
   showIf?: Obj;
+  default?: any;
 }
 export interface FieldState {
   scalar: ScalarName;
@@ -58,7 +59,7 @@ export interface FieldState {
 export interface FieldsState {
   invalid: boolean;
   active: boolean[];
-  mutate: () => Promise<boolean>;
+  mutate: () => Promise<Data | void>;
 }
 
 export interface QueryOptions {
@@ -108,5 +109,5 @@ export interface Client {
   set(type: string, id: string, value: Obj | null | undefined): void;
   set(type: string, id: string, field: string, value: any): void;
 
-  mutate(keys: string[], clearKeys?: string[]): Promise<void>;
+  mutate(keys: string[], clearKeys?: string[]): Promise<Data>;
 }

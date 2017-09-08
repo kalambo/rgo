@@ -45,7 +45,7 @@ export default function createFetcher(
   schema: Obj<Obj<Field>>,
   onChange: (data: Data, indices: number[]) => void,
 ) {
-  let nextListeners: (() => void)[] = [];
+  let nextListeners: ((newIds?: Obj<Obj<string>>) => void)[] = [];
 
   const fieldsMap: Obj<Obj<Obj<number>>> = {};
   let nextFieldsMap: Obj<Obj<Obj<true>>> = {};
@@ -133,7 +133,7 @@ export default function createFetcher(
         );
         onChange(responses[0].data, indices);
         for (const listener of listeners) {
-          listener();
+          listener(responses[0].newIds);
         }
         for (const i of indices) {
           if (!nextQueries[i]) {
@@ -273,7 +273,10 @@ export default function createFetcher(
       };
     },
 
-    addMutation(values: { key: string; value: any }[], onReady: () => void) {
+    addMutation(
+      values: { key: string; value: any }[],
+      onReady: (newIds: Obj<Obj<string>>) => void,
+    ) {
       for (const { key, value } of values) {
         _.set(mutationData, key, value);
       }

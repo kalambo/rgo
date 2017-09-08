@@ -118,7 +118,9 @@ export default function buildServer(
                     typeFields[field.type],
                     info,
                   );
-                  queryArgs.fields = [relField, ...(queryArgs.fields || [])];
+                  queryArgs.fields = Array.from(
+                    new Set([relField, ...(queryArgs.fields || [])]),
+                  );
                   queryArgs.filter = {
                     ...queryArgs.filter,
                     [relField]: {
@@ -292,7 +294,13 @@ export default function buildServer(
     const queries = Array.isArray(request) ? request : [request];
 
     const data: Data = {};
-    const mutationsLog: Obj<Mutation[]> = {};
+    const mutationsInfo: {
+      mutations: Obj<Mutation[]>;
+      newIds: Obj<Obj<string>>;
+    } = {
+      mutations: {},
+      newIds: {},
+    };
     const results: QueryResponse[] = await Promise.all(
       queries.map(async ({ query, variables, normalize }) => {
         if (query === '{ SCHEMA }') {
@@ -305,13 +313,17 @@ export default function buildServer(
         }
 
         const queryDoc = parse(query);
-        const result = (await execute(
+        const { data: result, errors } = await execute(
           schema,
           queryDoc,
           null,
-          { ...context, rootQuery: query, mutationsLog },
+          { ...context, rootQuery: query, mutationsInfo },
           variables,
-        )).data!;
+        );
+        if (errors) {
+          console.log(errors);
+          return {};
+        }
         if (!normalize) return { data: result };
 
         const operationNode = queryDoc
@@ -423,7 +435,7 @@ export default function buildServer(
               { field: node.name.value },
               { type: node.name.value, isList: true },
               node,
-              { '': result[node.name.value] || [] },
+              { '': result![node.name.value] || [] },
               node.name.value,
               variables,
             ),
@@ -447,7 +459,7 @@ export default function buildServer(
               .map(node => node.name.value);
 
             data[type] = data[type] || {};
-            result.mutate[type].forEach(
+            result!.mutate[type].forEach(
               record =>
                 record &&
                 (data[type][record.id] = {
@@ -465,12 +477,15 @@ export default function buildServer(
       }),
     );
 
-    if (onMutate && Object.keys(mutationsLog).length > 0) {
-      await onMutate(mutationsLog);
+    if (onMutate && Object.keys(mutationsInfo.mutations).length > 0) {
+      await onMutate(mutationsInfo.mutations);
     }
 
     const firstNormalize = queries.findIndex(({ normalize }) => !!normalize);
-    if (firstNormalize !== -1) results[firstNormalize].data = data;
+    if (firstNormalize !== -1) {
+      results[firstNormalize].data = data;
+      results[firstNormalize].newIds = mutationsInfo.newIds;
+    }
 
     return Array.isArray(request) ? results : results[0];
   }

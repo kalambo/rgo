@@ -6,7 +6,7 @@ import {
   ValueNode,
 } from 'graphql';
 
-import { Args, Field, Obj, QueryArgs } from '../typings';
+import { Args, Field, fieldIs, Obj, QueryArgs } from '../typings';
 import { keysToObject, undefOr } from '../utils';
 
 import parseFilter from './parseFilter';
@@ -44,9 +44,9 @@ export default function parseArgs(
       end: undefOr(args.show, start + args.show!),
       fields:
         info &&
-        info.fieldNodes[0].selectionSet!.selections.map(
-          (f: FieldNode) => f.name.value,
-        ),
+        info.fieldNodes[0].selectionSet!.selections
+          .map((f: FieldNode) => f.name.value)
+          .filter(fieldName => !fieldIs.foreignRelation(fields[fieldName])),
       trace: undefOr(args.trace && args.trace.start, args.trace),
       ids: args.ids,
     };

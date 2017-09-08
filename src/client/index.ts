@@ -104,9 +104,10 @@ export async function buildClient(
     listener?: (value: T) => void,
   ) => {
     return promisifyEmitter(innerListener => {
+      const configArray = Array.isArray(config) ? config : [config];
       const allKeysObj: Obj<true> = {};
       const info = keysToObject<FieldConfig, FieldInfo>(
-        Array.isArray(config) ? config : [config],
+        configArray,
         ({ key, rules, required, showIf }) => {
           const [type, id, fieldName] = key.split('.');
           const field = schema[type][fieldName] as ScalarField;
@@ -138,6 +139,13 @@ export async function buildClient(
       let running = true;
       let unlisten;
       const unwatch = fetcher.addFields(allKeys, () => {
+        allKeys
+          .map(k => configArray.find(({ key }) => key === k)!)
+          .filter(x => x && x.default !== undefined)
+          .forEach(({ key, default: defaultValue }) => {
+            const value = noUndef(_.get(state.combined, key));
+            if (value === null) set(...key.split('.'), defaultValue);
+          });
         const values = keysToObject(allKeys, key =>
           noUndef(_.get(state.combined, key)),
         );
@@ -167,18 +175,29 @@ export async function buildClient(
   };
 
   const mutate = async (keys: string[], clearKeys?: string[]) => {
-    let resolvePromise: () => void;
-    const promise = new Promise<void>(resolve => (resolvePromise = resolve));
+    let resolvePromise: (data: Data) => void;
+    const promise = new Promise<Data>(resolve => (resolvePromise = resolve));
     fetcher.addMutation(
       keys.map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
-      () => {
+      newIds => {
         set(
           [...keys, ...(clearKeys || [])].reduce(
             (res, k) => _.set(res, k, undefined),
             {},
           ),
         );
-        resolvePromise();
+        const data = {};
+        keys.forEach(key => {
+          const [type, id, fieldName] = key.split('.');
+          const newId = newIds[type][id] || id;
+          _.set(
+            data,
+            key,
+            noUndef(_.get(state.combined, [type, newId, fieldName])),
+          );
+          data[type][id].id = newId;
+        });
+        resolvePromise(data);
       },
     );
     return promise;
@@ -246,12 +265,12 @@ export async function buildClient(
             active,
             invalid,
             async mutate() {
-              if (invalid) return false;
-              await mutate(
-                fields.filter((_, i) => active[i]).map(({ key }) => key),
-                fields.filter((_, i) => !active[i]).map(({ key }) => key),
-              );
-              return true;
+              if (!invalid) {
+                return await mutate(
+                  fields.filter((_, i) => active[i]).map(({ key }) => key),
+                  fields.filter((_, i) => !active[i]).map(({ key }) => key),
+                );
+              }
             },
           };
         },
