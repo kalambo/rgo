@@ -5,8 +5,6 @@ import {
   ForeignRelationField,
   Obj,
   QueryArgs,
-  QueryRequest,
-  QueryResponse,
   RelationField,
   Rules,
   ScalarName,
@@ -14,10 +12,7 @@ import {
 
 import ClientState from './clientState';
 
-export type AuthFetch = (
-  url: string,
-  body: QueryRequest[],
-) => Promise<QueryResponse[]>;
+export type AuthFetch = (url: string, body: any) => Promise<any>;
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 

@@ -36,13 +36,7 @@ export async function buildClient(
   log?: boolean,
 ): Promise<Client> {
   const schema: Obj<Obj<Field>> = JSON.parse(
-    (await (await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: '{ SCHEMA }' }),
-    })).json()).data,
+    (await authFetch(url, { query: '{ SCHEMA }' })).data,
   );
 
   const state = new ClientState(schema, log);
