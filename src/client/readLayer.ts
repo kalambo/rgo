@@ -197,43 +197,50 @@ export default function readLayer(
   }
 
   return (changes: DataChanges, update: boolean) => {
-    if (relationUpdaters.some(updater => updater(changes, update))) return true;
+    const relationsChange = Math.max(
+      ...relationUpdaters.map(updater => updater(changes, update)),
+      0,
+    );
+    if (relationsChange === 2) return 2;
 
     for (const id of Object.keys(changes[field.type] || {})) {
       for (const f of structuralFields) {
-        if ((changes[field.type][id] || {})[f]) return true;
+        if ((changes[field.type][id] || {})[f]) return 2;
       }
       if (
         fieldIs.foreignRelation(field) &&
         (changes[field.type][id] || {})[field.foreign]
       ) {
-        return true;
+        return 2;
       }
     }
 
     if (root.type) {
       for (const id of Object.keys(changes[root.type] || {})) {
         if (rootRecords[id]) {
-          if ((changes[root.type][id] || {})[root.field]) return true;
+          if ((changes[root.type][id] || {})[root.field]) return 2;
         }
       }
     }
 
+    let hasUpdated = false;
     if (update) {
       for (const id of Object.keys(changes[field.type] || {})) {
         if (records[id]) {
           for (const f of Object.keys(changes[field.type][id] || {})) {
             if (scalarFields[f]) {
+              const prev = records[id][f];
               const value = ((state.combined[field.type] || {})[id] || {})[f];
               if (value === undefined) delete records[id][f];
-              else records[id][f] = value;
+              else records[id][f] = noUndef(value);
+              if (records[id][f] !== prev) hasUpdated = true;
             }
           }
         }
       }
     }
 
-    return false;
+    return Math.max(relationsChange, hasUpdated ? 1 : 0);
   };
 
   // const sliceInfo = (rootId: string, index: number) => {

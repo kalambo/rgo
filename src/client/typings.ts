@@ -1,3 +1,5 @@
+export { default as ClientState } from './clientState';
+
 import {
   Data,
   ForeignRelationField,
@@ -10,6 +12,8 @@ import {
   ScalarName,
 } from '../core';
 
+import ClientState from './clientState';
+
 export type AuthFetch = (
   url: string,
   body: QueryRequest[],
@@ -17,14 +21,13 @@ export type AuthFetch = (
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 
-export interface ClientState {
-  server: Data;
-  client: Data;
-  combined: Data;
-  diff: DataDiff;
-}
-
 export type DataChanges = Obj<Obj<Obj<true>>>;
+
+export interface FullChanges {
+  changes: DataChanges;
+  changedData: Data;
+  indices?: number[];
+}
 
 export interface QueryLayer {
   root: { type?: string; field: string };

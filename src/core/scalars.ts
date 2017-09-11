@@ -67,6 +67,17 @@ const buildScalarTypes = (types: Obj<ScalarConfig>) =>
     }),
   }));
 
+const memoize = (func: (value: any) => any) => {
+  const cache: Obj<any> = {};
+  return (value: any) => {
+    const key = JSON.stringify(value);
+    if (cache[key] !== undefined) return cache[key];
+    const result = func(value);
+    cache[key] = result;
+    return result;
+  };
+};
+
 export default {
   boolean: { type: GraphQLBoolean },
   int: { type: GraphQLInt },
@@ -75,7 +86,7 @@ export default {
   ...buildScalarTypes({
     date: {
       encode: value => (value ? new Date(value).getTime() : null),
-      decode: value => new Date(value),
+      decode: memoize(value => new Date(value)),
       kinds: [Kind.INT, Kind.STRING],
     },
     file: {

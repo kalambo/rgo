@@ -96,38 +96,6 @@ export const locationOf = <T>(
   compareFunc: (a: T, b: T) => 0 | 1 | -1,
 ) => binarySearch(element, array, compareFunc) + 1;
 
-export const createEmitter = <T>() => {
-  let listeners: ((value: T) => void)[] = [];
-  return {
-    watch(listener: (value: T) => void) {
-      listeners.push(listener);
-      return () => {
-        listeners = listeners.filter(l => l !== listener);
-      };
-    },
-    emit(value: T) {
-      listeners.forEach(l => l(value));
-    },
-  };
-};
-
-export const createEmitterMap = <T>() => {
-  const listeners: Obj<((value: T) => void)[]> = {};
-  return {
-    watch(key: string, listener: (value: T) => void) {
-      if (!listeners[key]) listeners[key] = [];
-      listeners[key].push(listener);
-      return () => {
-        listeners[key] = listeners[key].filter(l => l !== listener);
-        if (listeners[key].length === 0) delete listeners[key];
-      };
-    },
-    emit(key: string, value: T) {
-      if (listeners[key]) listeners[key].forEach(l => l(value));
-    },
-  };
-};
-
 export const promisifyEmitter = <T>(
   emitter: (listener: (value: T) => void) => () => void,
   listener?: (value: T) => void,

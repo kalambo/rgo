@@ -51,7 +51,15 @@ export default function createFetcher(
   let nextFieldsMap: Obj<Obj<Obj<true>>> = {};
 
   const queryListeners: Obj<(firstIds?: Obj<Obj<string>>) => void> = {};
-  const nextQueries: Obj<string[]> = {};
+  const prevQueries: Obj<{
+    ids: Obj<string[]>;
+    slice: Obj<{ start: number; end?: number }>;
+  }> = {};
+  const nextQueries: Obj<{
+    ids: Obj<string[]>;
+    slice: Obj<{ start: number; end?: number }>;
+    queries: string[];
+  }> = {};
 
   let mutationData: Data = {};
 
@@ -79,7 +87,11 @@ export default function createFetcher(
       const firstIndicies: Obj<number> = {};
       for (const i of indices) {
         firstIndicies[i] = queries.length;
-        queries.push(...nextQueries[i].map(query => ({ query })));
+        queries.push(...nextQueries[i].queries.map(query => ({ query })));
+        prevQueries[i] = {
+          ids: nextQueries[i].ids,
+          slice: nextQueries[i].slice,
+        };
         delete nextQueries[i];
       }
 
@@ -182,17 +194,16 @@ export default function createFetcher(
     addQuery(
       queryIndex,
       onLoad: (firstIds?: Obj<Obj<string>>) => void,
-      onClear?: () => void,
+      onClear: () => void,
     ): (layers?: QueryLayer[], state?: ClientState) => void {
-      const prevIds: Obj<string[]> = {};
-      const prevSlice: Obj<{ start: number; end?: number }> = {};
       return (layers, state) => {
-        delete nextQueries[queryIndex];
         if (!layers) {
           delete queryListeners[queryIndex];
+          delete prevQueries[queryIndex];
+          delete nextQueries[queryIndex];
         } else {
+          nextQueries[queryIndex] = { ids: {}, slice: {}, queries: [] };
           let alreadyFetched = true;
-          const queries: string[] = [];
           const processLayer = ({
             root,
             field,
@@ -216,21 +227,22 @@ export default function createFetcher(
             }`;
             if (fieldIs.foreignRelation(field) || field.isList) {
               const { extra, ids } = getArgsState(state!);
-              const newIds = prevIds[path]
-                ? ids.filter(id => !prevIds[path].includes(id))
+              const prev = prevQueries[queryIndex] || { ids: {}, slice: {} };
+              const newIds = prev.ids[path]
+                ? ids.filter(id => !prev.ids[path].includes(id))
                 : ids;
-              prevIds[path] = ids;
+              nextQueries[queryIndex].ids[path] = ids;
               if (ids.length > 0) {
-                queries.push(`{
+                nextQueries[queryIndex].queries.push(`{
                   ${root.field}(ids:${JSON.stringify(newIds)}) ${inner}
                 }`);
               }
               if (
-                !prevSlice[path] ||
-                args.start - extra.start < prevSlice[path].start ||
-                (prevSlice[path].end !== undefined &&
+                !prev.slice[path] ||
+                args.start - extra.start < prev.slice[path].start ||
+                (prev.slice[path].end !== undefined &&
                   (args.end === undefined ||
-                    args.end + extra.end > prevSlice[path].end!))
+                    args.end + extra.end > prev.slice[path].end!))
               ) {
                 alreadyFetched = false;
               }
@@ -250,7 +262,10 @@ export default function createFetcher(
               const printedArgs = Object.keys(mappedArgs)
                 .filter(k => mappedArgs[k] !== undefined)
                 .map(k => `${k}: ${JSON.stringify(mappedArgs[k])}`);
-              prevSlice[path] = { start: args.start, end: args.end };
+              nextQueries[queryIndex].slice[path] = {
+                start: args.start,
+                end: args.end,
+              };
               return `${root.field}(${printedArgs}) ${inner}`;
             }
             return `${root.field} ${inner}`;
@@ -258,12 +273,12 @@ export default function createFetcher(
           const baseQuery = `{
             ${layers.map(processLayer).join('\n')}
           }`;
-          if (!alreadyFetched) queries.unshift(baseQuery);
-          if (queries.length > 0) {
-            if (queryListeners[queryIndex] && onClear) onClear();
-            nextQueries[queryIndex] = queries;
-          } else {
-            onLoad();
+          if (!alreadyFetched) {
+            nextQueries[queryIndex].queries.unshift(baseQuery);
+          }
+          if (prevQueries[queryIndex]) {
+            if (nextQueries[queryIndex].queries.length > 0) onClear();
+            else onLoad();
           }
           if (!queryListeners[queryIndex]) {
             queryListeners[queryIndex] = onLoad;

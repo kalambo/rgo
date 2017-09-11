@@ -4,8 +4,6 @@ import * as _ from 'lodash';
 import { parse } from 'graphql';
 
 import {
-  createEmitter,
-  createEmitterMap,
   Data,
   Field,
   fieldIs,
@@ -19,14 +17,13 @@ import {
   validate as validateField,
 } from '../core';
 
+import ClientState from './clientState';
+import createFetcher from './createFetcher';
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
-import { setClient, setServer } from './set';
-import createFetcher from './createFetcher';
 import {
   AuthFetch,
   Client,
-  ClientState,
   DataChanges,
   FieldConfig,
   FieldState,
@@ -48,48 +45,13 @@ export async function buildClient(
     })).json()).data,
   );
 
-  const newIds = keysToObject(Object.keys(schema), () => 0);
-
-  const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
-
-  const emitterMap = createEmitterMap<any>();
-  const emitter = createEmitter<{
-    changes: DataChanges;
-    changedData: Data;
-    indices?: number[];
-  }>();
-  const emitChanges = (changes: DataChanges, indices?: number[]) => {
-    if (log) console.log(_.cloneDeep(state));
-    const changedTypes = Object.keys(changes);
-    if (changedTypes.length > 0) {
-      for (const type of Object.keys(changes)) {
-        for (const id of Object.keys(changes[type])) {
-          for (const field of Object.keys(changes[type][id])) {
-            emitterMap.emit(
-              `${type}.${id}.${field}`,
-              noUndef(_.get(state.combined, [type, id, field])),
-            );
-          }
-        }
-      }
-      const changedData = keysToObject(Object.keys(changes), type =>
-        keysToObject(Object.keys(changes[type]), id =>
-          keysToObject(Object.keys(changes[type][id]), field =>
-            noUndef(_.get(state.combined, [type, id, field])),
-          ),
-        ),
-      );
-      emitter.emit({ changes, changedData, indices });
-      fetcher.process();
-    }
-  };
+  const state = new ClientState(schema, log);
 
   let queryCounter = 0;
   const fetcher = createFetcher(url, authFetch, schema, (data, indices) => {
-    emitChanges(setServer(schema, state, data), indices);
+    state.setServer(data, indices);
   });
-
-  const set = (...args) => emitChanges(setClient(state, args));
+  state.watch(fetcher.process);
 
   interface FieldInfo {
     scalar: ScalarName;
@@ -144,7 +106,8 @@ export async function buildClient(
           .filter(x => x && x.default !== undefined)
           .forEach(({ key, default: defaultValue }) => {
             const value = noUndef(_.get(state.combined, key));
-            if (value === null) set(...key.split('.'), defaultValue);
+            if (value === null)
+              (state.setClient as any)(...key.split('.'), defaultValue);
           });
         const values = keysToObject(allKeys, key =>
           noUndef(_.get(state.combined, key)),
@@ -152,11 +115,11 @@ export async function buildClient(
         if (running) innerListener(getResult(info, values));
         unlisten =
           allKeys.length === 1
-            ? emitterMap.watch(allKeys[0], value => {
+            ? state.watch(allKeys[0], value => {
                 values[allKeys[0]] = value;
                 if (running) innerListener(getResult(info, values));
               })
-            : emitter.watch(({ changes, changedData }) => {
+            : state.watch(({ changes, changedData }) => {
                 const changedKeys = allKeys.filter(key => _.get(changes, key));
                 if (changedKeys.length > 0) {
                   for (const key of changedKeys) {
@@ -170,6 +133,9 @@ export async function buildClient(
         running = false;
         unwatch();
         if (unlisten) unlisten();
+        state.setClient(
+          allKeys.reduce((res, k) => _.set(res, k, undefined), {}),
+        );
       };
     }, listener);
   };
@@ -180,7 +146,7 @@ export async function buildClient(
     fetcher.addMutation(
       keys.map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
       newIds => {
-        set(
+        state.setClient(
           [...keys, ...(clearKeys || [])].reduce(
             (res, k) => _.set(res, k, undefined),
             {},
@@ -211,7 +177,7 @@ export async function buildClient(
       }),
     ),
 
-    newId: (type: string) => `$${newIds[type]++}`,
+    newId: state.newId.bind(state),
 
     field(field: FieldConfig, listener?: (value: FieldState) => void) {
       return watchFields(
@@ -220,7 +186,8 @@ export async function buildClient(
           scalar: info[field.key].scalar,
           isList: info[field.key].isList as true | undefined,
           value: values[field.key],
-          onChange: value => set(...field.key.split('.'), value),
+          onChange: value =>
+            (state.setClient as any)(...field.key.split('.'), value),
           invalid: !(
             (values[field.key] === null && !info[field.key].required) ||
             validateField(
@@ -304,7 +271,7 @@ export async function buildClient(
         let data = {};
         let spans = {};
         let rootUpdaters:
-          | ((changes: DataChanges, update: boolean) => boolean)[]
+          | ((changes: DataChanges, update: boolean) => number)[]
           | null = null;
         let firstIds: Obj<Obj<string>>;
 
@@ -340,15 +307,19 @@ export async function buildClient(
         );
         updateQuery(layers, state);
 
-        const unlisten = emitter.watch(({ changes, changedData, indices }) => {
+        const unlisten = state.watch(({ changes, changedData, indices }) => {
           if (!indices || !indices.includes(queryIndex)) {
-            if (
-              !rootUpdaters ||
-              rootUpdaters.some(updater => updater(changes, onChange === true))
-            ) {
+            const updateType = rootUpdaters
+              ? Math.max(
+                  ...rootUpdaters.map(updater =>
+                    updater(changes, onChange === true),
+                  ),
+                )
+              : 2;
+            if (updateType === 2) {
               rootUpdaters = null;
               updateQuery(layers, state);
-            } else if (running) {
+            } else if (updateType === 1) {
               if (onChange === true) onLoadInner(data);
               else onChange!(changedData);
             }
@@ -363,7 +334,7 @@ export async function buildClient(
       }, onLoad) as any;
     },
 
-    set,
+    set: state.setClient.bind(state),
 
     mutate,
   };

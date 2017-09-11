@@ -18,8 +18,6 @@ export {
 } from './typings';
 export {
   createCompare,
-  createEmitter,
-  createEmitterMap,
   getFilterFields,
   isObject,
   keysToObject,
