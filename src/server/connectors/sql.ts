@@ -88,38 +88,35 @@ export default {
     };
   },
 
-  alter(sequelize: Sequelize.Sequelize) {
+  alter(sequelize: Sequelize.Sequelize, owner?: string) {
     return async (type, field, info) => {
       if (field === undefined) {
         await sequelize.query(`
-
           CREATE TABLE "${type}"(
             "id"            TEXT  PRIMARY KEY,
             "createdat"     TIMESTAMPTZ,
             "modifiedat"    TIMESTAMPTZ
           );
-
         `);
+        if (owner) {
+          await sequelize.query(`
+            ALTER TABLE "${type}" OWNER TO "${owner}";
+          `);
+        }
       } else if (field === null) {
         await sequelize.query(`
-
           DROP TABLE "${type}";
-
         `);
       } else if (info) {
         await sequelize.query(`
-
           ALTER TABLE "${type}"
           ADD COLUMN "${field}"
           ${sqlScalars[info.scalar]}${info.isList ? '[]' : ''};
-
         `);
       } else {
         await sequelize.query(`
-
           ALTER TABLE "${type}"
           DROP COLUMN "${field}";
-
         `);
       }
     };
