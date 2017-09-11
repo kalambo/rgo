@@ -1,6 +1,14 @@
-import { Field, Obj, QueryArgs } from '../core';
+import { Obj, QueryArgs, ScalarName } from '../core';
+
+export interface DbField {
+  scalar: ScalarName;
+  isList?: boolean;
+}
 
 export interface Connector {
+  sync?: () => Promise<void>;
+  newId: () => string;
+
   query: (args: QueryArgs) => Promise<any[]>;
 
   findById: (id: string) => Promise<any>;
@@ -20,35 +28,28 @@ export interface Mutation {
   prev: Obj | null;
 }
 
-export interface TypeAuth {
-  query?: (
-    userId: string | null,
-    args: QueryArgs,
-  ) => QueryArgs | Promise<QueryArgs>;
-  insert?: (
-    userId: string | null,
-    id: string,
-    data: Obj | null,
-  ) => boolean | Promise<boolean>;
-  update?: (
-    userId: string | null,
-    id: string,
-    data: Obj | null,
-    prev: Obj | null,
-  ) => boolean | Promise<boolean>;
-  delete?: (
-    userId: string | null,
-    id: string,
-    prev: Obj | null,
-  ) => boolean | Promise<boolean>;
-}
-
-export interface DataType {
-  fields: Obj<Field>;
-  connector: (fields: Obj<Field>) => Connector;
-  newId: () => string;
-  auth: TypeAuth;
-}
+// export interface TypeAuth {
+//   query?: (
+//     userId: string | null,
+//     args: QueryArgs,
+//   ) => QueryArgs | Promise<QueryArgs>;
+//   insert?: (
+//     userId: string | null,
+//     id: string,
+//     data: Obj | null,
+//   ) => boolean | Promise<boolean>;
+//   update?: (
+//     userId: string | null,
+//     id: string,
+//     data: Obj | null,
+//     prev: Obj | null,
+//   ) => boolean | Promise<boolean>;
+//   delete?: (
+//     userId: string | null,
+//     id: string,
+//     prev: Obj | null,
+//   ) => boolean | Promise<boolean>;
+// }
 
 export interface FieldDbMap {
   toDb: (value: any) => any;

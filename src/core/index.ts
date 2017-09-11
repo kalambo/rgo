@@ -6,7 +6,6 @@ export {
   Field,
   fieldIs,
   ForeignRelationField,
-  Formula,
   Obj,
   QueryArgs,
   QueryRequest,

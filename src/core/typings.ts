@@ -44,16 +44,15 @@ export interface QueryArgs {
   ids?: string[];
 }
 
-export type Formula = (
-  obj: any,
-  query: (args: QueryArgs) => Promise<any[]>,
-) => Promise<any> | any;
+// export type Formula = (
+//   obj: any,
+//   query: (args: QueryArgs) => Promise<any[]>,
+// ) => Promise<any> | any;
 
 export interface ScalarField {
   scalar: ScalarName;
   isList?: true;
   rules?: Rules;
-  formula?: Formula | true;
 }
 export interface RelationField {
   type: string;

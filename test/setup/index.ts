@@ -1,4 +1,3 @@
-import uuid from 'uuid/v1';
 import * as fetchMock from 'fetch-mock';
 
 import { buildClient, buildServer, Client, connectors } from '../../src';
@@ -17,45 +16,20 @@ const authFetch = async (url: string, body: any[]) =>
   })).json();
 
 export const setupClient = async () => {
-  const server = buildServer({
-    addresses: {
-      fields: {
-        street: { scalar: 'string' },
-        city: { scalar: 'string' },
-        zipcode: { scalar: 'string' },
-        people: { type: 'people', foreign: 'places' },
-      },
-      connector: connectors.memory(
-        Object.keys(baseData.addresses).map(id => ({
+  const server = await buildServer(
+    (_, type) =>
+      connectors.memory(
+        Object.keys(baseData[type || 'schema']).map(id => ({
           id,
-          ...baseData.addresses[id],
+          ...baseData[type || 'schema'][id],
         })),
       ),
-      newId: () => uuid(),
-      auth: {},
-    },
-    people: {
-      fields: {
-        firstname: { scalar: 'string' },
-        lastname: { scalar: 'string' },
-        email: { scalar: 'string' },
-        address: { type: 'addresses' },
-        places: { type: 'addresses', isList: true },
-      },
-      connector: connectors.memory(
-        Object.keys(baseData.people).map(id => ({
-          id,
-          ...baseData.people[id],
-        })),
-      ),
-      newId: () => uuid(),
-      auth: {},
-    },
-  });
+    () => {},
+  );
   fetchMock.post(domain, async (_, opts) => {
     const queries = JSON.parse(opts.body);
     // console.log(JSON.stringify(queries, null, 2));
-    const result = await server(queries);
+    const result = await server.api(queries);
     // console.log(JSON.stringify(result, null, 2));
     return result;
   });

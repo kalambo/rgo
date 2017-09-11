@@ -1,9 +1,9 @@
-import { fieldIs, keysToObject, Obj } from '../core';
+import { Field, fieldIs, keysToObject, Obj } from '../core';
 
-import { Connector, DataType, Mutation } from './typings';
+import { Connector, Mutation } from './typings';
 
 export default async function mutate(
-  types: Obj<DataType>,
+  fields: Obj<Obj<Field>>,
   connectors: Obj<Connector>,
   args,
   {
@@ -21,7 +21,9 @@ export default async function mutate(
     args[type]
       .map(m => m.id)
       .filter(id => id[0] === '$')
-      .forEach(id => (mutationsInfo.newIds[type][id] = types[type].newId()));
+      .forEach(
+        id => (mutationsInfo.newIds[type][id] = connectors[type].newId()),
+      );
   }
   const getId = (type: string, id: string) =>
     ({ ...mutationsInfo.newIds[type] || {}, $user: userId || '' }[id] || id);
@@ -31,8 +33,8 @@ export default async function mutate(
     for (const { id, ...mutation } of args[type]) {
       const mId = getId(type, id);
 
-      for (const f of Object.keys(types[type].fields)) {
-        const field = types[type].fields[f];
+      for (const f of Object.keys(fields[type])) {
+        const field = fields[type][f];
         if (fieldIs.relation(field) && mutation[f]) {
           mutation[f] = field.isList
             ? mutation[f].map(v => getId(field.type, v))
@@ -47,19 +49,19 @@ export default async function mutate(
 
       const mutateArgs: Mutation = { id: mId, data, prev };
 
-      let allow = true;
-      if (data && prev && types[type].auth.update)
-        allow = await types[type].auth.update!(userId, id, data, prev);
-      else if (data && !prev && types[type].auth.insert)
-        allow = await types[type].auth.insert!(userId, id, data);
-      else if (!data && types[type].auth.delete)
-        allow = await types[type].auth.delete!(userId, id, prev);
+      // let allow = true;
+      // if (data && prev && types[type].auth.update)
+      //   allow = await types[type].auth.update!(userId, id, data, prev);
+      // else if (data && !prev && types[type].auth.insert)
+      //   allow = await types[type].auth.insert!(userId, id, data);
+      // else if (!data && types[type].auth.delete)
+      //   allow = await types[type].auth.delete!(userId, id, prev);
 
-      if (!allow) {
-        const error = new Error('Not authorized') as any;
-        error.status = 401;
-        return error;
-      }
+      // if (!allow) {
+      //   const error = new Error('Not authorized') as any;
+      //   error.status = 401;
+      //   return error;
+      // }
 
       mutations[type].push(mutateArgs);
     }
@@ -72,23 +74,23 @@ export default async function mutate(
       if (data) {
         const time = new Date();
 
-        const combinedData = { ...prev, ...data };
-        const formulae = {};
-        for (const f of Object.keys(types[type].fields)) {
-          const field = types[type].fields[f];
-          if (fieldIs.scalar(field) && typeof field.formula === 'function') {
-            formulae[f] = await field.formula(
-              combinedData,
-              connectors[type].query,
-            );
-          }
-        }
+        // const formulae = {};
+        // const combinedData = { ...prev, ...data };
+        // for (const f of Object.keys(types[type].fields)) {
+        //   const field = types[type].fields[f];
+        //   if (fieldIs.scalar(field) && typeof field.formula === 'function') {
+        //     formulae[f] = await field.formula(
+        //       combinedData,
+        //       connectors[type].query,
+        //     );
+        //   }
+        // }
 
         const fullData = {
           ...!prev ? { createdat: time } : {},
           modifiedat: time,
           ...data,
-          ...formulae,
+          // ...formulae,
         };
 
         if (prev) {

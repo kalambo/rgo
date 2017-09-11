@@ -20,9 +20,9 @@
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/@types/geojson/-/geojson-1.0.3.tgz#fbcf7fa5eb6dd108d51385cc6987ec1f24214523"
 
-"@types/graphql@^0.11.2":
-  version "0.11.2"
-  resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.11.2.tgz#758c278a042b13943fc7d5a35261e3fbd3c34195"
+"@types/graphql@^0.11.3":
+  version "0.11.3"
+  resolved "https://registry.yarnpkg.com/@types/graphql/-/graphql-0.11.3.tgz#1b93a60b2974c244588eaf72471058379532f4d9"
 
 "@types/jest@^20.0.8":
   version "20.0.8"
@@ -815,8 +815,8 @@ camelcase@^4.1.0:
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-4.1.0.tgz#d545635be1e33c542649c69173e5de6acfae34dd"
 
 caniuse-lite@^1.0.30000718:
-  version "1.0.30000726"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000726.tgz#966a753fa107a09d4131cf8b3d616723a06ccf7e"
+  version "1.0.30000727"
+  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30000727.tgz#20c895768398ded5f98a4beab4a76c285def41d2"
 
 caseless@~0.12.0:
   version "0.12.0"
@@ -1952,8 +1952,8 @@ js-tokens@^3.0.0, js-tokens@^3.0.2:
   resolved "https://registry.yarnpkg.com/js-tokens/-/js-tokens-3.0.2.tgz#9866df395102130e38f7f996bceb65443209c25b"
 
 js-yaml@^3.7.0:
-  version "3.9.1"
-  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-3.9.1.tgz#08775cebdfdd359209f0d2acd383c8f86a6904a0"
+  version "3.10.0"
+  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-3.10.0.tgz#2e78441646bd4682e963f22b6e92823c309c62dc"
   dependencies:
     argparse "^1.0.7"
     esprima "^4.0.0"
@@ -2742,9 +2742,9 @@ sax@^1.2.1:
   version "5.4.1"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.4.1.tgz#e059c09d8571f0540823733433505d3a2f00b18e"
 
-sequelize@^4.8.2:
-  version "4.8.2"
-  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-4.8.2.tgz#d16a6e75e8b48303beab4787b946bf06f32f1a94"
+sequelize@^4.8.3:
+  version "4.8.3"
+  resolved "https://registry.yarnpkg.com/sequelize/-/sequelize-4.8.3.tgz#5d0b2043430a1e2c7025ccdb8dffa18f1d6d3489"
   dependencies:
     bluebird "^3.4.6"
     cls-bluebird "^2.0.1"

@@ -32,9 +32,10 @@ const mutationFields = (mutations: Obj[], schemaType: Obj<Field>) =>
     ),
     ...Object.keys(schemaType).filter(f => {
       const field = schemaType[f];
-      return fieldIs.scalar(field)
-        ? !!field.formula
-        : fieldIs.foreignRelation(field);
+      return fieldIs.foreignRelation(field);
+      // return fieldIs.scalar(field)
+      //   ? !!field.formula
+      //   : fieldIs.foreignRelation(field);
     }),
     'modifiedat',
   ].map(f => (fieldIs.scalar(schemaType[f]) ? f : `${f} { id }`));

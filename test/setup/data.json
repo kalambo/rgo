@@ -1,4 +1,81 @@
 {
+  "schema": {
+    "A": {
+      "root": "addresses",
+      "name": "street",
+      "scalar": "string"
+    },
+    "B": {
+      "root": "addresses",
+      "name": "city",
+      "scalar": "string"
+    },
+    "C": {
+      "root": "addresses",
+      "name": "zipcode",
+      "scalar": "string"
+    },
+    "D": {
+      "root": "addresses",
+      "name": "people",
+      "type": "people",
+      "foreign": "places"
+    },
+    "E": {
+      "root": "people",
+      "name": "firstname",
+      "scalar": "string"
+    },
+    "F": {
+      "root": "people",
+      "name": "lastname",
+      "scalar": "string"
+    },
+    "G": {
+      "root": "people",
+      "name": "email",
+      "scalar": "string"
+    },
+    "H": {
+      "root": "people",
+      "name": "address",
+      "type": "addresses"
+    },
+    "I": {
+      "root": "people",
+      "name": "places",
+      "type": "addresses",
+      "isList": true
+    }
+  },
+  "addresses": {
+    "A": {
+      "street": "23106 Frederique Street",
+      "city": "Lynchfurt",
+      "zipcode": "17381",
+      "people": ["D"]
+    },
+    "B": {
+      "street": "39691 Crooks Centers",
+      "city": "Tobyhaven",
+      "zipcode": "08963"
+    },
+    "C": {
+      "street": "79464 Ottis Heights",
+      "city": "Princeview",
+      "zipcode": "23194"
+    },
+    "D": {
+      "street": "407 Jakubowski Vista",
+      "city": "Jeannebury",
+      "zipcode": "56075"
+    },
+    "E": {
+      "street": "99228 Witting Mountains",
+      "city": "Rileyfurt",
+      "zipcode": "43912"
+    }
+  },
   "people": {
     "A": {
       "firstname": "Esperanza",
@@ -34,34 +111,6 @@
       "email": "Misael12@gmail.com",
       "address": null,
       "places": null
-    }
-  },
-  "addresses": {
-    "A": {
-      "street": "23106 Frederique Street",
-      "city": "Lynchfurt",
-      "zipcode": "17381",
-      "people": ["D"]
-    },
-    "B": {
-      "street": "39691 Crooks Centers",
-      "city": "Tobyhaven",
-      "zipcode": "08963"
-    },
-    "C": {
-      "street": "79464 Ottis Heights",
-      "city": "Princeview",
-      "zipcode": "23194"
-    },
-    "D": {
-      "street": "407 Jakubowski Vista",
-      "city": "Jeannebury",
-      "zipcode": "56075"
-    },
-    "E": {
-      "street": "99228 Witting Mountains",
-      "city": "Rileyfurt",
-      "zipcode": "43912"
     }
   }
 }

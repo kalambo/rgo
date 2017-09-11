@@ -1,57 +1,55 @@
 import * as _ from 'lodash';
+import * as uuid from 'uuid/v1';
 
-import { createCompare, Field, Obj, runFilter } from '../../core';
+import { createCompare, Obj, runFilter } from '../../core';
 
 import { Connector } from '../typings';
 
-export default function memoryConnector(
-  initialData: Obj[] = [],
-): (fields: Obj<Field>) => Connector {
-  return () => {
-    const records = initialData;
+export default function memoryConnector(initialData: Obj[] = []): Connector {
+  const records = initialData;
 
-    return {
-      async query({ filter = {}, sort = [], start = 0, end }) {
-        if (start === end) return [];
+  return {
+    newId: () => uuid(),
 
-        const filterFunc = (record: Obj) =>
-          runFilter(filter, record.id, record);
-        const compareFunc = createCompare(
-          (record: Obj, key) => record[key],
-          sort,
-        );
+    async query({ filter = {}, sort = [], start = 0, end }) {
+      if (start === end) return [];
 
-        return _.cloneDeep(
-          records
-            .filter(filterFunc)
-            .sort(compareFunc)
-            .slice(start, end),
-        );
-      },
+      const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
+      const compareFunc = createCompare(
+        (record: Obj, key) => record[key],
+        sort,
+      );
 
-      async findById(id) {
-        return _.cloneDeep(records.find(record => record.id === id) || null);
-      },
-      async findByIds(ids) {
-        return _.cloneDeep(records.filter(record => ids.includes(record.id)));
-      },
+      return _.cloneDeep(
+        records
+          .filter(filterFunc)
+          .sort(compareFunc)
+          .slice(start, end),
+      );
+    },
 
-      async insert(id, data) {
-        records.push({ id, ...data });
-      },
-      async update(id, data) {
-        Object.assign(records.find(record => record.id === id), data);
-      },
-      async delete(id) {
-        records.splice(records.findIndex(record => record.id === id), 1);
-      },
+    async findById(id) {
+      return _.cloneDeep(records.find(record => record.id === id) || null);
+    },
+    async findByIds(ids) {
+      return _.cloneDeep(records.filter(record => ids.includes(record.id)));
+    },
 
-      async dump() {
-        return records;
-      },
-      async restore(data) {
-        records.splice(0, records.length, data);
-      },
-    };
+    async insert(id, data) {
+      records.push({ id, ...data });
+    },
+    async update(id, data) {
+      Object.assign(records.find(record => record.id === id), data);
+    },
+    async delete(id) {
+      records.splice(records.findIndex(record => record.id === id), 1);
+    },
+
+    async dump() {
+      return records;
+    },
+    async restore(data) {
+      records.splice(0, records.length, data);
+    },
   };
 }
