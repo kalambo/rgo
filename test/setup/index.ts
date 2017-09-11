@@ -16,14 +16,16 @@ const authFetch = async (url: string, body: any[]) =>
   })).json();
 
 export const setupClient = async () => {
+  const db: any = {};
   const server = await buildServer(
     (_, type) =>
-      connectors.memory(
+      db[type] ||
+      (db[type] = connectors.memory(
         Object.keys(baseData[type || 'schema']).map(id => ({
           id,
           ...baseData[type || 'schema'][id],
         })),
-      ),
+      )),
     () => {},
   );
   fetchMock.post(domain, async (_, opts) => {

@@ -61,15 +61,9 @@ const toDbField = (field: Field): DbField | null => {
   };
 };
 
-export default async function buildServer(
+const getSchema = async (
   connectors: (fields: Obj<DbField>, type?: string) => Connector,
-  alterSchema: (
-    type: string,
-    field?: string | null,
-    info?: DbField | null,
-  ) => void | Promise<void>,
-  onMutate?: (mutations: Obj<Mutation[]>) => void | Promise<void>,
-) {
+) => {
   const schemaConnector = connectors({
     id: { scalar: 'string' },
     root: { scalar: 'string' },
@@ -81,16 +75,38 @@ export default async function buildServer(
     foreign: { scalar: 'string' },
   });
   if (schemaConnector.sync) await schemaConnector.sync();
-  const schemaFields = (await schemaConnector.dump()).reduce(
-    (res, { root, name, ...info }) => ({
-      ...res,
-      [root]: { ...res[root] || {}, [name]: info },
-    }),
-    {},
-  ) as Obj<Obj<{ id: string } & Field>>;
+  return {
+    connector: schemaConnector,
+    fields: (await schemaConnector.dump()).reduce(
+      (res, { root, name, ...info }) => ({
+        ...res,
+        [root]: { ...res[root] || {}, [name]: info },
+      }),
+      {},
+    ) as Obj<Obj<{ id: string } & Field>>,
+  };
+};
 
-  const buildApi = () => {
-    const typeNames = Object.keys(schemaFields);
+export default async function buildServer(
+  connectors: (fields: Obj<DbField>, type?: string) => Connector,
+  alterSchema: (
+    type: string,
+    field?: string | null,
+    info?: DbField | null,
+  ) => void | Promise<void>,
+  onMutate?: (mutations: Obj<Mutation[]>) => void | Promise<void>,
+) {
+  async function api(
+    request: QueryRequest,
+    context?: any,
+  ): Promise<QueryResponse>;
+  async function api(
+    request: QueryRequest[],
+    context?: any,
+  ): Promise<QueryResponse[]>;
+  async function api(request: QueryRequest | QueryRequest[], context?: any) {
+    const schema = await getSchema(connectors);
+    const typeNames = Object.keys(schema.fields);
 
     if (typeNames.length === 0) {
       return async (request: QueryRequest | QueryRequest[], context?: any) => {
@@ -103,7 +119,7 @@ export default async function buildServer(
       id: { scalar: 'string' },
       createdat: { scalar: 'date' },
       modifiedat: { scalar: 'date' },
-      ...schemaFields[type],
+      ...schema.fields[type],
     }));
     const typeConnectors = keysToObject(typeNames, type =>
       connectors(
@@ -335,105 +351,92 @@ export default async function buildServer(
               type: new GraphQLList(new GraphQLNonNull(inputTypes[type])),
             })),
             async resolve(_root, args, context) {
-              return mutate(schemaFields, typeConnectors, args, context);
+              return mutate(schema.fields, typeConnectors, args, context);
             },
           },
         },
       }),
     });
 
-    return async (request: QueryRequest | QueryRequest[], context?: any) => {
-      const queries = Array.isArray(request) ? request : [request];
+    const queries = Array.isArray(request) ? request : [request];
 
-      const data: Data = {};
-      const mutationsInfo: {
-        mutations: Obj<Mutation[]>;
-        newIds: Obj<Obj<string>>;
-      } = {
-        mutations: {},
-        newIds: {},
-      };
-      const results: QueryResponse[] = await Promise.all(
-        queries.map(async ({ query, variables, normalize }) => {
-          if (query === '{ SCHEMA }') {
-            return {
-              data: JSON.stringify(
-                typeFields,
-                (_, v) => (typeof v === 'function' ? true : v),
-              ),
-            };
-          }
-
-          const queryDoc = parse(query);
-          const { data: result, errors } = await execute(
-            graphQLSchema,
-            queryDoc,
-            null,
-            { ...context, rootQuery: query, mutationsInfo },
-            variables,
-          );
-          if (errors) {
-            console.log(errors);
-            return {};
-          }
-          return normalize
-            ? normalizeResult(typeFields, data, queryDoc, variables, result!)
-            : { data: result };
-        }),
-      );
-
-      if (onMutate && Object.keys(mutationsInfo.mutations).length > 0) {
-        await onMutate(mutationsInfo.mutations);
-      }
-      const firstNormalize = queries.findIndex(({ normalize }) => !!normalize);
-      if (firstNormalize !== -1) {
-        results[firstNormalize].data = data;
-        results[firstNormalize].newIds = mutationsInfo.newIds;
-      }
-      return Array.isArray(request) ? results : results[0];
+    const data: Data = {};
+    const mutationsInfo: {
+      mutations: Obj<Mutation[]>;
+      newIds: Obj<Obj<string>>;
+    } = {
+      mutations: {},
+      newIds: {},
     };
-  };
+    const results: QueryResponse[] = await Promise.all(
+      queries.map(async ({ query, variables, normalize }) => {
+        if (query === '{ SCHEMA }') {
+          return {
+            data: JSON.stringify(
+              typeFields,
+              (_, v) => (typeof v === 'function' ? true : v),
+            ),
+          };
+        }
 
-  let currentApi = buildApi();
-  function api(request: QueryRequest, context?: any): Promise<QueryResponse>;
-  function api(
-    request: QueryRequest[],
-    context?: any,
-  ): Promise<QueryResponse[]>;
-  function api(request: QueryRequest | QueryRequest[], context?: any) {
-    return currentApi(request, context);
+        const queryDoc = parse(query);
+        const { data: result, errors } = await execute(
+          graphQLSchema,
+          queryDoc,
+          null,
+          { ...context, rootQuery: query, mutationsInfo },
+          variables,
+        );
+        if (errors) {
+          console.log(errors);
+          return {};
+        }
+        return normalize
+          ? normalizeResult(typeFields, data, queryDoc, variables, result!)
+          : { data: result };
+      }),
+    );
+
+    if (onMutate && Object.keys(mutationsInfo.mutations).length > 0) {
+      await onMutate(mutationsInfo.mutations);
+    }
+    const firstNormalize = queries.findIndex(({ normalize }) => !!normalize);
+    if (firstNormalize !== -1) {
+      results[firstNormalize].data = data;
+      results[firstNormalize].newIds = mutationsInfo.newIds;
+    }
+    return Array.isArray(request) ? results : results[0];
   }
 
-  return {
-    api,
-    async alter(type: string, field: string, info: Field | null) {
-      if (info) {
-        if (schemaFields[type] && schemaFields[type][field]) {
-          throw new Error('Field already exists');
-        }
-        const id = schemaConnector.newId();
-        await schemaConnector.insert(id, { root: type, name: field, ...info });
-        if (!schemaFields[type]) {
-          schemaFields[type] = schemaFields[type] || {};
-          alterSchema(type);
-        }
-        schemaFields[type][field] = { id, ...info };
-        const dbField = toDbField(info);
-        if (dbField) alterSchema(type, field, dbField);
-      } else {
-        if (!(schemaFields[type] && schemaFields[type][field])) {
-          throw new Error('No field to delete');
-        }
-        await schemaConnector.delete(schemaFields[type][field].id);
-        delete schemaFields[type][field];
-        if (Object.keys(schemaFields[type]).length === 0) {
-          delete schemaFields[type];
-          alterSchema(type, null);
-        } else {
-          alterSchema(type, field, null);
-        }
+  const alter = async (type: string, field: string, info: Field | null) => {
+    const schema = await getSchema(connectors);
+    if (info) {
+      if (schema.fields[type] && schema.fields[type][field]) {
+        throw new Error('Field already exists');
       }
-      currentApi = buildApi();
-    },
+      const id = schema.connector.newId();
+      await schema.connector.insert(id, { root: type, name: field, ...info });
+      if (!schema.fields[type]) {
+        schema.fields[type] = {};
+        await alterSchema(type);
+      }
+      schema.fields[type][field] = { id, ...info };
+      const dbField = toDbField(info);
+      if (dbField) await alterSchema(type, field, dbField);
+    } else {
+      if (!(schema.fields[type] && schema.fields[type][field])) {
+        throw new Error('No field to delete');
+      }
+      await schema.connector.delete(schema.fields[type][field].id);
+      delete schema.fields[type][field];
+      if (Object.keys(schema.fields[type]).length === 0) {
+        delete schema.fields[type];
+        await alterSchema(type, null);
+      } else {
+        await alterSchema(type, field, null);
+      }
+    }
   };
+
+  return { api, alter };
 }
