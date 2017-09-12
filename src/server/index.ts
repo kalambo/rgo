@@ -14,6 +14,7 @@ import {
   GraphQLString,
   parse,
 } from 'graphql';
+import * as ajv from 'ajv';
 
 import {
   Data,
@@ -21,6 +22,7 @@ import {
   fieldIs,
   ForeignRelationField,
   keysToObject,
+  noUndef,
   Obj,
   parseArgs,
   QueryRequest,
@@ -80,7 +82,15 @@ const getSchema = async (
     fields: (await schemaConnector.dump()).reduce(
       (res, { root, name, ...info }) => ({
         ...res,
-        [root]: { ...res[root] || {}, [name]: info },
+        [root]: {
+          ...res[root] || {},
+          [name]: keysToObject(
+            Object.keys(info).filter(
+              k => info[k] !== undefined && info[k] !== null,
+            ),
+            k => info[k],
+          ),
+        },
       }),
       {},
     ) as Obj<Obj<{ id: string } & Field>>,
@@ -119,7 +129,10 @@ export default async function buildServer(
       id: { scalar: 'string' },
       createdat: { scalar: 'date' },
       modifiedat: { scalar: 'date' },
-      ...schema.fields[type],
+      ...keysToObject(Object.keys(schema.fields[type]), fieldName => {
+        const { id, ...field } = schema.fields[type][fieldName];
+        return field;
+      }),
     }));
     const typeConnectors = keysToObject(typeNames, type =>
       connectors(
@@ -351,7 +364,7 @@ export default async function buildServer(
               type: new GraphQLList(new GraphQLNonNull(inputTypes[type])),
             })),
             async resolve(_root, args, context) {
-              return mutate(schema.fields, typeConnectors, args, context);
+              return mutate(typeFields, typeConnectors, args, context);
             },
           },
         },
@@ -372,10 +385,7 @@ export default async function buildServer(
       queries.map(async ({ query, variables, normalize }) => {
         if (query === '{ SCHEMA }') {
           return {
-            data: JSON.stringify(
-              typeFields,
-              (_, v) => (typeof v === 'function' ? true : v),
-            ),
+            data: JSON.stringify(typeFields),
           };
         }
 
@@ -410,19 +420,111 @@ export default async function buildServer(
 
   const alter = async (type: string, field: string, info: Field | null) => {
     const schema = await getSchema(connectors);
+
+    const validator = new ajv().compile({
+      type: 'object',
+      properties: {
+        scalar: {
+          enum: [
+            null,
+            'boolean',
+            'int',
+            'float',
+            'string',
+            'date',
+            'file',
+            'json',
+          ],
+        },
+        isList: { enum: [null, true] },
+        rules: {
+          oneOf: [
+            { type: 'null' },
+            {
+              type: 'object',
+              properties: {
+                equals: {},
+                email: { enum: [true] },
+                url: { enum: [true] },
+                maxWords: { type: 'integer' },
+                minChoices: { type: 'integer' },
+                maxChoices: { type: 'integer' },
+                lt: { type: 'string' },
+                gt: { type: 'string' },
+                options: { type: 'array' },
+              },
+              minProperties: 1,
+              additionalProperties: false,
+            },
+          ],
+        },
+        type: { enum: [null, ...Object.keys(schema.fields)] },
+        foreign: { type: ['null', 'string'] },
+      },
+      additionalProperties: false,
+    });
+    const isValidField = (field: any) =>
+      validator(field) &&
+      ((field.scalar && !(field.type || field.foreign)) ||
+        (field.type &&
+          !(field.scalar || field.rules || (field.isList && field.foreign))));
+
     if (info) {
       if (schema.fields[type] && schema.fields[type][field]) {
-        throw new Error('Field already exists');
+        ['scalar', 'isList', 'type', 'foreign'].forEach(key => {
+          if (
+            info[key] !== undefined &&
+            info[key] !== noUndef(schema.fields[type][field][key])
+          ) {
+            throw new Error(`Cannot change "${key}"`);
+          }
+        });
+        const newInfo = {
+          ...schema.fields[type][field],
+          ...info,
+          rules: (info as any).rules && {
+            ...(schema.fields[type][field] as any).rules || {},
+            ...(info as any).rules || {},
+          },
+        };
+        delete newInfo.id;
+        newInfo.rules = keysToObject(
+          Object.keys(newInfo.rules || {}).filter(
+            k => newInfo.rules[k] !== null && newInfo.rules[k] !== undefined,
+          ),
+          k => newInfo.rules[k],
+        );
+        if (Object.keys(newInfo.rules).length === 0) newInfo.rules = null;
+        if (!isValidField(newInfo)) {
+          throw new Error('Invalid field info');
+        }
+        try {
+          await schema.connector.update(schema.fields[type][field].id, newInfo);
+        } catch {
+          throw new Error('Error modifying field');
+        }
+      } else {
+        if (!isValidField(info)) {
+          throw new Error('Invalid field info');
+        }
+        const id = schema.connector.newId();
+        try {
+          await schema.connector.insert(id, {
+            root: type,
+            name: field,
+            ...info,
+          });
+        } catch {
+          throw new Error('Error creating field');
+        }
+        if (!schema.fields[type]) {
+          schema.fields[type] = {};
+          await alterSchema(type);
+        }
+        schema.fields[type][field] = { id, ...info };
+        const dbField = toDbField(info);
+        if (dbField) await alterSchema(type, field, dbField);
       }
-      const id = schema.connector.newId();
-      await schema.connector.insert(id, { root: type, name: field, ...info });
-      if (!schema.fields[type]) {
-        schema.fields[type] = {};
-        await alterSchema(type);
-      }
-      schema.fields[type][field] = { id, ...info };
-      const dbField = toDbField(info);
-      if (dbField) await alterSchema(type, field, dbField);
     } else {
       if (!(schema.fields[type] && schema.fields[type][field])) {
         throw new Error('No field to delete');

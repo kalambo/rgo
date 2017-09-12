@@ -28,15 +28,15 @@ export default {
     sequelize: Sequelize.Sequelize,
     tableName: string,
     newId: () => string,
-    fields: Obj<DbField>,
+    fieldsTypes: Obj<DbField>,
   ): Connector {
     const model = sequelize.define(
       tableName,
       {
-        ...keysToObject(Object.keys(fields), f => ({
-          type: fields[f].isList
-            ? Sequelize.ARRAY(scalarTypes[fields[f].scalar])
-            : scalarTypes[fields[f].scalar],
+        ...keysToObject(Object.keys(fieldsTypes), f => ({
+          type: fieldsTypes[f].isList
+            ? Sequelize.ARRAY(scalarTypes[fieldsTypes[f].scalar])
+            : scalarTypes[fieldsTypes[f].scalar],
         })),
         id: { type: Sequelize.TEXT, primaryKey: true },
       },
@@ -54,7 +54,12 @@ export default {
 
         return await model.findAll({
           where: filter,
-          order: sort,
+          order: sort.map(([field, dir]) => [
+            fieldsTypes[field].scalar === 'string' && !fieldsTypes[field].isList
+              ? sequelize.fn('lower', sequelize.col(field)) as any
+              : field,
+            dir,
+          ]),
           offset: start,
           limit: undefOr(end, end! - start),
           attributes: fields,

@@ -49,7 +49,8 @@ export interface FieldConfig {
 }
 export interface FieldState {
   scalar: ScalarName;
-  isList?: true;
+  isList: boolean;
+  rules: Rules;
   value: any;
   onChange: (value: any) => void;
   invalid: boolean;

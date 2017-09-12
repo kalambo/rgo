@@ -57,6 +57,7 @@ export async function buildClient(
   const watchFields = <T>(
     config: FieldConfig | FieldConfig[],
     getResult: (info: Obj<FieldInfo>, values: Obj) => T,
+    clear: boolean,
     listener?: (value: T) => void,
   ) => {
     return promisifyEmitter(innerListener => {
@@ -127,9 +128,11 @@ export async function buildClient(
         running = false;
         unwatch();
         if (unlisten) unlisten();
-        state.setClient(
-          allKeys.reduce((res, k) => _.set(res, k, undefined), {}),
-        );
+        if (clear) {
+          state.setClient(
+            allKeys.reduce((res, k) => _.set(res, k, undefined), {}),
+          );
+        }
       };
     }, listener);
   };
@@ -178,20 +181,27 @@ export async function buildClient(
         field,
         (info, values) => ({
           scalar: info[field.key].scalar,
-          isList: info[field.key].isList as true | undefined,
+          isList: !!info[field.key].isList,
+          rules: info[field.key].rules,
           value: values[field.key],
           onChange: value =>
-            (state.setClient as any)(...field.key.split('.'), value),
-          invalid: !(
-            (values[field.key] === null && !info[field.key].required) ||
-            validateField(
-              info[field.key].scalar,
-              info[field.key].rules,
-              values[field.key],
-              values,
-            )
-          ),
+            (state.setClient as any)(
+              ...field.key.split('.'),
+              info[field.key].rules.url
+                ? value && value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                : value,
+            ),
+          invalid:
+            values[field.key] === null
+              ? !!info[field.key].required
+              : !validateField(
+                  info[field.key].scalar,
+                  info[field.key].rules,
+                  values[field.key],
+                  values,
+                ),
         }),
+        false,
         listener,
       ) as any;
     },
@@ -211,16 +221,17 @@ export async function buildClient(
                   )
                 : true,
           );
-          const invalid = !fields.every(
+          const invalid = fields.some(
             ({ key }, i) =>
-              !active[i] ||
-              (values[key] === null && !info[key].required) ||
-              validateField(
-                info[key].scalar,
-                info[key].rules,
-                values[key],
-                values,
-              ),
+              active[i] &&
+              (values[key] === null
+                ? !!info[key].required
+                : !validateField(
+                    info[key].scalar,
+                    info[key].rules,
+                    values[key],
+                    values,
+                  )),
           );
           return {
             active,
@@ -235,6 +246,7 @@ export async function buildClient(
             },
           };
         },
+        true,
         listener,
       ) as any;
     },

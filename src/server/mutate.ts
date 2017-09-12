@@ -1,4 +1,4 @@
-import { Field, fieldIs, keysToObject, Obj } from '../core';
+import { Field, fieldIs, keysToObject, Obj, validate } from '../core';
 
 import { Connector, Mutation } from './typings';
 
@@ -49,6 +49,24 @@ export default async function mutate(
 
       const mutateArgs: Mutation = { id: mId, data, prev };
 
+      const combinedData = { ...prev, ...data };
+      for (const f of Object.keys(combinedData)) {
+        const field = fields[type][f];
+        if (
+          !fieldIs.foreignRelation(field) &&
+          !validate(
+            fieldIs.scalar(field) ? field.scalar : 'string',
+            fieldIs.scalar(field) ? field.rules : undefined,
+            combinedData[f],
+            combinedData,
+          )
+        ) {
+          const error = new Error('Invalid data') as any;
+          error.status = 401;
+          return error;
+        }
+      }
+
       // let allow = true;
       // if (data && prev && types[type].auth.update)
       //   allow = await types[type].auth.update!(userId, id, data, prev);
@@ -74,24 +92,22 @@ export default async function mutate(
       if (data) {
         const time = new Date();
 
-        // const formulae = {};
+        const fullData = {
+          ...!prev ? { createdat: time } : {},
+          modifiedat: time,
+          ...data,
+        };
+
         // const combinedData = { ...prev, ...data };
         // for (const f of Object.keys(types[type].fields)) {
         //   const field = types[type].fields[f];
         //   if (fieldIs.scalar(field) && typeof field.formula === 'function') {
-        //     formulae[f] = await field.formula(
+        //     fullData[f] = await field.formula(
         //       combinedData,
         //       connectors[type].query,
         //     );
         //   }
         // }
-
-        const fullData = {
-          ...!prev ? { createdat: time } : {},
-          modifiedat: time,
-          ...data,
-          // ...formulae,
-        };
 
         if (prev) {
           console.log(

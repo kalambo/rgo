@@ -112,7 +112,9 @@ export const promisifyEmitter = <T>(
 
 const compareValues = (a, b) => {
   if (a === b) return 0;
-  if (typeof a === 'string') return a.localeCompare(b) as 0 | 1 | -1;
+  if (typeof a === 'string' && typeof b === 'string') {
+    return a.toLowerCase().localeCompare(b.toLowerCase()) as 0 | 1 | -1;
+  }
   if (a < b) return -1;
   return 1;
 };

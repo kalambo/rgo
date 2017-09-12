@@ -10,14 +10,12 @@ const formats = {
 const isEmail = (value: any) =>
   typeof value === 'string' && formats.email.test(value);
 
-export default function validate(
+const validateSingle = (
   scalar: ScalarName,
-  rules: Rules = {},
+  rules: Rules,
   value: any,
   data: Obj,
-) {
-  if (value === null) return false;
-
+) => {
   if (scalar === 'file') {
     if (value && value.fileName && !value.fileId) return false;
   }
@@ -43,6 +41,31 @@ export default function validate(
     }
   }
 
+  if (rules.lt) {
+    const otherValue = noUndef(_.get(data, rules.lt));
+    if (otherValue !== null && value >= otherValue) return false;
+  }
+
+  if (rules.gt) {
+    const otherValue = noUndef(_.get(data, rules.gt));
+    if (otherValue !== null && value <= otherValue) return false;
+  }
+
+  if (rules.options) {
+    if (!rules.options.includes(value)) return false;
+  }
+
+  return true;
+};
+
+export default function validate(
+  scalar: ScalarName,
+  rules: Rules = {},
+  value: any,
+  data: Obj,
+) {
+  if (value === null) return true;
+
   if (rules.minChoices) {
     if (!Array.isArray(value) || value.length < rules.minChoices) {
       return false;
@@ -55,15 +78,7 @@ export default function validate(
     }
   }
 
-  if (rules.lt) {
-    const otherValue = noUndef(_.get(data, rules.lt));
-    if (otherValue !== null && value >= otherValue) return false;
-  }
-
-  if (rules.gt) {
-    const otherValue = noUndef(_.get(data, rules.gt));
-    if (otherValue !== null && value <= otherValue) return false;
-  }
-
-  return true;
+  return Array.isArray(value)
+    ? value.every(v => validateSingle(scalar, rules, v, data))
+    : validateSingle(scalar, rules, value, data);
 }

@@ -8,7 +8,13 @@ describe('fields: basic', () => {
     expect(
       JSON.stringify(await client.field({ key: 'people.A.firstname' })),
     ).toEqual(
-      JSON.stringify({ scalar: 'string', value: 'Esperanza', invalid: false }),
+      JSON.stringify({
+        scalar: 'string',
+        isList: false,
+        rules: {},
+        value: 'Esperanza',
+        invalid: false,
+      }),
     );
   });
 });

@@ -12,11 +12,13 @@ export type ScalarName =
 export interface Rules {
   equals?: any;
   email?: true;
+  url?: true;
   maxWords?: number;
   minChoices?: number;
   maxChoices?: number;
   lt?: string;
   gt?: string;
+  options?: any[];
 }
 
 export type Data = Obj<Obj<Obj | null>>;
@@ -43,11 +45,6 @@ export interface QueryArgs {
   trace?: { start: number; end?: number };
   ids?: string[];
 }
-
-// export type Formula = (
-//   obj: any,
-//   query: (args: QueryArgs) => Promise<any[]>,
-// ) => Promise<any> | any;
 
 export interface ScalarField {
   scalar: ScalarName;
