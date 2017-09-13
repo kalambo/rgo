@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 
 import { Obj, Rules, ScalarName } from './typings';
-import { noUndef } from './utils';
+import { isEmptyValue, noUndef } from './utils';
 
 const formats = {
   email: /^[a-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&''*+\/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i,
@@ -64,7 +64,7 @@ export default function validate(
   value: any,
   data: Obj,
 ) {
-  if (value === null) return true;
+  if (isEmptyValue(value)) return true;
 
   if (rules.minChoices) {
     if (!Array.isArray(value) || value.length < rules.minChoices) {

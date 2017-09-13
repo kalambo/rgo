@@ -66,7 +66,7 @@ describe('changes: root', () => {
     });
 
     let count = -1;
-    let nextLoad = false;
+    let nextLoad = true;
     client.query(
       `{
         people(sort: "firstname", skip: 1, show: 2) {

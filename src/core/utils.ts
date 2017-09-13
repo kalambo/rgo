@@ -14,6 +14,9 @@ export const isObject = v =>
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
+export const isEmptyValue = (v: any) =>
+  v === null || (Array.isArray(v) && v.length === 0);
+
 export interface MapConfig {
   valueMaps?: Obj<((value: any) => any) | true>;
   newKeys?: Obj<string>;
@@ -97,15 +100,17 @@ export const locationOf = <T>(
 ) => binarySearch(element, array, compareFunc) + 1;
 
 export const promisifyEmitter = <T>(
-  emitter: (listener: (value: T) => void) => () => void,
-  listener?: (value: T) => void,
+  emitter: (listener: (value: T | null) => void) => () => void,
+  listener?: (value: T | null) => void,
 ) => {
   if (listener) return emitter(listener);
   return new Promise<T>(resolve => {
     const unlisten = emitter(value => {
-      if (unlisten) unlisten();
-      else setTimeout(() => unlisten());
-      resolve(value);
+      if (value !== null) {
+        if (unlisten) unlisten();
+        else setTimeout(() => unlisten());
+        resolve(value);
+      }
     });
   });
 };

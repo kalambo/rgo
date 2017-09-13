@@ -100,7 +100,7 @@ describe('queries: removed', () => {
     client.set('people', 'D', null);
     client.set('people', 'E', null);
     expect(await client.query(simpleQuery)).toEqual({
-      people: null,
+      people: [],
     });
   });
 

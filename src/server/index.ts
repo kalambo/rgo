@@ -39,8 +39,6 @@ import mutate from './mutate';
 import normalizeResult from './normalize';
 import { Connector, DbField, Mutation } from './typings';
 
-const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
-
 const argTypes = {
   filter: { type: GraphQLString },
   sort: { type: GraphQLString },
@@ -161,7 +159,12 @@ export default async function buildServer(
                     ? new GraphQLNonNull(GraphQLID)
                     : scalars[field.scalar].type;
                 return {
-                  type: field.isList ? new GraphQLList(scalar) : scalar,
+                  type: field.isList
+                    ? new GraphQLNonNull(new GraphQLList(scalar))
+                    : scalar,
+                  resolve(root) {
+                    return root && (field.isList ? root[f] || [] : root[f]);
+                  },
                 };
               }
 
@@ -169,7 +172,7 @@ export default async function buildServer(
               return {
                 type:
                   fieldIs.foreignRelation(field) || field.isList
-                    ? new GraphQLList(relQueryType)
+                    ? new GraphQLNonNull(new GraphQLList(relQueryType))
                     : relQueryType,
                 args:
                   fieldIs.relation(field) && !field.isList
@@ -225,26 +228,22 @@ export default async function buildServer(
                           return results.find(r => r.id === root[f]);
                         }
                         if (args.sort) {
-                          return nullIfEmpty(
-                            results
-                              .filter(r => root[f].includes(r.id))
-                              .slice(authArgs.start, authArgs.end),
-                          );
+                          return results
+                            .filter(r => root[f].includes(r.id))
+                            .slice(authArgs.start, authArgs.end);
                         }
                         return root[f]
                           .slice(authArgs.start, authArgs.end)
                           .map(id => results.find(r => r.id === id));
                       }
-                      return nullIfEmpty(
-                        results
-                          .filter(
-                            r =>
-                              Array.isArray(r[relField])
-                                ? r[relField].includes(root.id)
-                                : r[relField] === root.id,
-                          )
-                          .slice(authArgs.start, authArgs.end),
-                      );
+                      return results
+                        .filter(
+                          r =>
+                            Array.isArray(r[relField])
+                              ? r[relField].includes(root.id)
+                              : r[relField] === root.id,
+                        )
+                        .slice(authArgs.start, authArgs.end);
                     });
                   },
                 ),
@@ -299,9 +298,7 @@ export default async function buildServer(
               info: GraphQLResolveInfo,
             ) {
               if (args.ids) {
-                return nullIfEmpty(
-                  await typeConnectors[type].findByIds(args.ids),
-                );
+                return await typeConnectors[type].findByIds(args.ids);
               } else {
                 const queryArgs = parseArgs(
                   args,
@@ -317,33 +314,31 @@ export default async function buildServer(
                 //   : queryArgs;
 
                 if (authArgs.trace) {
-                  return nullIfEmpty(
-                    (await Promise.all([
-                      authArgs.start === authArgs.trace.start
-                        ? []
-                        : typeConnectors[type].query({
-                            ...authArgs,
-                            end: authArgs.trace.start,
-                          }),
-                      typeConnectors[type].query({
-                        ...authArgs,
-                        start: authArgs.trace.start,
-                        end: authArgs.trace.end,
-                        fields: ['id'],
-                      }),
-                      authArgs.trace.end === undefined ||
-                      (authArgs.end !== undefined &&
-                        authArgs.end === authArgs.trace.end)
-                        ? []
-                        : typeConnectors[type].query({
-                            ...authArgs,
-                            start: authArgs.trace.end,
-                          }),
-                    ])).reduce((res, records) => res.concat(records), []),
-                  );
+                  return (await Promise.all([
+                    authArgs.start === authArgs.trace.start
+                      ? []
+                      : typeConnectors[type].query({
+                          ...authArgs,
+                          end: authArgs.trace.start,
+                        }),
+                    typeConnectors[type].query({
+                      ...authArgs,
+                      start: authArgs.trace.start,
+                      end: authArgs.trace.end,
+                      fields: ['id'],
+                    }),
+                    authArgs.trace.end === undefined ||
+                    (authArgs.end !== undefined &&
+                      authArgs.end === authArgs.trace.end)
+                      ? []
+                      : typeConnectors[type].query({
+                          ...authArgs,
+                          start: authArgs.trace.end,
+                        }),
+                  ])).reduce((res, records) => res.concat(records), []);
                 }
 
-                return nullIfEmpty(await typeConnectors[type].query(authArgs));
+                return await typeConnectors[type].query(authArgs);
               }
             },
           })),
@@ -357,7 +352,9 @@ export default async function buildServer(
             type: new GraphQLObjectType({
               name: 'MutationResult',
               fields: keysToObject(typeNames, type => ({
-                type: new GraphQLList(new GraphQLNonNull(queryTypes[type])),
+                type: new GraphQLNonNull(
+                  new GraphQLList(new GraphQLNonNull(queryTypes[type])),
+                ),
               })),
             }),
             args: keysToObject(typeNames, type => ({

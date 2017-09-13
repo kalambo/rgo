@@ -72,12 +72,15 @@ export interface Client {
   newId: (type: string) => string;
 
   field(field: FieldConfig): Promise<FieldState>;
-  field(field: FieldConfig, listener: (value: FieldState) => void): () => void;
+  field(
+    field: FieldConfig,
+    listener: (value: FieldState | null) => void,
+  ): () => void;
 
   fields(fields: FieldConfig[]): Promise<FieldsState>;
   fields(
     fields: FieldConfig[],
-    listener: (value: FieldsState) => void,
+    listener: (value: FieldsState | null) => void,
   ): () => void;
 
   query(queryString: string, options?: QueryOptions): Promise<Obj>;

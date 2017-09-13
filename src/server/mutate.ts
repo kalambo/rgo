@@ -52,18 +52,22 @@ export default async function mutate(
       const combinedData = { ...prev, ...data };
       for (const f of Object.keys(combinedData)) {
         const field = fields[type][f];
-        if (
-          !fieldIs.foreignRelation(field) &&
-          !validate(
-            fieldIs.scalar(field) ? field.scalar : 'string',
-            fieldIs.scalar(field) ? field.rules : undefined,
-            combinedData[f],
-            combinedData,
-          )
-        ) {
-          const error = new Error('Invalid data') as any;
-          error.status = 401;
-          return error;
+        if (!fieldIs.foreignRelation(field)) {
+          if (
+            !validate(
+              fieldIs.scalar(field) ? field.scalar : 'string',
+              fieldIs.scalar(field) ? field.rules : undefined,
+              combinedData[f],
+              combinedData,
+            )
+          ) {
+            const error = new Error('Invalid data') as any;
+            error.status = 401;
+            return error;
+          }
+          if (field.isList && data && data[f] && data[f].length === 0) {
+            data[f] = null;
+          }
         }
       }
 

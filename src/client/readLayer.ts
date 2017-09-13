@@ -14,7 +14,7 @@ import { ClientState, DataChanges, QueryLayer } from './typings';
 const isOrIncludes = <T>(value: T | T[], elem: T) =>
   Array.isArray(value) ? value.includes(elem) : value === elem;
 
-const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
+// const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
 
 export default function readLayer(
   {
@@ -107,7 +107,8 @@ export default function readLayer(
     }
 
     if (rootRecordIds[rootId].length === 0) {
-      rootRecords[rootId][root.field] = null;
+      rootRecords[rootId][root.field] =
+        fieldIs.foreignRelation(field) || field.isList ? [] : null;
     } else if (fieldIs.relation(field) && field.isList && !args.sort.length) {
       rootRecords[rootId][root.field] = rootRecordIds[rootId].map(getRecord);
     } else if (fieldIs.foreignRelation(field) || field.isList) {
@@ -152,14 +153,12 @@ export default function readLayer(
           }
         }
       }
-      rootRecords[rootId][root.field] = nullIfEmpty(
-        rootRecordIds[rootId]
-          .slice(
-            sliceStarts[rootId],
-            undefOr(args.end, sliceStarts[rootId] + args.end! - args.start),
-          )
-          .map(getRecord),
-      );
+      rootRecords[rootId][root.field] = rootRecordIds[rootId]
+        .slice(
+          sliceStarts[rootId],
+          undefOr(args.end, sliceStarts[rootId] + args.end! - args.start),
+        )
+        .map(getRecord);
     } else {
       rootRecords[rootId][root.field] = getRecord(
         rootRecordIds[rootId][0] || null,

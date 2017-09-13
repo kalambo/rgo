@@ -33,9 +33,6 @@ const mutationFields = (mutations: Obj[], schemaType: Obj<Field>) =>
     ...Object.keys(schemaType).filter(f => {
       const field = schemaType[f];
       return fieldIs.foreignRelation(field);
-      // return fieldIs.scalar(field)
-      //   ? !!field.formula
-      //   : fieldIs.foreignRelation(field);
     }),
     'modifiedat',
   ].map(f => (fieldIs.scalar(schemaType[f]) ? f : `${f} { id }`));
@@ -162,7 +159,7 @@ export default function createFetcher(
   return {
     process,
 
-    addFields(keys: string[], onReady: () => void) {
+    addFields(keys: string[], onReady: (isLoading?: boolean) => void) {
       let alreadyLoaded = true;
       const splitKeys = keys
         .map(k => k.split('.'))
@@ -180,7 +177,8 @@ export default function createFetcher(
         fieldsMap[type][id][field]++;
       }
       if (!alreadyLoaded) {
-        nextListeners.push(onReady);
+        nextListeners.push(() => onReady());
+        onReady(true);
         process();
       } else {
         onReady();
@@ -283,6 +281,7 @@ export default function createFetcher(
           }
           if (!queryListeners[queryIndex]) {
             queryListeners[queryIndex] = onLoad;
+            onClear();
             process();
           }
         }

@@ -7,6 +7,7 @@ import {
   Data,
   Field,
   fieldIs,
+  isEmptyValue,
   keysToObject,
   noUndef,
   Obj,
@@ -58,7 +59,7 @@ export async function buildClient(
     config: FieldConfig | FieldConfig[],
     getResult: (info: Obj<FieldInfo>, values: Obj) => T,
     clear: boolean,
-    listener?: (value: T) => void,
+    listener?: (value: T | null) => void,
   ) => {
     return promisifyEmitter(innerListener => {
       const configArray = Array.isArray(config) ? config : [config];
@@ -95,34 +96,42 @@ export async function buildClient(
 
       let running = true;
       let unlisten;
-      const unwatch = fetcher.addFields(allKeys, () => {
-        allKeys
-          .map(k => configArray.find(({ key }) => key === k)!)
-          .filter(x => x && x.default !== undefined)
-          .forEach(({ key, default: defaultValue }) => {
-            const value = noUndef(_.get(state.combined, key));
-            if (value === null)
-              (state.setClient as any)(...key.split('.'), defaultValue);
-          });
-        const values = keysToObject(allKeys, key =>
-          noUndef(_.get(state.combined, key)),
-        );
-        if (running) innerListener(getResult(info, values));
-        unlisten =
-          allKeys.length === 1
-            ? state.watch(allKeys[0], value => {
-                values[allKeys[0]] = value;
-                if (running) innerListener(getResult(info, values));
-              })
-            : state.watch(({ changes, changedData }) => {
-                const changedKeys = allKeys.filter(key => _.get(changes, key));
-                if (changedKeys.length > 0) {
-                  for (const key of changedKeys) {
-                    values[key] = _.get(changedData, key);
-                  }
-                  if (running) innerListener(getResult(info, values));
-                }
+      const unwatch = fetcher.addFields(allKeys, isLoading => {
+        if (running) {
+          if (isLoading) {
+            innerListener(null);
+          } else {
+            allKeys
+              .map(k => configArray.find(({ key }) => key === k)!)
+              .filter(x => x && x.default !== undefined)
+              .forEach(({ key, default: defaultValue }) => {
+                const value = noUndef(_.get(state.combined, key));
+                if (value === null)
+                  (state.setClient as any)(...key.split('.'), defaultValue);
               });
+            const values = keysToObject(allKeys, key =>
+              noUndef(_.get(state.combined, key)),
+            );
+            innerListener(getResult(info, values));
+            unlisten =
+              allKeys.length === 1
+                ? state.watch(allKeys[0], value => {
+                    values[allKeys[0]] = value;
+                    if (running) innerListener(getResult(info, values));
+                  })
+                : state.watch(({ changes, changedData }) => {
+                    const changedKeys = allKeys.filter(key =>
+                      _.get(changes, key),
+                    );
+                    if (changedKeys.length > 0) {
+                      for (const key of changedKeys) {
+                        values[key] = _.get(changedData, key);
+                      }
+                      if (running) innerListener(getResult(info, values));
+                    }
+                  });
+          }
+        }
       });
       return () => {
         running = false;
@@ -176,7 +185,7 @@ export async function buildClient(
 
     newId: state.newId.bind(state),
 
-    field(field: FieldConfig, listener?: (value: FieldState) => void) {
+    field(field: FieldConfig, listener?: (value: FieldState | null) => void) {
       return watchFields(
         field,
         (info, values) => ({
@@ -191,15 +200,14 @@ export async function buildClient(
                 ? value && value.toLowerCase().replace(/[^a-z0-9-]/g, '')
                 : value,
             ),
-          invalid:
-            values[field.key] === null
-              ? !!info[field.key].required
-              : !validateField(
-                  info[field.key].scalar,
-                  info[field.key].rules,
-                  values[field.key],
-                  values,
-                ),
+          invalid: isEmptyValue(values[field.key])
+            ? !!info[field.key].required
+            : !validateField(
+                info[field.key].scalar,
+                info[field.key].rules,
+                values[field.key],
+                values,
+              ),
         }),
         false,
         listener,
@@ -208,7 +216,9 @@ export async function buildClient(
 
     fields(
       fields: FieldConfig[],
-      listener?: (value: { invalid: boolean; active: boolean[] }) => void,
+      listener?: (
+        value: { invalid: boolean; active: boolean[] } | null,
+      ) => void,
     ) {
       return watchFields(
         fields,
@@ -224,7 +234,7 @@ export async function buildClient(
           const invalid = fields.some(
             ({ key }, i) =>
               active[i] &&
-              (values[key] === null
+              (isEmptyValue(values[key])
                 ? !!info[key].required
                 : !validateField(
                     info[key].scalar,
