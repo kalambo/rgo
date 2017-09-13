@@ -401,17 +401,20 @@ export default async function buildServer(
               },
             },
             async resolve(_, { type, field, info }) {
+              const t = type.toLowerCase();
+              const f = field.toLowerCase();
+
               if (!info) {
-                if (!(schema.fields[type] && schema.fields[type][field])) {
+                if (!(schema.fields[t] && schema.fields[t][f])) {
                   throw new Error('No field to delete');
                 }
-                await schema.connector.delete(schema.fields[type][field].id);
-                delete schema.fields[type][field];
-                if (Object.keys(schema.fields[type]).length === 0) {
-                  delete schema.fields[type];
-                  await alterSchema(type, null);
+                await schema.connector.delete(schema.fields[t][f].id);
+                delete schema.fields[t][f];
+                if (Object.keys(schema.fields[t]).length === 0) {
+                  delete schema.fields[t];
+                  await alterSchema(t, null);
                 } else {
-                  await alterSchema(type, field, null);
+                  await alterSchema(t, f, null);
                 }
                 return 'Field successfully deleted';
               }
@@ -446,43 +449,43 @@ export default async function buildServer(
                 });
               }
 
-              if (!schema.fields[type] || !schema.fields[type][field]) {
+              if (!schema.fields[t] || !schema.fields[t][f]) {
                 if (!isValidField(info)) {
                   throw new Error('Invalid field info');
                 }
                 const id = schema.connector.newId();
                 try {
                   await schema.connector.insert(id, {
-                    root: type,
-                    name: field,
+                    root: t,
+                    name: f,
                     ...info,
                   });
                 } catch {
                   throw new Error('Error creating field');
                 }
-                if (!schema.fields[type]) {
-                  schema.fields[type] = {};
-                  await alterSchema(type);
+                if (!schema.fields[t]) {
+                  schema.fields[t] = {};
+                  await alterSchema(t);
                 }
-                schema.fields[type][field] = { id, ...info };
+                schema.fields[t][f] = { id, ...info };
                 const dbField = toDbField(info);
-                if (dbField) await alterSchema(type, field, dbField);
+                if (dbField) await alterSchema(t, f, dbField);
                 return 'Field successfully created';
               }
 
               ['scalar', 'isList', 'type', 'foreign'].forEach(key => {
                 if (
                   info[key] !== undefined &&
-                  info[key] !== noUndef(schema.fields[type][field][key])
+                  info[key] !== noUndef(schema.fields[t][f][key])
                 ) {
                   throw new Error(`Cannot change "${key}"`);
                 }
               });
               const newInfo = {
-                ...schema.fields[type][field],
+                ...schema.fields[t][f],
                 ...info,
                 rules: (info as any).rules && {
-                  ...(schema.fields[type][field] as any).rules || {},
+                  ...(schema.fields[t][f] as any).rules || {},
                   ...(info as any).rules || {},
                 },
               };
@@ -499,10 +502,7 @@ export default async function buildServer(
                 throw new Error('Invalid field info');
               }
               try {
-                await schema.connector.update(
-                  schema.fields[type][field].id,
-                  newInfo,
-                );
+                await schema.connector.update(schema.fields[t][f].id, newInfo);
               } catch {
                 throw new Error('Error modifying field');
               }

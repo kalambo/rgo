@@ -227,7 +227,10 @@ export async function buildClient(
             ({ key }) =>
               info[key].showIf
                 ? Object.keys(info[key].showIf!).every(
-                    k => values[k] === info[key].showIf![k],
+                    k =>
+                      values[k] === info[key].showIf![k] ||
+                      (Array.isArray(info[key].showIf![k]) &&
+                        info[key].showIf![k].includes(values[k])),
                   )
                 : true,
           );
