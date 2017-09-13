@@ -1,4 +1,5 @@
 import * as fetchMock from 'fetch-mock';
+import * as uuid from 'uuid/v1';
 
 import { buildClient, buildServer, Client, connectors } from '../../src';
 
@@ -21,6 +22,7 @@ export const setupClient = async () => {
     (_, type) =>
       db[type] ||
       (db[type] = connectors.memory(
+        uuid,
         Object.keys(baseData[type || 'schema']).map(id => ({
           id,
           ...baseData[type || 'schema'][id],
@@ -31,7 +33,7 @@ export const setupClient = async () => {
   fetchMock.post(domain, async (_, opts) => {
     const queries = JSON.parse(opts.body);
     // console.log(JSON.stringify(queries, null, 2));
-    const result = await server.api(queries);
+    const result = await server(queries);
     // console.log(JSON.stringify(result, null, 2));
     return result;
   });

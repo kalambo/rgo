@@ -260,7 +260,13 @@ export default function createFetcher(
               };
               const printedArgs = Object.keys(mappedArgs)
                 .filter(k => mappedArgs[k] !== undefined)
-                .map(k => `${k}: ${JSON.stringify(mappedArgs[k])}`);
+                .map(
+                  k =>
+                    `${k}: ${JSON.stringify(mappedArgs[k]).replace(
+                      /\"([^(\")"]+)\":/g,
+                      '$1:',
+                    )}`,
+                );
               nextQueries[queryIndex].slice[path] = {
                 start: args.start,
                 end: args.end,

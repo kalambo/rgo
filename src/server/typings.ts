@@ -6,7 +6,6 @@ export interface DbField {
 }
 
 export interface Connector {
-  sync?: () => Promise<void>;
   newId: () => string;
 
   query: (args: QueryArgs) => Promise<any[]>;

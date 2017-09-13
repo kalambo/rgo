@@ -1,15 +1,17 @@
 import * as _ from 'lodash';
-import * as uuid from 'uuid/v1';
 
 import { createCompare, Obj, runFilter } from '../../core';
 
 import { Connector } from '../typings';
 
-export default function memoryConnector(initialData: Obj[] = []): Connector {
+export default function memoryConnector(
+  newId: () => string,
+  initialData: Obj[] = [],
+): Connector {
   const records = initialData;
 
   return {
-    newId: () => uuid(),
+    newId,
 
     async query({ filter = {}, sort = [], start = 0, end }) {
       if (start === end) return [];

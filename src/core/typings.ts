@@ -1,3 +1,5 @@
+import { GraphQLError } from 'graphql';
+
 export type Obj<T = any> = { [key: string]: T };
 
 export type ScalarName =
@@ -87,6 +89,7 @@ export interface QueryRequest {
 
 export interface QueryResponse {
   data?: any;
+  errors?: GraphQLError[];
   firstIds?: Obj<Obj<string>>;
   newIds?: Obj<Obj<string>>;
 }
