@@ -1,6 +1,6 @@
 import { Field, fieldIs, keysToObject, Obj, validate } from '../core';
 
-import { Connector, Mutation } from './typings';
+import { AuthConfig, Connector, Mutation } from './typings';
 
 export default async function mutate(
   fields: Obj<Obj<Field>>,
@@ -13,6 +13,7 @@ export default async function mutate(
     userId: string | null;
     mutationsInfo: { mutations: Obj<Mutation[]>; newIds: Obj<Obj<string>> };
   },
+  auth?: AuthConfig,
 ) {
   const typeNames = Object.keys(args);
 
@@ -21,12 +22,12 @@ export default async function mutate(
     args[type]
       .map(m => m.id)
       .filter(id => id[0] === '$')
-      .forEach(
-        id => (mutationsInfo.newIds[type][id] = connectors[type].newId()),
-      );
+      .forEach(id => {
+        mutationsInfo.newIds[type][id] = connectors[type].newId();
+      });
   }
   const getId = (type: string, id: string) =>
-    ({ ...mutationsInfo.newIds[type] || {}, $user: userId || '' }[id] || id);
+    ({ ...(mutationsInfo.newIds[type] || {}), $user: userId || '' }[id] || id);
 
   const mutations = keysToObject(typeNames, () => [] as Mutation[]);
   for (const type of typeNames) {
@@ -47,7 +48,11 @@ export default async function mutate(
         (id === mId && (await connectors[type].findById(mId))) || null;
       if (prev) delete prev.id;
 
-      const mutateArgs: Mutation = { id: mId, data, prev };
+      if (auth && type === auth.type && data && data[auth.usernameField]) {
+        const { username, password } = JSON.parse(data[auth.usernameField]);
+        data[auth.usernameField] = username;
+        if (!prev || !prev[auth.authIdField]) data[auth.authIdField] = password;
+      }
 
       const combinedData = { ...prev, ...data };
       for (const f of Object.keys(combinedData)) {
@@ -85,7 +90,7 @@ export default async function mutate(
       //   return error;
       // }
 
-      mutations[type].push(mutateArgs);
+      mutations[type].push({ id: mId, data, prev });
     }
   }
 
@@ -95,12 +100,22 @@ export default async function mutate(
     for (const { id, data, prev } of mutations[type]) {
       if (data) {
         const time = new Date();
-
         const fullData = {
           ...!prev ? { createdat: time } : {},
           modifiedat: time,
           ...data,
         };
+
+        if (auth && type === auth.type && fullData[auth.authIdField]) {
+          const username = fullData[auth.usernameField];
+          const password = fullData[auth.authIdField];
+          fullData[auth.authIdField] = await auth.create(
+            username,
+            password,
+            id,
+          );
+          mutationsInfo.newIds['$user'] = { username, password };
+        }
 
         // const combinedData = { ...prev, ...data };
         // for (const f of Object.keys(types[type].fields)) {

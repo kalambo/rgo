@@ -14,6 +14,12 @@ import ClientState from './clientState';
 
 export type AuthFetch = (url: string, body: any) => Promise<any>;
 
+export interface AuthState {
+  id: string;
+  token: string;
+  refresh?: string;
+}
+
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 
 export type DataChanges = Obj<Obj<Obj<true>>>;
@@ -67,9 +73,11 @@ export interface QueryOptions {
 }
 
 export interface Client {
-  types: Obj<Obj<string>>;
-
-  newId: (type: string) => string;
+  ready(): Promise<void>;
+  types(): Obj<Obj<string>>;
+  newId(type: string): string;
+  login(username: string, password: string): Promise<void>;
+  logout(authToken: string): Promise<void>;
 
   field(field: FieldConfig): Promise<FieldState>;
   field(

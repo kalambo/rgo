@@ -41,7 +41,7 @@ export default function normalize(
         record =>
           record &&
           (data[type][record.id] = {
-            ...data[type][record.id] || {},
+            ...(data[type][record.id] || {}),
             ...keysToObject(scalarFields, f => record[f]),
             ...keysToObject(
               relationFields,
@@ -99,7 +99,7 @@ export default function normalize(
             args.trace.end === undefined ||
             index >= args.trace.end) &&
           (data[field.type][record.id] = {
-            ...data[field.type][record.id] || {},
+            ...(data[field.type][record.id] || {}),
             ...keysToObject(scalarFields, f => record[f]),
             ...keysToObject(
               relationFields,
@@ -108,8 +108,8 @@ export default function normalize(
           }),
       );
       if (firstIds[path]) {
-        firstIds[path][rootId] = (queryResults[rootId][args.offset || 0] ||
-          {}).id;
+        firstIds[path][rootId] = (queryResults[rootId][args.offset || 0] || {}
+        ).id;
       }
     });
 

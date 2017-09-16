@@ -15,6 +15,7 @@ import {
   GraphQLString,
   parse,
 } from 'graphql';
+import * as _ from 'lodash';
 
 import {
   Data,
@@ -32,7 +33,7 @@ import {
 import batch from './batch';
 import mutate from './mutate';
 import normalizeResult from './normalize';
-import { Connector, DbField, Mutation } from './typings';
+import { AuthConfig, Connector, DbField, Mutation } from './typings';
 
 const argTypes = {
   filter: { type: GraphQLString },
@@ -80,7 +81,7 @@ const getSchema = async (
       (res, { root, name, ...info }) => ({
         ...res,
         [root]: {
-          ...res[root] || {},
+          ...(res[root] || {}),
           [name]: keysToObject(
             Object.keys(info).filter(
               k => info[k] !== undefined && info[k] !== null,
@@ -101,25 +102,28 @@ export default async function buildServer(
     field?: string | null,
     info?: DbField | null,
   ) => void | Promise<void>,
-  onMutate?: (mutations: Obj<Mutation[]>) => void | Promise<void>,
+  options: {
+    auth?: AuthConfig;
+    onMutate?: (mutations: Obj<Mutation[]>) => void | Promise<void>;
+  } = {},
 ) {
   async function api(
     request: QueryRequest,
-    context?: any,
+    authHeader?: string,
   ): Promise<QueryResponse>;
   async function api(
     request: QueryRequest[],
-    context?: any,
+    authHeader?: string,
   ): Promise<QueryResponse[]>;
-  async function api(request: QueryRequest | QueryRequest[], context?: any) {
+  async function api(
+    request: QueryRequest | QueryRequest[],
+    authHeader?: string,
+  ) {
     const schema = await getSchema(connectors);
     const typeNames = Object.keys(schema.fields);
 
     if (typeNames.length === 0) {
-      return async (request: QueryRequest | QueryRequest[], context?: any) => {
-        ((...x) => x)(context);
-        return Array.isArray(request) ? request.map(() => ({})) : {};
-      };
+      return Array.isArray(request) ? request.map(() => ({})) : {};
     }
 
     const typeFields = keysToObject<string, Obj<Field>>(typeNames, type => ({
@@ -284,7 +288,15 @@ export default async function buildServer(
         fields: {
           SCHEMA: {
             type: new GraphQLNonNull(scalars.json.type),
-            resolve: () => typeFields,
+            resolve: () => {
+              if (!options.auth) return typeFields;
+              const result = _.cloneDeep(typeFields);
+              (result[options.auth.type][
+                options.auth.usernameField
+              ] as any).scalar =
+                'auth';
+              return result;
+            },
           },
           ...keysToObject(typeNames, type => ({
             type: new GraphQLList(new GraphQLNonNull(queryTypes[type])),
@@ -364,10 +376,16 @@ export default async function buildServer(
               type: new GraphQLList(new GraphQLNonNull(inputTypes[type])),
             })),
             async resolve(_root, args, context) {
-              return mutate(typeFields, typeConnectors, args, context);
+              return mutate(
+                typeFields,
+                typeConnectors,
+                args,
+                context,
+                options.auth,
+              );
             },
           },
-          SCHEMA: {
+          schema: {
             type: new GraphQLNonNull(GraphQLString),
             args: {
               type: { type: new GraphQLNonNull(GraphQLString) },
@@ -485,8 +503,8 @@ export default async function buildServer(
                 ...schema.fields[t][f],
                 ...info,
                 rules: (info as any).rules && {
-                  ...(schema.fields[t][f] as any).rules || {},
-                  ...(info as any).rules || {},
+                  ...((schema.fields[t][f] as any).rules || {}),
+                  ...((info as any).rules || {}),
                 },
               };
               delete newInfo.id;
@@ -510,11 +528,34 @@ export default async function buildServer(
               return 'Field successfully altered';
             },
           },
+          // login: {
+          //   type: new GraphQLObjectType({
+          //     name: 'Auth',
+          //     fields: {
+          //       id: { type: new GraphQLNonNull(GraphQLString) },
+          //       token: { type: new GraphQLNonNull(GraphQLString) },
+          //       refresh: { type: GraphQLString },
+          //     },
+          //   }),
+          //   args: {
+          //     username: { type: new GraphQLNonNull(GraphQLString) },
+          //     password: { type: new GraphQLNonNull(GraphQLString) },
+          //   },
+          //   async resolve(_, { username, password }) {
+          //     if (!options.auth) return null;
+          //     return await options.auth.login(username, password);
+          //   },
+          // },
         },
       }),
     });
 
     const queries = Array.isArray(request) ? request : [request];
+
+    const userId =
+      options.auth && authHeader && authHeader.split(' ')[0] === 'Bearer'
+        ? await options.auth.getId(authHeader.split(' ')[1])
+        : null;
 
     const data: Data = {};
     const mutationsInfo: {
@@ -531,7 +572,7 @@ export default async function buildServer(
           graphQLSchema,
           queryDoc,
           null,
-          { ...context, rootQuery: query, mutationsInfo },
+          { userId, rootQuery: query, mutationsInfo },
           variables,
         );
         if (!normalize || result.errors) return result;
@@ -545,8 +586,8 @@ export default async function buildServer(
       }),
     );
 
-    if (onMutate && Object.keys(mutationsInfo.mutations).length > 0) {
-      await onMutate(mutationsInfo.mutations);
+    if (options.onMutate && Object.keys(mutationsInfo.mutations).length > 0) {
+      await options.onMutate(mutationsInfo.mutations);
     }
     const firstNormalize = queries.findIndex(({ normalize }) => !!normalize);
     if (firstNormalize !== -1) {

@@ -15,6 +15,7 @@ import { DataChanges, DataDiff, FullChanges } from './typings';
 
 export default class ClientState {
   private schema: Obj<Obj<Field>>;
+  private authField: { type: string; field: string } | null = null;
   private log: boolean;
   private newIds: Obj<number>;
 
@@ -26,8 +27,13 @@ export default class ClientState {
   private listeners: ((value: FullChanges) => void)[] = [];
   private keyListeners: Obj<((value: any) => void)[]> = {};
 
-  public constructor(schema: Obj<Obj<Field>>, log: boolean = false) {
+  public constructor(
+    schema: Obj<Obj<Field>>,
+    authField: { type: string; field: string } | null = null,
+    log: boolean = false,
+  ) {
     this.schema = schema;
+    this.authField = authField;
     this.log = log;
     this.newIds = keysToObject(Object.keys(schema), () => 0);
   }
@@ -66,8 +72,9 @@ export default class ClientState {
         for (const id of Object.keys(changes[type])) {
           for (const field of Object.keys(changes[type][id])) {
             const value = noUndef(_.get(this.combined, [type, id, field]));
-            (this.keyListeners[`${type}.${id}.${field}`] || [])
-              .forEach(l => l(value));
+            (this.keyListeners[`${type}.${id}.${field}`] || []).forEach(l =>
+              l(value),
+            );
           }
         }
       }
@@ -163,6 +170,28 @@ export default class ClientState {
             this[store][type][id] = this[store][type][id] || {};
             if (_.get(this.client, [type, id]) !== null) {
               this.combined[type][id] = this.combined[type][id] || {};
+            }
+            if (this.authField && type === this.authField.type) {
+              const hasUsername = data[type][id]!.hasOwnProperty(
+                this.authField.field,
+              );
+              const hasPassword = data[type][id]!.hasOwnProperty('password');
+              if (hasUsername || hasPassword) {
+                const prev = JSON.parse(
+                  this[store][type][id]![this.authField.field] || '{}',
+                );
+                const username = hasUsername
+                  ? data[type][id]![this.authField.field] || undefined
+                  : prev.username;
+                const password = hasPassword
+                  ? data[type][id]!.password || undefined
+                  : prev.password;
+                data[type][id]![this.authField.field] =
+                  username || password
+                    ? JSON.stringify({ username, password })
+                    : undefined;
+              }
+              delete data[type][id]!.password;
             }
             for (const field of Object.keys(data[type][id]!)) {
               const prev = noUndef(_.get(this.combined, [type, id, field]));

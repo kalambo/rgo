@@ -9,13 +9,6 @@ const domain = 'https://api.kalambo.org';
 
 export let client: Client;
 
-const authFetch = async (url: string, body: any[]) =>
-  await (await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })).json();
-
 export const setupClient = async () => {
   const db: any = {};
   const server = await buildServer(
@@ -37,7 +30,8 @@ export const setupClient = async () => {
     // console.log(JSON.stringify(result, null, 2));
     return result;
   });
-  client = await buildClient(domain, authFetch);
+  client = buildClient(domain);
+  await client.ready();
 };
 
 export const clearClient = () => {

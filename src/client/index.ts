@@ -23,7 +23,7 @@ import createFetcher from './createFetcher';
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
 import {
-  AuthFetch,
+  AuthState,
   Client,
   DataChanges,
   FieldConfig,
@@ -31,22 +31,89 @@ import {
   QueryOptions,
 } from './typings';
 
-export async function buildClient(
+export function buildClient(
   url: string,
-  authFetch: AuthFetch,
+  auth?: {
+    login: (username: string, password: string) => Promise<AuthState>;
+    logout: (authToken: string) => void | Promise<void>;
+    refresh?: (
+      refreshToken: string,
+    ) => Promise<{ token: string; refresh: string }>;
+  },
   log?: boolean,
-): Promise<Client> {
-  const schema: Obj<Obj<Field>> = (await authFetch(url, {
-    query: '{ SCHEMA }',
-  })).data.SCHEMA;
+): Client {
+  let authState: AuthState | null;
+  let schema: Obj<Obj<Field>>;
+  let authField: { type: string; field: string } | null = null;
+  let state: ClientState;
+  let fetcher: any;
 
-  const state = new ClientState(schema, log);
+  const setAuth = (newAuth: AuthState | null) => {
+    authState = newAuth;
+    if (!newAuth) localStorage.removeItem('kalamboAuth');
+    else localStorage.setItem('kalamboAuth', JSON.stringify(newAuth));
+  };
+  const authFetch = async (url: string, body: any): Promise<Obj | null> => {
+    const doFetch = () =>
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authState ? { Authorization: `Bearer ${authState.token}` } : {},
+        },
+        body: JSON.stringify(body),
+      });
+    let response = await doFetch();
+    if (response.status === 401) {
+      if (!auth || !auth.refresh || !authState || !authState.refresh) {
+        return null;
+      }
+      setAuth({
+        id: authState.id,
+        ...await auth.refresh(authState.refresh),
+      });
+      response = await doFetch();
+    }
+    if (!response.ok) return null;
+    return await response.json();
+  };
+
+  const readyListeners: (() => void)[] = [];
+  (async () => {
+    authState = JSON.parse(
+      (typeof localStorage !== 'undefined' &&
+        localStorage.getItem('kalamboAuth')) ||
+        'null',
+    );
+    schema = (await authFetch(url, { query: '{ SCHEMA }' }))!.data.SCHEMA;
+    for (const type of Object.keys(schema)) {
+      for (const field of Object.keys(schema[type])) {
+        if ((schema[type][field] as any).scalar === 'auth') {
+          authField = { type, field };
+          (schema[type][field] as any).scalar = 'string';
+        }
+      }
+    }
+    state = new ClientState(schema, authField, log);
+    fetcher = createFetcher(url, authFetch, schema, (data, indices) => {
+      state.setServer(data, indices);
+    });
+    state.watch(fetcher.process);
+    readyListeners.forEach(l => l());
+  })();
 
   let queryCounter = 0;
-  const fetcher = createFetcher(url, authFetch, schema, (data, indices) => {
-    state.setServer(data, indices);
-  });
-  state.watch(fetcher.process);
+
+  const splitAuthField = (values: Obj<any>, authKey: string | null) => {
+    if (!authField || !authKey) return values;
+    const { username, password } = JSON.parse(values[authKey] || '{}');
+    const [type, id] = authKey.split('.');
+    return {
+      ...values,
+      [`${type}.${id}.${authField.field}`]: noUndef(username),
+      [`${type}.${id}.password`]: noUndef(password),
+    };
+  };
 
   interface FieldInfo {
     scalar: ScalarName;
@@ -64,12 +131,22 @@ export async function buildClient(
     return promisifyEmitter(innerListener => {
       const configArray = Array.isArray(config) ? config : [config];
       const allKeysObj: Obj<true> = {};
+      let authKey: string | null = null;
       const info = keysToObject<FieldConfig, FieldInfo>(
         configArray,
         ({ key, rules, required, showIf }) => {
           const [type, id, fieldName] = key.split('.');
-          const field = schema[type][fieldName] as ScalarField;
-          const allRules = { ...rules || {}, ...field.rules || {} };
+          if (
+            authField &&
+            type === authField.type &&
+            (fieldName === authField.field || fieldName === 'password')
+          ) {
+            authKey = `${type}.${id}.${authField.field}`;
+          }
+          const field = (fieldName === 'password'
+            ? { scalar: 'string' }
+            : schema[type][fieldName]) as ScalarField;
+          const allRules = { ...(rules || {}), ...(field.rules || {}) };
           if (field.rules && field.rules.lt) {
             allRules.lt = `${type}.${id}.${field.rules.lt}`;
           }
@@ -81,7 +158,9 @@ export async function buildClient(
           if (Array.isArray(config)) {
             Object.keys(showIf || {}).forEach(k => (allKeysObj[k] = true));
           }
-          allKeysObj[key] = true;
+          allKeysObj[
+            fieldName === 'password' ? `${type}.${id}.${authField!.field}` : key
+          ] = true;
           return {
             scalar: field.scalar,
             isList: field.isList,
@@ -106,18 +185,24 @@ export async function buildClient(
               .filter(x => x && x.default !== undefined)
               .forEach(({ key, default: defaultValue }) => {
                 const value = noUndef(_.get(state.combined, key));
-                if (value === null)
+                if (value === null) {
                   (state.setClient as any)(...key.split('.'), defaultValue);
+                }
               });
             const values = keysToObject(allKeys, key =>
               noUndef(_.get(state.combined, key)),
             );
-            innerListener(getResult(info, values));
+
+            innerListener(getResult(info, splitAuthField(values, authKey)));
             unlisten =
               allKeys.length === 1
                 ? state.watch(allKeys[0], value => {
                     values[allKeys[0]] = value;
-                    if (running) innerListener(getResult(info, values));
+                    if (running) {
+                      innerListener(
+                        getResult(info, splitAuthField(values, authKey)),
+                      );
+                    }
                   })
                 : state.watch(({ changes, changedData }) => {
                     const changedKeys = allKeys.filter(key =>
@@ -127,7 +212,11 @@ export async function buildClient(
                       for (const key of changedKeys) {
                         values[key] = _.get(changedData, key);
                       }
-                      if (running) innerListener(getResult(info, values));
+                      if (running) {
+                        innerListener(
+                          getResult(info, splitAuthField(values, authKey)),
+                        );
+                      }
                     }
                   });
           }
@@ -150,8 +239,19 @@ export async function buildClient(
     let resolvePromise: (data: Data) => void;
     const promise = new Promise<Data>(resolve => (resolvePromise = resolve));
     fetcher.addMutation(
-      keys.map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
-      newIds => {
+      keys
+        .filter(key => !key.endsWith('.password'))
+        .map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
+      async newIds => {
+        if (auth && newIds['$user']) {
+          setAuth(
+            await auth.login(
+              newIds['$user'].username,
+              newIds['$user'].password,
+            ),
+          );
+          delete newIds['$user'];
+        }
         state.setClient(
           [...keys, ...(clearKeys || [])].reduce(
             (res, k) => _.set(res, k, undefined),
@@ -176,14 +276,32 @@ export async function buildClient(
   };
 
   return {
-    types: keysToObject(Object.keys(schema), type =>
-      keysToObject(Object.keys(schema[type]), fieldName => {
-        const field = schema[type][fieldName];
-        return fieldIs.scalar(field) ? field.scalar : field.type;
-      }),
-    ),
-
-    newId: state.newId.bind(state),
+    ready() {
+      return new Promise(resolve => {
+        if (schema) resolve();
+        else readyListeners.push(resolve);
+      });
+    },
+    types() {
+      return keysToObject(Object.keys(schema), type =>
+        keysToObject(Object.keys(schema[type]), fieldName => {
+          const field = schema[type][fieldName];
+          return fieldIs.scalar(field) ? field.scalar : field.type;
+        }),
+      );
+    },
+    newId(type) {
+      return state.newId(type);
+    },
+    async login(username, password) {
+      if (auth) setAuth(await auth.login(username, password));
+    },
+    async logout() {
+      if (auth && authState) {
+        setAuth(null);
+        await auth.logout(authState.token);
+      }
+    },
 
     field(field: FieldConfig, listener?: (value: FieldState | null) => void) {
       return watchFields(
@@ -353,7 +471,9 @@ export async function buildClient(
       }, onLoad) as any;
     },
 
-    set: state.setClient.bind(state),
+    set(...args) {
+      return (state.setClient as any)(...args);
+    },
 
     mutate,
   };

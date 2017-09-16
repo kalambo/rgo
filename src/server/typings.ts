@@ -27,6 +27,14 @@ export interface Mutation {
   prev: Obj | null;
 }
 
+export interface AuthConfig {
+  type: string;
+  usernameField: string;
+  authIdField: string;
+  create(username: string, password: string, id: string): Promise<string>;
+  getId(authToken: string): Promise<string | null>;
+}
+
 // export interface TypeAuth {
 //   query?: (
 //     userId: string | null,
