@@ -50,6 +50,7 @@ export interface AuthConfig {
     data: Obj | null,
     prev: Obj | null,
   ) => boolean | Promise<boolean>;
+  allowAlter: (user: Obj | null) => boolean | Promise<boolean>;
 }
 
 export interface FieldDbMap {

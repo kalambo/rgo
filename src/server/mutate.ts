@@ -132,7 +132,13 @@ export default async function mutate(
             username,
             password,
             id,
-            auth.metaFields && keysToObject(auth.metaFields, f => fullData[f]),
+            auth.metaFields &&
+              keysToObject(
+                auth.metaFields.filter(
+                  f => fullData[f] !== undefined && fullData[f] !== null,
+                ),
+                f => fullData[f],
+              ),
           );
           mutationsInfo.newIds['$user'] = { username, password };
         }

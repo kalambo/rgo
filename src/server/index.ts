@@ -450,7 +450,7 @@ export default async function buildServer(
               },
             },
             async resolve(_, { type, field, info }, { user }) {
-              if (!user || user.id !== 'service-account') {
+              if (options.auth && !options.auth.allowAlter(user)) {
                 throw new Error('Not authorized');
               }
 
@@ -571,17 +571,12 @@ export default async function buildServer(
 
     let user: Obj | null = null;
     if (options.auth && authHeader && authHeader.split(' ')[0] === 'Bearer') {
-      const token = authHeader.split(' ')[1];
-      if (token === '1DF157DB1C4446F780C8477D88B315D1') {
-        user = { id: 'service-account' };
-      } else {
-        const userId = await options.auth.getUserId(token);
-        if (userId) {
-          user = {
-            id: userId,
-            ...await typeConnectors[options.auth.type].findById(userId),
-          };
-        }
+      const userId = await options.auth.getUserId(authHeader.split(' ')[1]);
+      if (userId) {
+        user = {
+          id: userId,
+          ...((await typeConnectors[options.auth.type].findById(userId)) || {}),
+        };
       }
     }
 
