@@ -99,11 +99,6 @@ export default function mongoConnector(
     async findById(id) {
       return fromDb(await collection.findOne({ [fieldDbKeys.id || 'id']: id }));
     },
-    async findByIds(ids) {
-      return fromDb(
-        await collection.find({ [fieldDbKeys.id || 'id']: { $in: ids } }),
-      );
-    },
 
     async insert(id, data) {
       const obj = { id, ...data };

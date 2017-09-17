@@ -14,7 +14,15 @@ const sqlScalars = {
   json: 'JSON',
 };
 
-const ops = { $ne: '!=', $lte: '<=', $gte: '>=', $eq: '=', $lt: '<', $gt: '>' };
+const ops = {
+  $ne: '!=',
+  $lte: '<=',
+  $gte: '>=',
+  $eq: '=',
+  $lt: '<',
+  $gt: '>',
+  $in: 'in',
+};
 export function applyFilter(
   knex: knex.QueryBuilder,
   filter: any,
@@ -32,7 +40,7 @@ export function applyFilter(
 
 export default {
   type(
-    knex: knex.QueryBuilder,
+    knex: () => knex.QueryBuilder,
     newId: () => string,
     fieldsTypes: Obj<DbField>,
   ): Connector {
@@ -41,7 +49,7 @@ export default {
 
       async query({ filter = {}, sort = [], start = 0, end, fields }) {
         if (start === end) return [];
-        const query = applyFilter(knex, filter);
+        const query = applyFilter(knex(), filter);
         sort.forEach(([field, dir]) => {
           if (
             fieldsTypes[field].scalar === 'string' &&
@@ -59,28 +67,31 @@ export default {
       },
 
       async findById(id) {
-        return await knex.where('id', id).first();
-      },
-      async findByIds(ids) {
-        return await knex.whereIn('id', ids).select();
+        return await knex()
+          .where('id', id)
+          .first();
       },
 
       async insert(id, data) {
-        await knex.insert({ id, ...data });
+        await knex().insert({ id, ...data });
       },
       async update(id, data) {
-        await knex.where('id', id).update(data);
+        await knex()
+          .where('id', id)
+          .update(data);
       },
       async delete(id) {
-        await knex.where('id', id).delete();
+        await knex()
+          .where('id', id)
+          .delete();
       },
 
       async dump() {
-        return await knex.select();
+        return await knex().select();
       },
       async restore(data) {
-        await knex.truncate();
-        await knex.insert(data);
+        await knex().truncate();
+        await knex().insert(data);
       },
     };
   },

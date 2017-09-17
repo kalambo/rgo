@@ -7,27 +7,31 @@ export default async function mutate(
   connectors: Obj<Connector>,
   args,
   {
-    userId,
+    user,
     mutationsInfo,
   }: {
-    userId: string | null;
+    user: Obj | null;
     mutationsInfo: { mutations: Obj<Mutation[]>; newIds: Obj<Obj<string>> };
   },
   auth?: AuthConfig,
 ) {
   const typeNames = Object.keys(args);
+  const newIds: Obj<Obj<string>> = {};
 
   for (const type of typeNames) {
-    mutationsInfo.newIds[type] = mutationsInfo.newIds[type] || {};
+    newIds[type] = newIds[type] || {};
     args[type]
       .map(m => m.id)
       .filter(id => id[0] === '$')
       .forEach(id => {
-        mutationsInfo.newIds[type][id] = connectors[type].newId();
+        newIds[type][id] = connectors[type].newId();
       });
   }
   const getId = (type: string, id: string) =>
-    ({ ...(mutationsInfo.newIds[type] || {}), $user: userId || '' }[id] || id);
+    ({
+      ...(newIds[type] || {}),
+      $user: (user && user.id) || '',
+    }[id] || id);
 
   const mutations = keysToObject(typeNames, () => [] as Mutation[]);
   for (const type of typeNames) {
@@ -51,6 +55,25 @@ export default async function mutate(
       if (auth && type === auth.type && data && data[auth.usernameField]) {
         const { username, password } = JSON.parse(data[auth.usernameField]);
         data[auth.usernameField] = username;
+        if (!prev || prev[auth.usernameField] !== username) {
+          const existingUser = await connectors[type].query({
+            filter: {
+              $and: [
+                { [auth.usernameField]: { $eq: username } },
+                { id: { $ne: mId } },
+              ],
+            },
+            sort: [],
+            start: 0,
+            end: 1,
+            fields: ['id'],
+          });
+          if (existingUser.length > 0) {
+            const error = new Error('Username already exists') as any;
+            error.status = 400;
+            return error;
+          }
+        }
         if (!prev || !prev[auth.authIdField]) data[auth.authIdField] = password;
       }
 
@@ -67,7 +90,7 @@ export default async function mutate(
             )
           ) {
             const error = new Error('Invalid data') as any;
-            error.status = 401;
+            error.status = 400;
             return error;
           }
           if (field.isList && data && data[f] && data[f].length === 0) {
@@ -76,19 +99,11 @@ export default async function mutate(
         }
       }
 
-      // let allow = true;
-      // if (data && prev && types[type].auth.update)
-      //   allow = await types[type].auth.update!(userId, id, data, prev);
-      // else if (data && !prev && types[type].auth.insert)
-      //   allow = await types[type].auth.insert!(userId, id, data);
-      // else if (!data && types[type].auth.delete)
-      //   allow = await types[type].auth.delete!(userId, id, prev);
-
-      // if (!allow) {
-      //   const error = new Error('Not authorized') as any;
-      //   error.status = 401;
-      //   return error;
-      // }
+      if (auth && !await auth.allowMutation(user, type, data, prev)) {
+        const error = new Error('Not authorized') as any;
+        error.status = 401;
+        return error;
+      }
 
       mutations[type].push({ id: mId, data, prev });
     }
@@ -97,6 +112,10 @@ export default async function mutate(
   const results = keysToObject(typeNames, () => [] as Obj[]);
   for (const type of typeNames) {
     mutationsInfo.mutations[type] = mutationsInfo.mutations[type] || [];
+    mutationsInfo.newIds[type] = {
+      ...mutationsInfo.newIds[type],
+      ...newIds[type],
+    };
     for (const { id, data, prev } of mutations[type]) {
       if (data) {
         const time = new Date();
@@ -109,24 +128,14 @@ export default async function mutate(
         if (auth && type === auth.type && fullData[auth.authIdField]) {
           const username = fullData[auth.usernameField];
           const password = fullData[auth.authIdField];
-          fullData[auth.authIdField] = await auth.create(
+          fullData[auth.authIdField] = await auth.createAuth(
             username,
             password,
             id,
+            auth.metaFields && keysToObject(auth.metaFields, f => fullData[f]),
           );
           mutationsInfo.newIds['$user'] = { username, password };
         }
-
-        // const combinedData = { ...prev, ...data };
-        // for (const f of Object.keys(types[type].fields)) {
-        //   const field = types[type].fields[f];
-        //   if (fieldIs.scalar(field) && typeof field.formula === 'function') {
-        //     fullData[f] = await field.formula(
-        //       combinedData,
-        //       connectors[type].query,
-        //     );
-        //   }
-        // }
 
         if (prev) {
           console.log(

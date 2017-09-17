@@ -1,14 +1,11 @@
 import * as _ from 'lodash';
 
 import { Obj, Rules, ScalarName } from './typings';
-import { isEmptyValue, noUndef } from './utils';
+import { isEmptyValue, noUndef, transformValue } from './utils';
 
 const formats = {
   email: /^[a-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&''*+\/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i,
 };
-
-const isEmail = (value: any) =>
-  typeof value === 'string' && formats.email.test(value);
 
 const validateSingle = (
   scalar: ScalarName,
@@ -25,11 +22,11 @@ const validateSingle = (
   }
 
   if (rules.email) {
-    if (Array.isArray(value)) {
-      if (value.some(v => !isEmail(v))) return false;
-    } else {
-      if (!isEmail(value)) return false;
-    }
+    if (typeof value !== 'string' || !formats.email.test(value)) return false;
+  }
+
+  if (rules.transform) {
+    if (transformValue(value, rules.transform) !== value) return false;
   }
 
   if (rules.maxWords) {

@@ -33,9 +33,6 @@ export default function memoryConnector(
     async findById(id) {
       return _.cloneDeep(records.find(record => record.id === id) || null);
     },
-    async findByIds(ids) {
-      return _.cloneDeep(records.filter(record => ids.includes(record.id)));
-    },
 
     async insert(id, data) {
       records.push({ id, ...data });

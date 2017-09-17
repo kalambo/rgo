@@ -19,6 +19,7 @@ export default function queryLayers(
   schema: Obj<Obj<Field>>,
   queryDoc: DocumentNode,
   variables: Obj = {},
+  userId: string | null,
   idsOnly?: boolean,
   addIds?: boolean,
 ) {
@@ -40,7 +41,7 @@ export default function queryLayers(
     if (addIds) scalarFields.id = true;
 
     const plainArgs = parsePlainArgs(node.arguments, variables);
-    const args = parseArgs(plainArgs, null, schema[field.type]);
+    const args = parseArgs(plainArgs, userId, schema[field.type]);
     if (root.type && fieldIs.relation(field) && !plainArgs.sort) args.sort = [];
 
     const filterFields = getFilterFields(args.filter);

@@ -12,9 +12,12 @@ import {
   noUndef,
   Obj,
   promisifyEmitter,
+  QueryRequest,
+  QueryResponse,
   Rules,
   ScalarField,
   ScalarName,
+  transformValue,
   validate as validateField,
 } from '../core';
 
@@ -48,34 +51,49 @@ export function buildClient(
   let state: ClientState;
   let fetcher: any;
 
+  let loggedInListeners: ((value: boolean) => void)[] = [];
   const setAuth = (newAuth: AuthState | null) => {
     authState = newAuth;
     if (!newAuth) localStorage.removeItem('kalamboAuth');
     else localStorage.setItem('kalamboAuth', JSON.stringify(newAuth));
+    loggedInListeners.forEach(l => l(!!authState));
   };
-  const authFetch = async (url: string, body: any): Promise<Obj | null> => {
-    const doFetch = () =>
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authState ? { Authorization: `Bearer ${authState.token}` } : {},
-        },
-        body: JSON.stringify(body),
-      });
-    let response = await doFetch();
-    if (response.status === 401) {
-      if (!auth || !auth.refresh || !authState || !authState.refresh) {
-        return null;
-      }
+  const runFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> =>
+    (await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authState ? { Authorization: `Bearer ${authState.token}` } : {},
+      },
+      body: JSON.stringify(body),
+    })).json();
+  const authFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> => {
+    const responses = await runFetch(body);
+    const errorResponses = responses
+      .map((response, index) => ({ errors: response.errors, index }))
+      .filter(
+        ({ errors }) =>
+          errors && errors!.some(e => e.message === 'Not authorized'),
+      );
+    if (
+      errorResponses.length > 0 &&
+      auth &&
+      auth.refresh &&
+      authState &&
+      authState.refresh
+    ) {
       setAuth({
         id: authState.id,
         ...await auth.refresh(authState.refresh),
       });
-      response = await doFetch();
+      const retryResponses = await runFetch(
+        errorResponses.map(({ index }) => body[index]),
+      );
+      errorResponses.forEach(
+        ({ index }, i) => (responses[index] = retryResponses[i]),
+      );
     }
-    if (!response.ok) return null;
-    return await response.json();
+    return responses;
   };
 
   const readyListeners: (() => void)[] = [];
@@ -85,7 +103,7 @@ export function buildClient(
         localStorage.getItem('kalamboAuth')) ||
         'null',
     );
-    schema = (await authFetch(url, { query: '{ SCHEMA }' }))!.data.SCHEMA;
+    schema = (await authFetch([{ query: '{ SCHEMA }' }]))[0].data.SCHEMA;
     for (const type of Object.keys(schema)) {
       for (const field of Object.keys(schema[type])) {
         if ((schema[type][field] as any).scalar === 'auth') {
@@ -95,7 +113,7 @@ export function buildClient(
       }
     }
     state = new ClientState(schema, authField, log);
-    fetcher = createFetcher(url, authFetch, schema, (data, indices) => {
+    fetcher = createFetcher(authFetch, schema, (data, indices) => {
       state.setServer(data, indices);
     });
     state.watch(fetcher.process);
@@ -236,40 +254,46 @@ export function buildClient(
   };
 
   const mutate = async (keys: string[], clearKeys?: string[]) => {
-    let resolvePromise: (data: Data) => void;
-    const promise = new Promise<Data>(resolve => (resolvePromise = resolve));
+    let resolvePromise: (data: Data | null) => void;
+    const promise = new Promise<Data | null>(
+      resolve => (resolvePromise = resolve),
+    );
     fetcher.addMutation(
       keys
         .filter(key => !key.endsWith('.password'))
         .map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
-      async newIds => {
-        if (auth && newIds['$user']) {
-          setAuth(
-            await auth.login(
-              newIds['$user'].username,
-              newIds['$user'].password,
+      async (newIds, error) => {
+        if (error) {
+          resolvePromise(null);
+        } else {
+          if (auth && newIds['$user']) {
+            // setAuth(
+            //   await auth.login(
+            //     newIds['$user'].username,
+            //     newIds['$user'].password,
+            //   ),
+            // );
+            delete newIds['$user'];
+          }
+          state.setClient(
+            [...keys, ...(clearKeys || [])].reduce(
+              (res, k) => _.set(res, k, undefined),
+              {},
             ),
           );
-          delete newIds['$user'];
+          const data = {};
+          keys.forEach(key => {
+            const [type, id, fieldName] = key.split('.');
+            const newId = newIds[type][id] || id;
+            _.set(
+              data,
+              key,
+              noUndef(_.get(state.combined, [type, newId, fieldName])),
+            );
+            data[type][id].id = newId;
+          });
+          resolvePromise(data);
         }
-        state.setClient(
-          [...keys, ...(clearKeys || [])].reduce(
-            (res, k) => _.set(res, k, undefined),
-            {},
-          ),
-        );
-        const data = {};
-        keys.forEach(key => {
-          const [type, id, fieldName] = key.split('.');
-          const newId = newIds[type][id] || id;
-          _.set(
-            data,
-            key,
-            noUndef(_.get(state.combined, [type, newId, fieldName])),
-          );
-          data[type][id].id = newId;
-        });
-        resolvePromise(data);
       },
     );
     return promise;
@@ -293,14 +317,33 @@ export function buildClient(
     newId(type) {
       return state.newId(type);
     },
-    async login(username, password) {
-      if (auth) setAuth(await auth.login(username, password));
+    login(...args: any[]): any {
+      if (args.length === 2) {
+        return (async () => {
+          if (!auth) return 'Auth not configured';
+          try {
+            setAuth(await auth.login(args[0], args[1]));
+            return null;
+          } catch (error) {
+            return error.message as string;
+          }
+        })();
+      }
+      setAuth(args[0]);
     },
     async logout() {
       if (auth && authState) {
-        setAuth(null);
         await auth.logout(authState.token);
+        setAuth(null);
       }
+    },
+
+    loggedIn(listener) {
+      listener(!!authState);
+      loggedInListeners.push(listener);
+      return () => {
+        loggedInListeners = loggedInListeners.filter(l => l !== listener);
+      };
     },
 
     field(field: FieldConfig, listener?: (value: FieldState | null) => void) {
@@ -314,9 +357,7 @@ export function buildClient(
           onChange: value =>
             (state.setClient as any)(
               ...field.key.split('.'),
-              info[field.key].rules.url
-                ? value && value.toLowerCase().replace(/[^a-z0-9-]/g, '')
-                : value,
+              transformValue(value, info[field.key].rules.transform!),
             ),
           invalid: isEmptyValue(values[field.key])
             ? !!info[field.key].required
@@ -368,12 +409,11 @@ export function buildClient(
             active,
             invalid,
             async mutate() {
-              if (!invalid) {
-                return await mutate(
-                  fields.filter((_, i) => active[i]).map(({ key }) => key),
-                  fields.filter((_, i) => !active[i]).map(({ key }) => key),
-                );
-              }
+              if (invalid) return false;
+              return await mutate(
+                fields.filter((_, i) => active[i]).map(({ key }) => key),
+                fields.filter((_, i) => !active[i]).map(({ key }) => key),
+              );
             },
           };
         },
@@ -401,6 +441,7 @@ export function buildClient(
           schema,
           queryDoc,
           variables,
+          authState && authState.id,
           idsOnly,
           withInfo,
         );

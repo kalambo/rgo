@@ -14,7 +14,7 @@ export type ScalarName =
 export interface Rules {
   equals?: any;
   email?: true;
-  url?: true;
+  transform?: 'email' | 'url';
   maxWords?: number;
   minChoices?: number;
   maxChoices?: number;

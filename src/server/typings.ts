@@ -11,7 +11,6 @@ export interface Connector {
   query: (args: QueryArgs) => Promise<any[]>;
 
   findById: (id: string) => Promise<any>;
-  findByIds: (ids: string[]) => Promise<any[]>;
 
   insert: (id: string, data: any) => Promise<void>;
   update: (id: string, data: any) => Promise<void>;
@@ -27,36 +26,31 @@ export interface Mutation {
   prev: Obj | null;
 }
 
+export type QueryLimit = false | null | { filter?: any; fields?: string[] };
+
 export interface AuthConfig {
   type: string;
   usernameField: string;
   authIdField: string;
-  create(username: string, password: string, id: string): Promise<string>;
-  getId(authToken: string): Promise<string | null>;
+  metaFields?: string[];
+  createAuth(
+    username: string,
+    password: string,
+    userId: string,
+    metadata?: Obj,
+  ): Promise<string>;
+  getUserId(authToken: string): Promise<string | null>;
+  limitQuery: (
+    user: Obj | null,
+    type: string,
+  ) => QueryLimit | Promise<QueryLimit>;
+  allowMutation: (
+    user: Obj | null,
+    type: string,
+    data: Obj | null,
+    prev: Obj | null,
+  ) => boolean | Promise<boolean>;
 }
-
-// export interface TypeAuth {
-//   query?: (
-//     userId: string | null,
-//     args: QueryArgs,
-//   ) => QueryArgs | Promise<QueryArgs>;
-//   insert?: (
-//     userId: string | null,
-//     id: string,
-//     data: Obj | null,
-//   ) => boolean | Promise<boolean>;
-//   update?: (
-//     userId: string | null,
-//     id: string,
-//     data: Obj | null,
-//     prev: Obj | null,
-//   ) => boolean | Promise<boolean>;
-//   delete?: (
-//     userId: string | null,
-//     id: string,
-//     prev: Obj | null,
-//   ) => boolean | Promise<boolean>;
-// }
 
 export interface FieldDbMap {
   toDb: (value: any) => any;

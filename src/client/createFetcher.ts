@@ -38,15 +38,13 @@ const mutationFields = (mutations: Obj[], schemaType: Obj<Field>) =>
   ].map(f => (fieldIs.scalar(schemaType[f]) ? f : `${f} { id }`));
 
 export default function createFetcher(
-  url: string,
   authFetch: AuthFetch,
   schema: Obj<Obj<Field>>,
   onChange: (data: Data, indices: number[]) => void,
 ) {
-  let nextListeners: ((newIds?: Obj<Obj<string>>) => void)[] = [];
-
   const fieldsMap: Obj<Obj<Obj<number>>> = {};
   let nextFieldsMap: Obj<Obj<Obj<true>>> = {};
+  let fieldsListeners: (() => void)[] = [];
 
   const queryListeners: Obj<(firstIds?: Obj<Obj<string>>) => void> = {};
   const prevQueries: Obj<{
@@ -60,18 +58,24 @@ export default function createFetcher(
   }> = {};
 
   let mutationData: Data = {};
+  let mutationListeners: ((
+    newIds?: Obj<Obj<string>>,
+    error?: boolean,
+  ) => void)[] = [];
 
   const process = _.throttle(
     async () => {
+      const currentFieldsListeners = fieldsListeners;
+      fieldsListeners = [];
       const queries: { query: string; variables?: Obj }[] = [];
-      const listeners = nextListeners;
-      nextListeners = [];
+      const currentMutationListeners = mutationListeners;
+      mutationListeners = [];
 
       for (const type of Object.keys(nextFieldsMap)) {
         for (const id of Object.keys(nextFieldsMap[type])) {
           queries.push({
             query: `{
-              ${type}(ids: ["${id}"]) {
+              ${type}(filter: "id=${id}") {
                 id
                 ${Object.keys(nextFieldsMap[type][id]).join('\n')}
               }
@@ -134,7 +138,6 @@ export default function createFetcher(
 
       if (queries.length > 0) {
         const responses = await authFetch(
-          url,
           queries.map(({ query, variables }) => ({
             query,
             variables,
@@ -142,13 +145,20 @@ export default function createFetcher(
           })),
         );
         onChange(responses[0].data, indices);
-        for (const listener of listeners) {
-          listener(responses[0].newIds);
+        for (const listener of currentFieldsListeners) {
+          listener();
         }
         for (const i of indices) {
           if (!nextQueries[i]) {
             queryListeners[i](responses[firstIndicies[i]].firstIds);
           }
+        }
+        const mutationError = !!responses[responses.length - 1].errors;
+        for (const listener of currentMutationListeners) {
+          listener(
+            mutationError ? undefined : responses[0].newIds,
+            mutationError,
+          );
         }
       }
     },
@@ -177,7 +187,7 @@ export default function createFetcher(
         fieldsMap[type][id][field]++;
       }
       if (!alreadyLoaded) {
-        nextListeners.push(() => onReady());
+        fieldsListeners.push(onReady);
         onReady(true);
         process();
       } else {
@@ -296,12 +306,12 @@ export default function createFetcher(
 
     addMutation(
       values: { key: string; value: any }[],
-      onReady: (newIds: Obj<Obj<string>>) => void,
+      onReady: (newIds?: Obj<Obj<string>>, error?: boolean) => void,
     ) {
       for (const { key, value } of values) {
         _.set(mutationData, key, value);
       }
-      nextListeners.push(onReady);
+      mutationListeners.push(onReady);
       process();
     },
   };

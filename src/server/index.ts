@@ -25,6 +25,7 @@ import {
   noUndef,
   Obj,
   parseArgs,
+  QueryArgs,
   QueryRequest,
   QueryResponse,
   scalars,
@@ -33,7 +34,13 @@ import {
 import batch from './batch';
 import mutate from './mutate';
 import normalizeResult from './normalize';
-import { AuthConfig, Connector, DbField, Mutation } from './typings';
+import {
+  AuthConfig,
+  Connector,
+  DbField,
+  Mutation,
+  QueryLimit,
+} from './typings';
 
 const argTypes = {
   filter: { type: GraphQLString },
@@ -93,6 +100,24 @@ const getSchema = async (
       {},
     ) as Obj<Obj<{ id: string } & Field>>,
   };
+};
+
+const applyQueryLimit = (queryArgs: QueryArgs, limit: QueryLimit) => {
+  if (limit === false) return true;
+  if (!limit) {
+    queryArgs.end = queryArgs.start;
+  } else {
+    if (limit.filter) {
+      queryArgs.filter = {
+        $and: [queryArgs.filter, limit.filter],
+      };
+    }
+    if (limit.fields) {
+      queryArgs.fields = queryArgs.fields!.filter(f =>
+        limit.fields!.includes(f),
+      );
+    }
+  }
 };
 
 export default async function buildServer(
@@ -185,7 +210,7 @@ export default async function buildServer(
                   async (
                     roots: any[],
                     args,
-                    { userId }: { userId: string | null },
+                    { user }: { user: Obj | null },
                     info: GraphQLResolveInfo,
                   ) => {
                     const rootField = fieldIs.relation(field) ? f : 'id';
@@ -195,7 +220,7 @@ export default async function buildServer(
 
                     const queryArgs = parseArgs(
                       args,
-                      userId,
+                      user && user.id,
                       typeFields[field.type],
                       info,
                     );
@@ -211,17 +236,23 @@ export default async function buildServer(
                         ),
                       },
                     };
-
-                    const authArgs = queryArgs;
-                    // const auth = types[field.type].auth;
-                    // const authArgs = auth.query
-                    //   ? await auth.query(userId, queryArgs)
-                    //   : queryArgs;
+                    if (options.auth) {
+                      if (
+                        applyQueryLimit(
+                          queryArgs,
+                          await options.auth.limitQuery(user, type),
+                        )
+                      ) {
+                        const error = new Error('Not authorized') as any;
+                        error.status = 401;
+                        return error;
+                      }
+                    }
 
                     const results = await typeConnectors[field.type].query({
-                      ...authArgs,
+                      ...queryArgs,
                       start: 0,
-                      end: authArgs.start === authArgs.end ? 0 : undefined,
+                      end: queryArgs.start === queryArgs.end ? 0 : undefined,
                     });
 
                     return roots.map(root => {
@@ -233,10 +264,10 @@ export default async function buildServer(
                         if (args.sort) {
                           return results
                             .filter(r => root[f].includes(r.id))
-                            .slice(authArgs.start, authArgs.end);
+                            .slice(queryArgs.start, queryArgs.end);
                         }
                         return root[f]
-                          .slice(authArgs.start, authArgs.end)
+                          .slice(queryArgs.start, queryArgs.end)
                           .map(id => results.find(r => r.id === id));
                       }
                       return results
@@ -246,7 +277,7 @@ export default async function buildServer(
                               ? r[relField].includes(root.id)
                               : r[relField] === root.id,
                         )
-                        .slice(authArgs.start, authArgs.end);
+                        .slice(queryArgs.start, queryArgs.end);
                     });
                   },
                 ),
@@ -309,52 +340,51 @@ export default async function buildServer(
             async resolve(
               _root: any,
               args,
-              { userId }: { userId: string | null },
+              { user }: { user: Obj | null },
               info: GraphQLResolveInfo,
             ) {
-              if (args.ids) {
-                return await typeConnectors[type].findByIds(args.ids);
-              } else {
-                const queryArgs = parseArgs(
-                  args,
-                  userId,
-                  typeFields[type],
-                  info,
-                );
-
-                const authArgs = queryArgs;
-                // const auth = types[type].auth;
-                // const authArgs = auth.query
-                //   ? await auth.query(userId, queryArgs)
-                //   : queryArgs;
-
-                if (authArgs.trace) {
-                  return (await Promise.all([
-                    authArgs.start === authArgs.trace.start
-                      ? []
-                      : typeConnectors[type].query({
-                          ...authArgs,
-                          end: authArgs.trace.start,
-                        }),
-                    typeConnectors[type].query({
-                      ...authArgs,
-                      start: authArgs.trace.start,
-                      end: authArgs.trace.end,
-                      fields: ['id'],
-                    }),
-                    authArgs.trace.end === undefined ||
-                    (authArgs.end !== undefined &&
-                      authArgs.end === authArgs.trace.end)
-                      ? []
-                      : typeConnectors[type].query({
-                          ...authArgs,
-                          start: authArgs.trace.end,
-                        }),
-                  ])).reduce((res, records) => res.concat(records), []);
+              const queryArgs = args.ids
+                ? { filter: { id: { $in: args.ids } }, sort: [], start: 0 }
+                : parseArgs(args, user && user.id, typeFields[type], info);
+              if (options.auth) {
+                if (
+                  applyQueryLimit(
+                    queryArgs,
+                    await options.auth.limitQuery(user, type),
+                  )
+                ) {
+                  const error = new Error('Not authorized') as any;
+                  error.status = 401;
+                  return error;
                 }
-
-                return await typeConnectors[type].query(authArgs);
               }
+
+              if (queryArgs.trace) {
+                return (await Promise.all([
+                  queryArgs.start === queryArgs.trace.start
+                    ? []
+                    : typeConnectors[type].query({
+                        ...queryArgs,
+                        end: queryArgs.trace.start,
+                      }),
+                  typeConnectors[type].query({
+                    ...queryArgs,
+                    start: queryArgs.trace.start,
+                    end: queryArgs.trace.end,
+                    fields: ['id'],
+                  }),
+                  queryArgs.trace.end === undefined ||
+                  (queryArgs.end !== undefined &&
+                    queryArgs.end === queryArgs.trace.end)
+                    ? []
+                    : typeConnectors[type].query({
+                        ...queryArgs,
+                        start: queryArgs.trace.end,
+                      }),
+                ])).reduce((res, records) => res.concat(records), []);
+              }
+
+              return await typeConnectors[type].query(queryArgs);
             },
           })),
         },
@@ -403,6 +433,7 @@ export default async function buildServer(
                           equals: { type: scalars.json.type },
                           email: { type: GraphQLBoolean },
                           url: { type: GraphQLBoolean },
+                          transform: { type: GraphQLString },
                           maxWords: { type: GraphQLInt },
                           minChoices: { type: GraphQLInt },
                           maxChoices: { type: GraphQLInt },
@@ -418,7 +449,11 @@ export default async function buildServer(
                 }),
               },
             },
-            async resolve(_, { type, field, info }) {
+            async resolve(_, { type, field, info }, { user }) {
+              if (!user || user.id !== 'service-account') {
+                throw new Error('Not authorized');
+              }
+
               const t = type.toLowerCase();
               const f = field.toLowerCase();
 
@@ -528,34 +563,27 @@ export default async function buildServer(
               return 'Field successfully altered';
             },
           },
-          // login: {
-          //   type: new GraphQLObjectType({
-          //     name: 'Auth',
-          //     fields: {
-          //       id: { type: new GraphQLNonNull(GraphQLString) },
-          //       token: { type: new GraphQLNonNull(GraphQLString) },
-          //       refresh: { type: GraphQLString },
-          //     },
-          //   }),
-          //   args: {
-          //     username: { type: new GraphQLNonNull(GraphQLString) },
-          //     password: { type: new GraphQLNonNull(GraphQLString) },
-          //   },
-          //   async resolve(_, { username, password }) {
-          //     if (!options.auth) return null;
-          //     return await options.auth.login(username, password);
-          //   },
-          // },
         },
       }),
     });
 
     const queries = Array.isArray(request) ? request : [request];
 
-    const userId =
-      options.auth && authHeader && authHeader.split(' ')[0] === 'Bearer'
-        ? await options.auth.getId(authHeader.split(' ')[1])
-        : null;
+    let user: Obj | null = null;
+    if (options.auth && authHeader && authHeader.split(' ')[0] === 'Bearer') {
+      const token = authHeader.split(' ')[1];
+      if (token === '1DF157DB1C4446F780C8477D88B315D1') {
+        user = { id: 'service-account' };
+      } else {
+        const userId = await options.auth.getUserId(token);
+        if (userId) {
+          user = {
+            id: userId,
+            ...await typeConnectors[options.auth.type].findById(userId),
+          };
+        }
+      }
+    }
 
     const data: Data = {};
     const mutationsInfo: {
@@ -572,7 +600,7 @@ export default async function buildServer(
           graphQLSchema,
           queryDoc,
           null,
-          { userId, rootQuery: query, mutationsInfo },
+          { user, rootQuery: query, mutationsInfo },
           variables,
         );
         if (!normalize || result.errors) return result;

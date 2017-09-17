@@ -25,6 +25,7 @@ describe('client: queryLayers', () => {
         }
       }`),
       {},
+      null,
       true,
     );
 

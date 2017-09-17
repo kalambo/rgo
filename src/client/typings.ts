@@ -5,6 +5,8 @@ import {
   ForeignRelationField,
   Obj,
   QueryArgs,
+  QueryRequest,
+  QueryResponse,
   RelationField,
   Rules,
   ScalarName,
@@ -12,7 +14,7 @@ import {
 
 import ClientState from './clientState';
 
-export type AuthFetch = (url: string, body: any) => Promise<any>;
+export type AuthFetch = (body: QueryRequest[]) => Promise<QueryResponse[]>;
 
 export interface AuthState {
   id: string;
@@ -64,7 +66,7 @@ export interface FieldState {
 export interface FieldsState {
   invalid: boolean;
   active: boolean[];
-  mutate: () => Promise<Data | void>;
+  mutate: () => Promise<Data | null | false>;
 }
 
 export interface QueryOptions {
@@ -76,8 +78,11 @@ export interface Client {
   ready(): Promise<void>;
   types(): Obj<Obj<string>>;
   newId(type: string): string;
-  login(username: string, password: string): Promise<void>;
-  logout(authToken: string): Promise<void>;
+  login(username: string, password: string): Promise<string | null>;
+  login(authState: AuthState): void;
+  logout(): Promise<void>;
+
+  loggedIn(listener: (value: boolean) => void): () => void;
 
   field(field: FieldConfig): Promise<FieldState>;
   field(
@@ -119,5 +124,5 @@ export interface Client {
   set(type: string, id: string, value: Obj | null | undefined): void;
   set(type: string, id: string, field: string, value: any): void;
 
-  mutate(keys: string[], clearKeys?: string[]): Promise<Data>;
+  mutate(keys: string[], clearKeys?: string[]): Promise<Data | null>;
 }

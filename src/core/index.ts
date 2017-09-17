@@ -27,6 +27,7 @@ export {
   noUndef,
   promisifyEmitter,
   runFilter,
+  transformValue,
   undefOr,
 } from './utils';
 export { default as validate } from './validate';
