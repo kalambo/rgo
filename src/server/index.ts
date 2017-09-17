@@ -575,7 +575,9 @@ export default async function buildServer(
       if (userId) {
         user = {
           id: userId,
-          ...((await typeConnectors[options.auth.type].findById(userId)) || {}),
+          ...((typeConnectors[options.auth.type] &&
+            (await typeConnectors[options.auth.type].findById(userId))) ||
+            {}),
         };
       }
     }
