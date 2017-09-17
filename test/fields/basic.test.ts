@@ -11,6 +11,7 @@ describe('fields: basic', () => {
       JSON.stringify({
         scalar: 'string',
         isList: false,
+        relation: null,
         rules: {},
         value: 'Esperanza',
         invalid: false,

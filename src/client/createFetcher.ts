@@ -77,7 +77,11 @@ export default function createFetcher(
             query: `{
               ${type}(filter: "id=${id}") {
                 id
-                ${Object.keys(nextFieldsMap[type][id]).join('\n')}
+                ${Object.keys(nextFieldsMap[type][id])
+                  .map(
+                    f => (fieldIs.scalar(schema[type][f]) ? f : `${f} { id }`),
+                  )
+                  .join('\n')}
               }
             }`,
           });

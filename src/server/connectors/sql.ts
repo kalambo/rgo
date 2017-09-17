@@ -29,12 +29,20 @@ export function applyFilter(
   isOr?: boolean,
 ) {
   const key = Object.keys(filter)[0];
+  if (!key) return knex;
   if (key === '$and' || key === '$or') {
     return knex.where(function(this: knex.QueryBuilder) {
       filter[key].forEach(f => applyFilter(this, f, key === '$or'));
     });
   }
   const op = Object.keys(filter[key])[0];
+  if (filter[key][op] === null && ['$eq', '$ne'].includes(op)) {
+    return knex[isOr ? 'orWhere' : 'where'](
+      key,
+      `IS${op === '$ne' ? ' NOT' : ''}`,
+      filter[key][op],
+    );
+  }
   return knex[isOr ? 'orWhere' : 'where'](key, ops[op], filter[key][op]);
 }
 

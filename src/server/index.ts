@@ -231,7 +231,7 @@ export default async function buildServer(
                       ...queryArgs.filter,
                       [relField]: {
                         $in: roots.reduce(
-                          (res, root) => res.concat(root[rootField]),
+                          (res, root) => res.concat(root[rootField] || []),
                           [],
                         ),
                       },
@@ -257,10 +257,10 @@ export default async function buildServer(
 
                     return roots.map(root => {
                       if (fieldIs.relation(field)) {
-                        if (!root[f]) return null;
                         if (!field.isList) {
                           return results.find(r => r.id === root[f]);
                         }
+                        if (!root[f]) return [];
                         if (args.sort) {
                           return results
                             .filter(r => root[f].includes(r.id))
@@ -579,6 +579,8 @@ export default async function buildServer(
             (await typeConnectors[options.auth.type].findById(userId))) ||
             {}),
         };
+      } else {
+        throw new Error('Not authorized');
       }
     }
 

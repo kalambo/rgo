@@ -58,6 +58,7 @@ export interface FieldConfig {
 export interface FieldState {
   scalar: ScalarName;
   isList: boolean;
+  relation: string | null;
   rules: Rules;
   value: any;
   onChange: (value: any) => void;

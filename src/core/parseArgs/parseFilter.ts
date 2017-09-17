@@ -1,7 +1,7 @@
 import * as peg from 'pegjs';
 
 import { Field, fieldIs, Obj } from '../typings';
-import { isObject, keysToObject, mapArray, mapObject } from '../utils';
+import { isObject, keysToObject, mapObject } from '../utils';
 
 import parseDateString from './parseDateString';
 
@@ -33,8 +33,8 @@ block
 
 statement
   = f:field _ o:op _ e:expr { return [{ [f]: { [o]: e } }]; }
-  / '!' _ f:field { return [{ $or: [{ [f]: { $eq: null } }, { [f]: { $eq: false } }] }]; }
-  / f:field { return [{ $and: [{ [f]: { $ne: null } }, { [f]: { $ne: false } }] }]; }
+  / '!' _ f:field { return [{ $or: [{ [f]: { $eq: 'null' } }, { [f]: { $eq: 'false' } }] }]; }
+  / f:field { return [{ $and: [{ [f]: { $ne: 'null' } }, { [f]: { $ne: 'false' } }] }]; }
 
 field
   = '\'' f:[a-z0-9-_]i+ '\'' { return f.join(''); }
@@ -65,10 +65,19 @@ whiteSpace
 `).parse;
 
 const typeMaps = {
-  boolean: v => mapArray(v, x => ({ true: true, false: false }[x] || null)),
-  int: v => mapArray(v, x => parseInt(x, 10)),
-  float: v => mapArray(v, x => parseFloat(x)),
-  date: v => mapArray(v, x => parseDateString(x)),
+  boolean: v => ({ true: true, false: false }[v] || null),
+  int: v => {
+    if (v === 'null' || v === 'false') return null;
+    return parseInt(v, 10);
+  },
+  float: v => {
+    if (v === 'null' || v === 'false') return null;
+    return parseFloat(v);
+  },
+  date: v => {
+    if (v === 'null' || v === 'false') return null;
+    return parseDateString(v);
+  },
 };
 
 export default function parseFilter(

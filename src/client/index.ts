@@ -14,6 +14,7 @@ import {
   promisifyEmitter,
   QueryRequest,
   QueryResponse,
+  RelationField,
   Rules,
   ScalarField,
   ScalarName,
@@ -58,42 +59,56 @@ export function buildClient(
     else localStorage.setItem('kalamboAuth', JSON.stringify(newAuth));
     loggedInListeners.forEach(l => l(!!authState));
   };
-  const runFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> =>
-    (await fetch(url, {
+  const runFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> => {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...authState ? { Authorization: `Bearer ${authState.token}` } : {},
       },
       body: JSON.stringify(body),
-    })).json();
+    });
+    if (!response.ok) throw new Error();
+    return await response.json();
+  };
   const authFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> => {
-    const responses = await runFetch(body);
-    const errorResponses = responses
-      .map((response, index) => ({ errors: response.errors, index }))
-      .filter(
-        ({ errors }) =>
-          errors && errors!.some(e => e.message === 'Not authorized'),
-      );
-    if (
-      errorResponses.length > 0 &&
-      auth &&
-      auth.refresh &&
-      authState &&
-      authState.refresh
-    ) {
-      setAuth({
-        id: authState.id,
-        ...await auth.refresh(authState.refresh),
-      });
-      const retryResponses = await runFetch(
-        errorResponses.map(({ index }) => body[index]),
-      );
-      errorResponses.forEach(
-        ({ index }, i) => (responses[index] = retryResponses[i]),
-      );
+    try {
+      const responses = await runFetch(body);
+      const errorResponses = responses
+        .map((response, index) => ({ errors: response.errors, index }))
+        .filter(
+          ({ errors }) =>
+            errors && errors!.some(e => e.message === 'Not authorized'),
+        );
+      if (
+        errorResponses.length > 0 &&
+        auth &&
+        auth.refresh &&
+        authState &&
+        authState.refresh
+      ) {
+        setAuth({
+          id: authState.id,
+          ...await auth.refresh(authState.refresh),
+        });
+        const retryResponses = await runFetch(
+          errorResponses.map(({ index }) => body[index]),
+        );
+        errorResponses.forEach(
+          ({ index }, i) => (responses[index] = retryResponses[i]),
+        );
+      }
+      return responses;
+    } catch {
+      if (auth && auth.refresh && authState && authState.refresh) {
+        setAuth({
+          id: authState.id,
+          ...await auth.refresh(authState.refresh),
+        });
+        return await runFetch(body);
+      }
+      return body.map(() => ({ errors: [{ name: '', message: '' }] }));
     }
-    return responses;
   };
 
   const readyListeners: (() => void)[] = [];
@@ -135,10 +150,11 @@ export function buildClient(
 
   interface FieldInfo {
     scalar: ScalarName;
-    isList?: true;
+    isList: boolean;
+    relation: string | null;
     rules: Rules;
-    required?: boolean;
-    showIf?: Obj;
+    required: boolean;
+    showIf: Obj;
   }
   const watchFields = <T>(
     config: FieldConfig | FieldConfig[],
@@ -163,28 +179,37 @@ export function buildClient(
           }
           const field = (fieldName === 'password'
             ? { scalar: 'string' }
-            : schema[type][fieldName]) as ScalarField;
-          const allRules = { ...(rules || {}), ...(field.rules || {}) };
-          if (field.rules && field.rules.lt) {
-            allRules.lt = `${type}.${id}.${field.rules.lt}`;
+            : schema[type][fieldName]) as RelationField | ScalarField;
+
+          const allRules = {
+            ...(rules || {}),
+            ...((fieldIs.scalar(field) && field.rules) || {}),
+          };
+          if (fieldIs.scalar(field)) {
+            if (field.rules && field.rules.lt) {
+              allRules.lt = `${type}.${id}.${field.rules.lt}`;
+            }
+            if (field.rules && field.rules.gt) {
+              allRules.gt = `${type}.${id}.${field.rules.gt}`;
+            }
+            if (allRules.lt) allKeysObj[allRules.lt] = true;
+            if (allRules.gt) allKeysObj[allRules.gt] = true;
           }
-          if (field.rules && field.rules.gt) {
-            allRules.gt = `${type}.${id}.${field.rules.gt}`;
-          }
-          if (allRules.lt) allKeysObj[allRules.lt] = true;
-          if (allRules.gt) allKeysObj[allRules.gt] = true;
+
           if (Array.isArray(config)) {
             Object.keys(showIf || {}).forEach(k => (allKeysObj[k] = true));
           }
+
           allKeysObj[
             fieldName === 'password' ? `${type}.${id}.${authField!.field}` : key
           ] = true;
           return {
-            scalar: field.scalar,
-            isList: field.isList,
+            scalar: fieldIs.scalar(field) ? field.scalar : 'string',
+            isList: field.isList || false,
+            relation: fieldIs.relation(field) ? field.type : null,
             rules: allRules,
-            required,
-            showIf,
+            required: required || false,
+            showIf: showIf || {},
           };
         },
         ({ key }) => key,
@@ -351,7 +376,8 @@ export function buildClient(
         field,
         (info, values) => ({
           scalar: info[field.key].scalar,
-          isList: !!info[field.key].isList,
+          isList: info[field.key].isList,
+          relation: info[field.key].relation,
           rules: info[field.key].rules,
           value: values[field.key],
           onChange: value =>
@@ -360,7 +386,7 @@ export function buildClient(
               transformValue(value, info[field.key].rules.transform!),
             ),
           invalid: isEmptyValue(values[field.key])
-            ? !!info[field.key].required
+            ? info[field.key].required
             : !validateField(
                 info[field.key].scalar,
                 info[field.key].rules,
@@ -382,22 +408,19 @@ export function buildClient(
       return watchFields(
         fields,
         (info, values) => {
-          const active = fields.map(
-            ({ key }) =>
-              info[key].showIf
-                ? Object.keys(info[key].showIf!).every(
-                    k =>
-                      values[k] === info[key].showIf![k] ||
-                      (Array.isArray(info[key].showIf![k]) &&
-                        info[key].showIf![k].includes(values[k])),
-                  )
-                : true,
+          const active = fields.map(({ key }) =>
+            Object.keys(info[key].showIf).every(
+              k =>
+                values[k] === info[key].showIf[k] ||
+                (Array.isArray(info[key].showIf[k]) &&
+                  info[key].showIf[k].includes(values[k])),
+            ),
           );
           const invalid = fields.some(
             ({ key }, i) =>
               active[i] &&
               (isEmptyValue(values[key])
-                ? !!info[key].required
+                ? info[key].required
                 : !validateField(
                     info[key].scalar,
                     info[key].rules,
