@@ -432,7 +432,6 @@ export default async function buildServer(
                         fields: {
                           equals: { type: scalars.json.type },
                           email: { type: GraphQLBoolean },
-                          url: { type: GraphQLBoolean },
                           transform: { type: GraphQLString },
                           maxWords: { type: GraphQLInt },
                           minChoices: { type: GraphQLInt },

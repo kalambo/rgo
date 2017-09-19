@@ -25,6 +25,12 @@ const validateSingle = (
     if (typeof value !== 'string' || !formats.email.test(value)) return false;
   }
 
+  if (rules.password) {
+    if (typeof value !== 'string' || value.length < 10 || value.length > 64) {
+      return false;
+    }
+  }
+
   if (rules.transform) {
     if (transformValue(value, rules.transform) !== value) return false;
   }

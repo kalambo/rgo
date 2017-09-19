@@ -42,7 +42,7 @@ export function buildClient(
     logout: (authToken: string) => void | Promise<void>;
     refresh?: (
       refreshToken: string,
-    ) => Promise<{ token: string; refresh: string }>;
+    ) => Promise<{ token: string; refresh: string } | null>;
   },
   log?: boolean,
 ): Client {
@@ -87,25 +87,25 @@ export function buildClient(
         authState &&
         authState.refresh
       ) {
-        setAuth({
-          id: authState.id,
-          ...await auth.refresh(authState.refresh),
-        });
-        const retryResponses = await runFetch(
-          errorResponses.map(({ index }) => body[index]),
-        );
-        errorResponses.forEach(
-          ({ index }, i) => (responses[index] = retryResponses[i]),
-        );
+        const newTokens = await auth.refresh(authState.refresh);
+        if (newTokens) {
+          setAuth({ id: authState.id, ...newTokens });
+          const retryResponses = await runFetch(
+            errorResponses.map(({ index }) => body[index]),
+          );
+          errorResponses.forEach(
+            ({ index }, i) => (responses[index] = retryResponses[i]),
+          );
+        }
       }
       return responses;
     } catch {
       if (auth && auth.refresh && authState && authState.refresh) {
-        setAuth({
-          id: authState.id,
-          ...await auth.refresh(authState.refresh),
-        });
-        return await runFetch(body);
+        const newTokens = await auth.refresh(authState.refresh);
+        if (newTokens) {
+          setAuth({ id: authState.id, ...newTokens });
+          return await runFetch(body);
+        }
       }
       return body.map(() => ({ errors: [{ name: '', message: '' }] }));
     }
@@ -186,6 +186,9 @@ export function buildClient(
             ...((fieldIs.scalar(field) && field.rules) || {}),
           };
           if (fieldIs.scalar(field)) {
+            if (fieldName === 'password') {
+              allRules.password = true;
+            }
             if (field.rules && field.rules.lt) {
               allRules.lt = `${type}.${id}.${field.rules.lt}`;
             }
