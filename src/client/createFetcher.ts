@@ -245,7 +245,7 @@ export default function createFetcher(
                 ? ids.filter(id => !prev.ids[path].includes(id))
                 : ids;
               nextQueries[queryIndex].ids[path] = ids;
-              if (ids.length > 0) {
+              if (newIds.length > 0) {
                 nextQueries[queryIndex].queries.push(`{
                   ${root.field}(ids:${JSON.stringify(newIds)}) ${inner}
                 }`);

@@ -62,8 +62,10 @@ export default function queryLayers(
               runFilter(args.filter, id, state.combined[field.type][id])
             ) {
               argsState.extra.start += 1;
-              if (state.diff[field.type][id] === 0) argsState.extra.end += 1;
-              argsState.ids.push(id);
+              if (state.diff[field.type][id] === 0) {
+                argsState.extra.end += 1;
+                argsState.ids.push(id);
+              }
             }
           }
           if (state.diff[field.type][id] === -1) {

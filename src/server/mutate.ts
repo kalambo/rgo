@@ -99,7 +99,7 @@ export default async function mutate(
         }
       }
 
-      if (auth && !await auth.allowMutation(user, type, data, prev)) {
+      if (auth && !await auth.allowMutation(user, type, combinedData, prev)) {
         const error = new Error('Not authorized') as any;
         error.status = 401;
         return error;

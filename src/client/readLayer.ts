@@ -14,8 +14,6 @@ import { ClientState, DataChanges, QueryLayer } from './typings';
 const isOrIncludes = <T>(value: T | T[], elem: T) =>
   Array.isArray(value) ? value.includes(elem) : value === elem;
 
-// const nullIfEmpty = (array: any[]) => (array.length === 0 ? null : array);
-
 export default function readLayer(
   {
     root,
