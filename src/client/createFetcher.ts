@@ -71,6 +71,20 @@ export default function createFetcher(
       const currentMutationListeners = mutationListeners;
       mutationListeners = [];
 
+      const indices = Object.keys(nextQueries).map(k => parseInt(k, 10));
+      const firstIndicies: Obj<number> = {};
+      for (const i of indices) {
+        if (nextQueries[i].queries.length > 0) {
+          firstIndicies[i] = queries.length;
+          queries.push(...nextQueries[i].queries.map(query => ({ query })));
+          prevQueries[i] = {
+            ids: nextQueries[i].ids,
+            slice: nextQueries[i].slice,
+          };
+        }
+        delete nextQueries[i];
+      }
+
       for (const type of Object.keys(nextFieldsMap)) {
         for (const id of Object.keys(nextFieldsMap[type])) {
           queries.push({
@@ -88,18 +102,6 @@ export default function createFetcher(
         }
       }
       nextFieldsMap = {};
-
-      const indices = Object.keys(nextQueries).map(k => parseInt(k, 10));
-      const firstIndicies: Obj<number> = {};
-      for (const i of indices) {
-        firstIndicies[i] = queries.length;
-        queries.push(...nextQueries[i].queries.map(query => ({ query })));
-        prevQueries[i] = {
-          ids: nextQueries[i].ids,
-          slice: nextQueries[i].slice,
-        };
-        delete nextQueries[i];
-      }
 
       const mutationTypes = Object.keys(mutationData);
       if (mutationTypes.length > 0) {
@@ -153,7 +155,7 @@ export default function createFetcher(
           listener();
         }
         for (const i of indices) {
-          if (!nextQueries[i]) {
+          if (!nextQueries[i] && firstIndicies[i] !== undefined) {
             queryListeners[i](responses[firstIndicies[i]].firstIds);
           }
         }
