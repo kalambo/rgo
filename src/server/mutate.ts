@@ -5,6 +5,8 @@ import { AuthConfig, Connector, Mutation } from './typings';
 export default async function mutate(
   fields: Obj<Obj<Field>>,
   connectors: Obj<Connector>,
+  schemaTypes: Obj<Obj<string>>,
+  runQuery: (query: string) => Promise<Obj>,
   args,
   {
     user,
@@ -78,28 +80,41 @@ export default async function mutate(
       }
 
       const combinedData = { ...prev, ...data };
-      for (const f of Object.keys(combinedData)) {
-        const field = fields[type][f];
-        if (!fieldIs.foreignRelation(field)) {
-          if (
-            !validate(
-              fieldIs.scalar(field) ? field.scalar : 'string',
-              fieldIs.scalar(field) ? field.rules : undefined,
-              combinedData[f],
-              combinedData,
-            )
-          ) {
-            const error = new Error('Invalid data') as any;
-            error.status = 400;
-            return error;
-          }
-          if (field.isList && data && data[f] && data[f].length === 0) {
-            data[f] = null;
+      if (data) {
+        for (const f of Object.keys(combinedData)) {
+          const field = fields[type][f];
+          if (!fieldIs.foreignRelation(field)) {
+            if (
+              !validate(
+                fieldIs.scalar(field) ? field.scalar : 'string',
+                fieldIs.scalar(field) ? field.rules : undefined,
+                combinedData[f],
+                combinedData,
+              )
+            ) {
+              const error = new Error('Invalid data') as any;
+              error.status = 400;
+              return error;
+            }
+            if (field.isList && data && data[f] && data[f].length === 0) {
+              data[f] = null;
+            }
           }
         }
       }
 
-      if (auth && !await auth.allowMutation(user, type, combinedData, prev)) {
+      if (
+        auth &&
+        !await auth.allowMutation(
+          schemaTypes,
+          runQuery,
+          user,
+          type,
+          mId,
+          data && combinedData,
+          prev,
+        )
+      ) {
         const error = new Error('Not authorized') as any;
         error.status = 401;
         return error;

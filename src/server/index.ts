@@ -172,6 +172,13 @@ export default async function buildServer(
       ),
     );
 
+    const schemaTypes = keysToObject(typeNames, type =>
+      keysToObject(Object.keys(typeFields[type]), fieldName => {
+        const field = typeFields[type][fieldName];
+        return fieldIs.scalar(field) ? field.scalar : field.type;
+      }),
+    );
+
     const queryTypes = keysToObject(
       typeNames,
       type =>
@@ -210,7 +217,10 @@ export default async function buildServer(
                   async (
                     roots: any[],
                     args,
-                    { user }: { user: Obj | null },
+                    {
+                      user,
+                      internal,
+                    }: { user: Obj | null; internal?: boolean },
                     info: GraphQLResolveInfo,
                   ) => {
                     const rootField = fieldIs.relation(field) ? f : 'id';
@@ -236,11 +246,16 @@ export default async function buildServer(
                         ),
                       },
                     };
-                    if (options.auth) {
+                    if (options.auth && !internal) {
                       if (
                         applyQueryLimit(
                           queryArgs,
-                          await options.auth.limitQuery(user, type),
+                          await options.auth.limitQuery(
+                            schemaTypes,
+                            runQuery,
+                            user,
+                            field.type,
+                          ),
                         )
                       ) {
                         const error = new Error('Not authorized') as any;
@@ -340,17 +355,22 @@ export default async function buildServer(
             async resolve(
               _root: any,
               args,
-              { user }: { user: Obj | null },
+              { user, internal }: { user: Obj | null; internal?: boolean },
               info: GraphQLResolveInfo,
             ) {
               const queryArgs = args.ids
                 ? { filter: { id: { $in: args.ids } }, sort: [], start: 0 }
                 : parseArgs(args, user && user.id, typeFields[type], info);
-              if (options.auth) {
+              if (options.auth && !internal) {
                 if (
                   applyQueryLimit(
                     queryArgs,
-                    await options.auth.limitQuery(user, type),
+                    await options.auth.limitQuery(
+                      schemaTypes,
+                      runQuery,
+                      user,
+                      type,
+                    ),
                   )
                 ) {
                   const error = new Error('Not authorized') as any;
@@ -409,6 +429,8 @@ export default async function buildServer(
               return mutate(
                 typeFields,
                 typeConnectors,
+                schemaTypes,
+                runQuery,
                 args,
                 context,
                 options.auth,
@@ -565,6 +587,14 @@ export default async function buildServer(
         },
       }),
     });
+
+    const runQuery = async (query: string) =>
+      (await execute(graphQLSchema, parse(query), null, {
+        user: null,
+        rootQuery: query,
+        mutationsInfo: { mutations: {}, newIds: {} },
+        internal: true,
+      })).data as Obj;
 
     const queries = Array.isArray(request) ? request : [request];
 

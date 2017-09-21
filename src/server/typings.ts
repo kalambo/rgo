@@ -41,12 +41,17 @@ export interface AuthConfig {
   ): Promise<string>;
   getUserId(authToken: string): Promise<string | null>;
   limitQuery: (
+    types: Obj<Obj<string>>,
+    runQuery: (query: string) => Promise<Obj>,
     user: Obj | null,
     type: string,
   ) => QueryLimit | Promise<QueryLimit>;
   allowMutation: (
+    types: Obj<Obj<string>>,
+    runQuery: (query: string) => Promise<Obj>,
     user: Obj | null,
     type: string,
+    id: string,
     data: Obj | null,
     prev: Obj | null,
   ) => boolean | Promise<boolean>;
