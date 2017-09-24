@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 
 import { Obj, Rules, ScalarName } from './typings';
-import { isEmptyValue, noUndef, transformValue } from './utils';
+import { noUndef, transformValue } from './utils';
 
 const formats = {
   email: /^[a-z0-9!#$%&'*+\/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&''*+\/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i,
@@ -17,7 +17,7 @@ const validateSingle = (
     if (value && value.fileName && !value.fileId) return false;
   }
 
-  if (rules.equals !== undefined) {
+  if (rules.equals !== undefined && !Array.isArray(rules.equals)) {
     if (value !== rules.equals) return false;
   }
 
@@ -55,7 +55,13 @@ const validateSingle = (
   }
 
   if (rules.options) {
-    if (!rules.options.includes(value)) return false;
+    if (Array.isArray(rules.options)) {
+      if (!rules.options.includes(value)) return false;
+    } else {
+      if (!Object.keys(rules.options).some(k => rules.options![k] === value)) {
+        return false;
+      }
+    }
   }
 
   return true;
@@ -64,10 +70,20 @@ const validateSingle = (
 export default function validate(
   scalar: ScalarName,
   rules: Rules = {},
+  required: boolean,
   value: any,
   data: Obj,
 ) {
-  if (isEmptyValue(value)) return true;
+  if (value === null || (Array.isArray(value) && value.length === 0)) {
+    return !required;
+  }
+
+  if (rules.equals !== undefined && Array.isArray(rules.equals)) {
+    if (!Array.isArray(value) || value.length !== rules.equals.length) {
+      return false;
+    }
+    if (rules.equals.some((v, i) => value[i] !== v)) return false;
+  }
 
   if (rules.minChoices) {
     if (!Array.isArray(value) || value.length < rules.minChoices) {

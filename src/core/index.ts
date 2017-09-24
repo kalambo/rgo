@@ -18,7 +18,6 @@ export {
 export {
   createCompare,
   getFilterFields,
-  isEmptyValue,
   isObject,
   keysToObject,
   locationOf,

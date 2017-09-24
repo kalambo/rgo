@@ -21,7 +21,7 @@ export interface Rules {
   maxChoices?: number;
   lt?: string;
   gt?: string;
-  options?: any[];
+  options?: any[] | Obj;
 }
 
 export type Data = Obj<Obj<Obj | null>>;

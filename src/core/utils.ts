@@ -14,9 +14,6 @@ export const isObject = v =>
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
-export const isEmptyValue = (v: any) =>
-  v === null || (Array.isArray(v) && v.length === 0);
-
 export const transformValue = (v: any, transform?: 'email' | 'url') => {
   if (!transform || typeof v !== 'string') return v;
   if (transform === 'email') return v.toLowerCase().replace(/\s/g, '');

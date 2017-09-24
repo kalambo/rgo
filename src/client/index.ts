@@ -1,4 +1,5 @@
 export { Client, FieldConfig } from './typings';
+export { validate } from '../core';
 
 import * as _ from 'lodash';
 import { parse } from 'graphql';
@@ -7,7 +8,6 @@ import {
   Data,
   Field,
   fieldIs,
-  isEmptyValue,
   keysToObject,
   noUndef,
   Obj,
@@ -19,7 +19,7 @@ import {
   ScalarField,
   ScalarName,
   transformValue,
-  validate as validateField,
+  validate,
 } from '../core';
 
 import ClientState from './clientState';
@@ -388,14 +388,13 @@ export function buildClient(
               ...field.key.split('.'),
               transformValue(value, info[field.key].rules.transform!),
             ),
-          invalid: isEmptyValue(values[field.key])
-            ? info[field.key].required
-            : !validateField(
-                info[field.key].scalar,
-                info[field.key].rules,
-                values[field.key],
-                values,
-              ),
+          invalid: !validate(
+            info[field.key].scalar,
+            info[field.key].rules,
+            info[field.key].required,
+            values[field.key],
+            values,
+          ),
         }),
         false,
         listener,
@@ -422,14 +421,13 @@ export function buildClient(
           const invalid = fields.some(
             ({ key }, i) =>
               active[i] &&
-              (isEmptyValue(values[key])
-                ? info[key].required
-                : !validateField(
-                    info[key].scalar,
-                    info[key].rules,
-                    values[key],
-                    values,
-                  )),
+              !validate(
+                info[key].scalar,
+                info[key].rules,
+                info[key].required,
+                values[key],
+                values,
+              ),
           );
           return {
             active,

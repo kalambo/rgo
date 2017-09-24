@@ -88,6 +88,7 @@ export default async function mutate(
               !validate(
                 fieldIs.scalar(field) ? field.scalar : 'string',
                 fieldIs.scalar(field) ? field.rules : undefined,
+                false,
                 combinedData[f],
                 combinedData,
               )
