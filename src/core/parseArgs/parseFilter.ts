@@ -53,7 +53,7 @@ op
 expr
 = '\'' t:[^']* '\'' { return t.join('').trim(); }
 / '"' t:[^"]i* '"' { return t.join('').trim(); }
-/ '[' t:[^\]]i* ']' { return t.join('').split(',').map(s => s.trim()); }
+/ '[' t:[^\]]i* ']' { return t.join('').split(',').map(function(s) { return s.trim() }); }
 / t:[^'",|()]* { return t.join('').trim(); }
 
 _
