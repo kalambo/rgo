@@ -24,17 +24,17 @@
     "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/jest": "^21.1.0",
-    "@types/lodash": "^4.14.74",
+    "@types/jest": "^21.1.1",
+    "@types/lodash": "^4.14.76",
     "@types/uuid": "^3.4.2",
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.0",
     "fetch-mock": "^5.12.2",
-    "jest": "^21.1.0",
-    "prettier": "^1.7.0",
+    "jest": "^21.2.1",
+    "prettier": "^1.7.3",
     "rimraf": "^2.6.2",
     "ts-jest": "^21.0.1",
-    "typescript": "^2.5.2",
+    "typescript": "^2.5.3",
     "uuid": "^3.1.0"
   },
   "dependencies": {
@@ -44,7 +44,7 @@
     "@types/mongodb": "^2.2.11",
     "@types/pegjs": "^0.10.0",
     "flat": "^4.0.0",
-    "graphql": "^0.11.3",
+    "graphql": "^0.11.6",
     "knex": "^0.13.0",
     "lodash": "^4.17.4",
     "pegjs": "^0.10.0"

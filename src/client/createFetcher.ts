@@ -175,12 +175,13 @@ export default function createFetcher(
   return {
     process,
 
-    addFields(keys: string[], onReady: (isLoading?: boolean) => void) {
+    addFields(
+      keys: [string, string, string][],
+      onReady: (isLoading?: boolean) => void,
+    ) {
       let alreadyLoaded = true;
-      const splitKeys = keys
-        .map(k => k.split('.'))
-        .filter(([_, id]) => id[0] !== '$');
-      for (const [type, id, field] of splitKeys) {
+      const serverKeys = keys.filter(([_, id]) => id[0] !== '$');
+      for (const [type, id, field] of serverKeys) {
         fieldsMap[type] = fieldsMap[type] || {};
         fieldsMap[type][id] = fieldsMap[type][id] || {};
         if (!fieldsMap[type][id][field]) {
@@ -200,7 +201,7 @@ export default function createFetcher(
         onReady();
       }
       return () => {
-        for (const [type, id, field] of splitKeys) {
+        for (const [type, id, field] of serverKeys) {
           fieldsMap[type][id][field]--;
         }
       };

@@ -1,5 +1,5 @@
-export { Client, FieldConfig } from './typings';
-export { validate } from '../core';
+export { Client } from './typings';
+export { ScalarName } from '../core';
 
 import * as _ from 'lodash';
 import { parse } from 'graphql';
@@ -7,33 +7,18 @@ import { parse } from 'graphql';
 import {
   Data,
   Field,
-  fieldIs,
-  keysToObject,
   noUndef,
   Obj,
   promisifyEmitter,
   QueryRequest,
   QueryResponse,
-  RelationField,
-  Rules,
-  ScalarField,
-  ScalarName,
-  transformValue,
-  validate,
 } from '../core';
 
 import ClientState from './clientState';
 import createFetcher from './createFetcher';
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
-import {
-  AuthState,
-  Client,
-  DataChanges,
-  FieldConfig,
-  FieldState,
-  QueryOptions,
-} from './typings';
+import { AuthState, Client, DataChanges, QueryOptions } from './typings';
 
 export function buildClient(
   url: string,
@@ -137,148 +122,15 @@ export function buildClient(
 
   let queryCounter = 0;
 
-  const splitAuthField = (values: Obj<any>, authKey: string | null) => {
-    if (!authField || !authKey) return values;
-    const { username, password } = JSON.parse(values[authKey] || '{}');
-    const [type, id] = authKey.split('.');
-    return {
-      ...values,
-      [`${type}.${id}.${authField.field}`]: noUndef(username),
-      [`${type}.${id}.password`]: noUndef(password),
-    };
-  };
-
-  interface FieldInfo {
-    scalar: ScalarName;
-    isList: boolean;
-    relation: string | null;
-    rules: Rules;
-    required: boolean;
-    showIf: Obj;
-  }
-  const watchFields = <T>(
-    config: FieldConfig | FieldConfig[],
-    getResult: (info: Obj<FieldInfo>, values: Obj) => T,
-    clear: boolean,
-    listener?: (value: T | null) => void,
+  const splitAuthField = (
+    values: Obj<Obj>,
+    authKey: [string, string, string] | null,
   ) => {
-    return promisifyEmitter(innerListener => {
-      const configArray = Array.isArray(config) ? config : [config];
-      const allKeysObj: Obj<true> = {};
-      let authKey: string | null = null;
-      const info = keysToObject<FieldConfig, FieldInfo>(
-        configArray,
-        ({ key, rules, required, showIf }) => {
-          const [type, id, fieldName] = key.split('.');
-          if (
-            authField &&
-            type === authField.type &&
-            (fieldName === authField.field || fieldName === 'password')
-          ) {
-            authKey = `${type}.${id}.${authField.field}`;
-          }
-          const field = (fieldName === 'password'
-            ? { scalar: 'string' }
-            : schema[type][fieldName]) as RelationField | ScalarField;
-
-          const allRules = {
-            ...(rules || {}),
-            ...((fieldIs.scalar(field) && field.rules) || {}),
-          };
-          if (fieldIs.scalar(field)) {
-            if (fieldName === 'password') {
-              allRules.password = true;
-            }
-            if (field.rules && field.rules.lt) {
-              allRules.lt = `${type}.${id}.${field.rules.lt}`;
-            }
-            if (field.rules && field.rules.gt) {
-              allRules.gt = `${type}.${id}.${field.rules.gt}`;
-            }
-            if (allRules.lt) allKeysObj[allRules.lt] = true;
-            if (allRules.gt) allKeysObj[allRules.gt] = true;
-          }
-
-          if (Array.isArray(config)) {
-            Object.keys(showIf || {}).forEach(k => (allKeysObj[k] = true));
-          }
-
-          allKeysObj[
-            fieldName === 'password' ? `${type}.${id}.${authField!.field}` : key
-          ] = true;
-          return {
-            scalar: fieldIs.scalar(field) ? field.scalar : 'string',
-            isList: field.isList || false,
-            relation: fieldIs.relation(field) ? field.type : null,
-            rules: allRules,
-            required: required || false,
-            showIf: showIf || {},
-          };
-        },
-        ({ key }) => key,
-      );
-      const allKeys = Object.keys(allKeysObj);
-
-      let running = true;
-      let unlisten;
-      const unwatch = fetcher.addFields(allKeys, isLoading => {
-        if (running) {
-          if (isLoading) {
-            innerListener(null);
-          } else {
-            allKeys
-              .map(k => configArray.find(({ key }) => key === k)!)
-              .filter(x => x && x.default !== undefined)
-              .forEach(({ key, default: defaultValue }) => {
-                const value = noUndef(_.get(state.combined, key));
-                if (value === null) {
-                  (state.setClient as any)(...key.split('.'), defaultValue);
-                }
-              });
-            const values = keysToObject(allKeys, key =>
-              noUndef(_.get(state.combined, key)),
-            );
-
-            innerListener(getResult(info, splitAuthField(values, authKey)));
-            unlisten =
-              allKeys.length === 1
-                ? state.watch(allKeys[0], value => {
-                    values[allKeys[0]] = value;
-                    if (running) {
-                      innerListener(
-                        getResult(info, splitAuthField(values, authKey)),
-                      );
-                    }
-                  })
-                : state.watch(({ changes, changedData }) => {
-                    const changedKeys = allKeys.filter(key =>
-                      _.get(changes, key),
-                    );
-                    if (changedKeys.length > 0) {
-                      for (const key of changedKeys) {
-                        values[key] = _.get(changedData, key);
-                      }
-                      if (running) {
-                        innerListener(
-                          getResult(info, splitAuthField(values, authKey)),
-                        );
-                      }
-                    }
-                  });
-          }
-        }
-      });
-      return () => {
-        running = false;
-        unwatch();
-        if (unlisten) unlisten();
-        if (clear) {
-          state.setClient(
-            allKeys.reduce((res, k) => _.set(res, k, undefined), {}),
-          );
-        }
-      };
-    }, listener);
+    if (!authField || !authKey) return values;
+    const { username, password } = JSON.parse(_.get(values, authKey) || '{}');
+    _.set(values, authKey, noUndef(username));
+    _.set(values, [authKey[0], authKey[1], 'password'], noUndef(password));
+    return values;
   };
 
   const mutate = async (keys: string[], clearKeys?: string[]) => {
@@ -334,17 +186,13 @@ export function buildClient(
         else readyListeners.push(resolve);
       });
     },
-    types() {
-      return keysToObject(Object.keys(schema), type =>
-        keysToObject(Object.keys(schema[type]), fieldName => {
-          const field = schema[type][fieldName];
-          return fieldIs.scalar(field) ? field.scalar : field.type;
-        }),
-      );
+    schema() {
+      return schema;
     },
     newId(type) {
       return state.newId(type);
     },
+
     login(...args: any[]): any {
       if (args.length === 2) {
         return (async () => {
@@ -365,7 +213,6 @@ export function buildClient(
         setAuth(null);
       }
     },
-
     loggedIn(listener) {
       listener(!!authState);
       loggedInListeners.push(listener);
@@ -374,76 +221,67 @@ export function buildClient(
       };
     },
 
-    field(field: FieldConfig, listener?: (value: FieldState | null) => void) {
-      return watchFields(
-        field,
-        (info, values) => ({
-          scalar: info[field.key].scalar,
-          isList: info[field.key].isList,
-          relation: info[field.key].relation,
-          rules: info[field.key].rules,
-          value: values[field.key],
-          onChange: value =>
-            (state.setClient as any)(
-              ...field.key.split('.'),
-              transformValue(value, info[field.key].rules.transform!),
-            ),
-          invalid: !validate(
-            info[field.key].scalar,
-            info[field.key].rules,
-            info[field.key].required,
-            values[field.key],
-            values,
-          ),
-        }),
-        false,
-        listener,
-      ) as any;
-    },
+    get(...args) {
+      const [keys, listener] = args as [
+        [string, string, string][],
+        (values: Obj<Obj> | null) => void
+      ];
 
-    fields(
-      fields: FieldConfig[],
-      listener?: (
-        value: { invalid: boolean; active: boolean[] } | null,
-      ) => void,
-    ) {
-      return watchFields(
-        fields,
-        (info, values) => {
-          const active = fields.map(({ key }) =>
-            Object.keys(info[key].showIf).every(
-              k =>
-                values[k] === info[key].showIf[k] ||
-                (Array.isArray(info[key].showIf[k]) &&
-                  info[key].showIf[k].includes(values[k])),
-            ),
-          );
-          const invalid = fields.some(
-            ({ key }, i) =>
-              active[i] &&
-              !validate(
-                info[key].scalar,
-                info[key].rules,
-                info[key].required,
-                values[key],
-                values,
-              ),
-          );
-          return {
-            active,
-            invalid,
-            async mutate() {
-              if (invalid) return false;
-              return await mutate(
-                fields.filter((_, i) => active[i]).map(({ key }) => key),
-                fields.filter((_, i) => !active[i]).map(({ key }) => key),
+      return promisifyEmitter(innerListener => {
+        let authKey: [string, string, string] | null = null;
+        for (const [type, id, fieldName] of keys) {
+          if (
+            authField &&
+            type === authField.type &&
+            (fieldName === authField.field || fieldName === 'password')
+          ) {
+            authKey = [type, id, authField.field];
+          }
+        }
+
+        let running = true;
+        let unlisten;
+        const unwatch = fetcher.addFields(keys, isLoading => {
+          if (running) {
+            if (isLoading) {
+              innerListener(null);
+            } else {
+              const values = {};
+              keys.forEach(k =>
+                _.set(values, k, noUndef(_.get(state.combined, k))),
               );
-            },
-          };
-        },
-        true,
-        listener,
-      ) as any;
+
+              innerListener(splitAuthField(values, authKey));
+              unlisten =
+                keys.length === 1
+                  ? state.watch(keys[0].join('.'), value => {
+                      _.set(values, keys[0], value);
+                      if (running) {
+                        innerListener(splitAuthField(values, authKey));
+                      }
+                    })
+                  : state.watch(({ changes, changedData }) => {
+                      const changedKeys = keys.filter(key =>
+                        _.get(changes, key),
+                      );
+                      if (changedKeys.length > 0) {
+                        for (const key of changedKeys) {
+                          _.set(values, key, _.get(changedData, key));
+                        }
+                        if (running) {
+                          innerListener(splitAuthField(values, authKey));
+                        }
+                      }
+                    });
+            }
+          }
+        });
+        return () => {
+          running = false;
+          unwatch();
+          if (unlisten) unlisten();
+        };
+      }, listener) as any;
     },
 
     query(...args) {
