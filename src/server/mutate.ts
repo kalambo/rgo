@@ -1,4 +1,4 @@
-import { Field, fieldIs, keysToObject, Obj, validate } from '../core';
+import { Field, fieldIs, keysToObject, Obj } from '../core';
 
 import { AuthConfig, Connector, Mutation } from './typings';
 
@@ -80,30 +80,6 @@ export default async function mutate(
       }
 
       const combinedData = { ...prev, ...data };
-      if (data) {
-        for (const f of Object.keys(combinedData)) {
-          const field = fields[type][f];
-          if (!fieldIs.foreignRelation(field)) {
-            if (
-              !validate(
-                fieldIs.scalar(field) ? field.scalar : 'string',
-                fieldIs.scalar(field) ? field.rules : undefined,
-                false,
-                combinedData[f],
-                combinedData,
-              )
-            ) {
-              const error = new Error('Invalid data') as any;
-              error.status = 400;
-              return error;
-            }
-            if (field.isList && data && data[f] && data[f].length === 0) {
-              data[f] = null;
-            }
-          }
-        }
-      }
-
       if (
         auth &&
         !await auth.allowMutation(
@@ -121,6 +97,16 @@ export default async function mutate(
         return error;
       }
 
+      if (data) {
+        for (const f of Object.keys(combinedData)) {
+          const field = fields[type][f];
+          if (!fieldIs.foreignRelation(field)) {
+            if (field.isList && data && data[f] && data[f].length === 0) {
+              data[f] = null;
+            }
+          }
+        }
+      }
       mutations[type].push({ id: mId, data, prev });
     }
   }

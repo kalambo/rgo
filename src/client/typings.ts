@@ -2,14 +2,13 @@ export { default as ClientState } from './clientState';
 
 import {
   Data,
+  Field,
   ForeignRelationField,
   Obj,
   QueryArgs,
   QueryRequest,
   QueryResponse,
   RelationField,
-  Rules,
-  ScalarName,
 } from '../core';
 
 import ClientState from './clientState';
@@ -48,28 +47,6 @@ export interface QueryLayer {
   };
 }
 
-export interface FieldConfig {
-  key: string;
-  rules?: Rules;
-  required?: boolean;
-  showIf?: Obj;
-  default?: any;
-}
-export interface FieldState {
-  scalar: ScalarName;
-  isList: boolean;
-  relation: string | null;
-  rules: Rules;
-  value: any;
-  onChange: (value: any) => void;
-  invalid: boolean;
-}
-export interface FieldsState {
-  invalid: boolean;
-  active: boolean[];
-  mutate: () => Promise<Data | null | false>;
-}
-
 export interface QueryOptions {
   variables?: Obj;
   idsOnly?: boolean;
@@ -77,24 +54,18 @@ export interface QueryOptions {
 
 export interface Client {
   ready(): Promise<void>;
-  types(): Obj<Obj<string>>;
+  schema(): Obj<Obj<Field>>;
   newId(type: string): string;
+
   login(username: string, password: string): Promise<string | null>;
   login(authState: AuthState): void;
   logout(): Promise<void>;
-
   loggedIn(listener: (value: boolean) => void): () => void;
 
-  field(field: FieldConfig): Promise<FieldState>;
-  field(
-    field: FieldConfig,
-    listener: (value: FieldState | null) => void,
-  ): () => void;
-
-  fields(fields: FieldConfig[]): Promise<FieldsState>;
-  fields(
-    fields: FieldConfig[],
-    listener: (value: FieldsState | null) => void,
+  get(keys: [string, string, string][]): Promise<Obj<Obj>>;
+  get(
+    keys: [string, string, string][],
+    listener: (values: Obj<Obj> | null) => void,
   ): () => void;
 
   query(queryString: string, options?: QueryOptions): Promise<Obj>;

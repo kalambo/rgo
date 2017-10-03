@@ -11,19 +11,6 @@ export type ScalarName =
   | 'file'
   | 'json';
 
-export interface Rules {
-  equals?: any;
-  email?: true;
-  password?: true;
-  transform?: 'email' | 'url';
-  maxWords?: number;
-  minChoices?: number;
-  maxChoices?: number;
-  lt?: string;
-  gt?: string;
-  options?: any[] | Obj;
-}
-
 export type Data = Obj<Obj<Obj | null>>;
 
 export interface Args {
@@ -52,15 +39,17 @@ export interface QueryArgs {
 export interface ScalarField {
   scalar: ScalarName;
   isList?: true;
-  rules?: Rules;
+  meta?: any;
 }
 export interface RelationField {
   type: string;
   isList?: true;
+  meta?: any;
 }
 export interface ForeignRelationField {
   type: string;
   foreign: string;
+  meta?: any;
 }
 export type Field = ScalarField | RelationField | ForeignRelationField;
 

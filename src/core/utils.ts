@@ -14,13 +14,6 @@ export const isObject = v =>
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
-export const transformValue = (v: any, transform?: 'email' | 'url') => {
-  if (!transform || typeof v !== 'string') return v;
-  if (transform === 'email') return v.toLowerCase().replace(/\s/g, '');
-  if (transform === 'url') return v.toLowerCase().replace(/[^a-z0-9-]/g, '');
-  return v;
-};
-
 export interface MapConfig {
   valueMaps?: Obj<((value: any) => any) | true>;
   newKeys?: Obj<string>;
