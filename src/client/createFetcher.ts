@@ -120,7 +120,7 @@ export default function createFetcher(
             mutation Mutate(${mutationTypes
               .map(t => `$${t}: [${t}Input!]`)
               .join(', ')}) {
-              mutate(${mutationTypes.map(t => `${t}: $${t}`).join(', ')}) {
+              commit(${mutationTypes.map(t => `${t}: $${t}`).join(', ')}) {
                 ${mutationTypes
                   .map(
                     t => `${t} {
@@ -330,10 +330,12 @@ export default function createFetcher(
                   values[indices.password].key[1],
                 authField.field,
               ],
-              value: JSON.stringify({
-                username: values[indices.username].value,
-                password: values[indices.password].value,
-              }),
+              value: JSON.stringify(
+                keysToObject(
+                  ['username', 'password'].filter(k => indices[k] !== -1),
+                  k => values[indices[k]].value,
+                ),
+              ),
             },
           ];
         }

@@ -39,17 +39,17 @@ export interface QueryArgs {
 export interface ScalarField {
   scalar: ScalarName;
   isList?: true;
-  rules?: any;
+  meta?: any;
 }
 export interface RelationField {
   type: string;
   isList?: true;
-  rules?: any;
+  meta?: any;
 }
 export interface ForeignRelationField {
   type: string;
   foreign: string;
-  rules?: any;
+  meta?: any;
 }
 export type Field = ScalarField | RelationField | ForeignRelationField;
 

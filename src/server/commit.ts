@@ -55,7 +55,7 @@ export default async function mutate(
 
       if (auth && type === auth.type && data && data[auth.usernameField]) {
         const { username, password } = JSON.parse(data[auth.usernameField]);
-        data[auth.usernameField] = username;
+        delete data[auth.usernameField];
         if (!prev || prev[auth.usernameField] !== username) {
           const existingUser = await connectors[type].query({
             filter: {
@@ -75,7 +75,10 @@ export default async function mutate(
             return error;
           }
         }
-        if (!prev || !prev[auth.authIdField]) data[auth.authIdField] = password;
+        if (username) data[auth.usernameField] = username;
+        if (password && (!prev || !prev[auth.authIdField])) {
+          data[auth.authIdField] = password;
+        }
       }
 
       const combinedData = { ...prev, ...data };

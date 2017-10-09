@@ -1,6 +1,6 @@
 {
   "name": "kalambo",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Kalambo data system",
   "author": "Jon Whitehead",
   "license": "MIT",
@@ -29,7 +29,7 @@
     "@types/uuid": "^3.4.2",
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.0",
-    "fetch-mock": "^5.13.0",
+    "fetch-mock": "^5.13.1",
     "jest": "^21.2.1",
     "prettier": "^1.7.4",
     "rimraf": "^2.6.2",
@@ -40,7 +40,7 @@
   "dependencies": {
     "@types/flat": "^0.0.28",
     "@types/graphql": "^0.11.5",
-    "@types/knex": "^0.0.61",
+    "@types/knex": "^0.0.62",
     "@types/mongodb": "^2.2.13",
     "@types/pegjs": "^0.10.0",
     "flat": "^4.0.0",

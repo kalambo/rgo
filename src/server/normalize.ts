@@ -37,7 +37,7 @@ export default function normalize(
         .map(node => node.name.value);
 
       data[type] = data[type] || {};
-      result!.mutate[type].forEach(
+      result!.commit[type].forEach(
         record =>
           record &&
           (data[type][record.id] = {

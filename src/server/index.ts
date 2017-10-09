@@ -32,7 +32,7 @@ import {
 } from '../core';
 
 import batch from './batch';
-import mutate from './mutate';
+import commit from './commit';
 import normalizeResult from './normalize';
 import {
   AuthConfig,
@@ -94,6 +94,7 @@ const getSchema = async (
               k => info[k] !== undefined && info[k] !== null,
             ),
             k => info[k],
+            k => (k === 'rules' ? 'meta' : k),
           ),
         },
       }),
@@ -406,7 +407,7 @@ export default async function buildServer(
       mutation: new GraphQLObjectType({
         name: 'Mutation',
         fields: {
-          mutate: {
+          commit: {
             type: new GraphQLObjectType({
               name: 'MutationResult',
               fields: keysToObject(typeNames, type => ({
@@ -419,7 +420,7 @@ export default async function buildServer(
               type: new GraphQLList(new GraphQLNonNull(inputTypes[type])),
             })),
             async resolve(_root, args, context) {
-              return mutate(
+              return commit(
                 typeFields,
                 typeConnectors,
                 runQuery,
