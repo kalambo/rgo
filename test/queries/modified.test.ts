@@ -8,7 +8,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
     );
-    client.set('people', 'B', 'firstname', 'Brent');
+    client.set([{ key: ['people', 'B', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -20,7 +20,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
     );
-    client.set('people', 'B', 'firstname', 'Elissa');
+    client.set([{ key: ['people', 'B', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -32,7 +32,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
     );
-    client.set('people', 'B', 'firstname', 'Ernest');
+    client.set([{ key: ['people', 'B', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ernest', address: { city: 'Tobyhaven' } },
@@ -44,7 +44,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
     );
-    client.set('people', 'B', 'firstname', 'Faye');
+    client.set([{ key: ['people', 'B', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -56,7 +56,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
     );
-    client.set('people', 'B', 'firstname', 'Richie');
+    client.set([{ key: ['people', 'B', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -69,7 +69,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
     );
-    client.set('people', 'C', 'firstname', 'Brent');
+    client.set([{ key: ['people', 'C', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
@@ -81,7 +81,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
     );
-    client.set('people', 'C', 'firstname', 'Elissa');
+    client.set([{ key: ['people', 'C', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Princeview' } },
@@ -93,7 +93,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
     );
-    client.set('people', 'C', 'firstname', 'Ernest');
+    client.set([{ key: ['people', 'C', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ernest', address: { city: 'Princeview' } },
@@ -105,7 +105,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
     );
-    client.set('people', 'C', 'firstname', 'Faye');
+    client.set([{ key: ['people', 'C', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -117,7 +117,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
     );
-    client.set('people', 'C', 'firstname', 'Richie');
+    client.set([{ key: ['people', 'C', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -130,7 +130,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
     );
-    client.set('people', 'A', 'firstname', 'Brent');
+    client.set([{ key: ['people', 'A', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
@@ -142,7 +142,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
     );
-    client.set('people', 'A', 'firstname', 'Elissa');
+    client.set([{ key: ['people', 'A', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Lynchfurt' } },
@@ -154,7 +154,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
     );
-    client.set('people', 'A', 'firstname', 'Ernest');
+    client.set([{ key: ['people', 'A', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -166,7 +166,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
     );
-    client.set('people', 'A', 'firstname', 'Faye');
+    client.set([{ key: ['people', 'A', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -178,7 +178,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
     );
-    client.set('people', 'A', 'firstname', 'Richie');
+    client.set([{ key: ['people', 'A', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -191,7 +191,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
     );
-    client.set('people', 'D', 'firstname', 'Brent');
+    client.set([{ key: ['people', 'D', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
@@ -203,7 +203,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
     );
-    client.set('people', 'D', 'firstname', 'Elissa');
+    client.set([{ key: ['people', 'D', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Jeannebury' } },
@@ -215,7 +215,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
     );
-    client.set('people', 'D', 'firstname', 'Ernest');
+    client.set([{ key: ['people', 'D', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -227,7 +227,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
     );
-    client.set('people', 'D', 'firstname', 'Faye');
+    client.set([{ key: ['people', 'D', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -239,7 +239,7 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
     );
-    client.set('people', 'D', 'firstname', 'Richie');
+    client.set([{ key: ['people', 'D', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -252,8 +252,10 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 0, show: 2) { firstname } }`,
     );
-    client.set('people', 'B', 'firstname', 'Faye');
-    client.set('people', 'C', 'firstname', 'Brent');
+    client.set([
+      { key: ['people', 'B', 'firstname'], value: 'Faye' },
+      { key: ['people', 'C', 'firstname'], value: 'Brent' },
+    ]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -265,8 +267,10 @@ describe('queries: modified', () => {
     await client.query(
       `{ people(sort: "firstname", skip: 1, show: 2) { firstname } }`,
     );
-    client.set('people', 'C', 'firstname', 'Richie');
-    client.set('people', 'A', 'firstname', 'Elissa');
+    client.set([
+      { key: ['people', 'C', 'firstname'], value: 'Richie' },
+      { key: ['people', 'A', 'firstname'], value: 'Elissa' },
+    ]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Lynchfurt' } },

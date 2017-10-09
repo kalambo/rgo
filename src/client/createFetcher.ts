@@ -23,23 +23,19 @@ const printFilter = filter => {
   return `${key}${ops[op]}${filter[key][op]}`;
 };
 
-const mutationFields = (mutations: Obj[], schemaType: Obj<Field>) =>
-  [
-    ...Array.from(
-      new Set(
-        mutations.reduce<string[]>((res, o) => [...res, ...Object.keys(o)], []),
-      ),
-    ),
-    ...Object.keys(schemaType).filter(f => {
-      const field = schemaType[f];
-      return fieldIs.foreignRelation(field);
-    }),
-    'modifiedat',
-  ].map(f => (fieldIs.scalar(schemaType[f]) ? f : `${f} { id }`));
+const commitFields = (objects: Obj[], schemaType: Obj<Field>) =>
+  Array.from(
+    new Set([
+      ...objects.reduce<string[]>((res, o) => [...res, ...Object.keys(o)], []),
+      'createdat',
+      'modifiedat',
+    ]),
+  ).map(f => (fieldIs.scalar(schemaType[f]) ? f : `${f} { id }`));
 
 export default function createFetcher(
   authFetch: AuthFetch,
   schema: Obj<Obj<Field>>,
+  authField: { type: string; field: string } | null = null,
   onChange: (data: Data, indices: number[]) => void,
 ) {
   const fieldsMap: Obj<Obj<Obj<number>>> = {};
@@ -57,8 +53,8 @@ export default function createFetcher(
     queries: string[];
   }> = {};
 
-  let mutationData: Data = {};
-  let mutationListeners: ((
+  let commitData: Data = {};
+  let commitListeners: ((
     newIds?: Obj<Obj<string>>,
     error?: boolean,
   ) => void)[] = [];
@@ -68,8 +64,8 @@ export default function createFetcher(
       const currentFieldsListeners = fieldsListeners;
       fieldsListeners = [];
       const queries: { query: string; variables?: Obj }[] = [];
-      const currentMutationListeners = mutationListeners;
-      mutationListeners = [];
+      const currentMutationListeners = commitListeners;
+      commitListeners = [];
 
       const indices = Object.keys(nextQueries).map(k => parseInt(k, 10));
       const firstIndicies: Obj<number> = {};
@@ -103,13 +99,13 @@ export default function createFetcher(
       }
       nextFieldsMap = {};
 
-      const mutationTypes = Object.keys(mutationData);
+      const mutationTypes = Object.keys(commitData);
       if (mutationTypes.length > 0) {
         const mutationsArrays = keysToObject(mutationTypes, type =>
-          Object.keys(mutationData[type]).map(id => ({
+          Object.keys(commitData[type]).map(id => ({
             id,
-            ...keysToObject(Object.keys(mutationData[type][id]!), f => {
-              const value = mutationData[type][id]![f];
+            ...keysToObject(Object.keys(commitData[type][id]!), f => {
+              const value = commitData[type][id]![f];
               const field = schema[type][f];
               const encode =
                 fieldIs.scalar(field) && scalars[field.scalar].encode;
@@ -128,9 +124,7 @@ export default function createFetcher(
                 ${mutationTypes
                   .map(
                     t => `${t} {
-                      ${mutationFields(mutationsArrays[t], schema[t]).join(
-                        '\n',
-                      )}
+                      ${commitFields(mutationsArrays[t], schema[t]).join('\n')}
                     }`,
                   )
                   .join('\n')}
@@ -140,7 +134,7 @@ export default function createFetcher(
           variables: mutationsArrays,
         });
       }
-      mutationData = {};
+      commitData = {};
 
       if (queries.length > 0) {
         const responses = await authFetch(
@@ -311,14 +305,43 @@ export default function createFetcher(
       };
     },
 
-    addMutation(
-      values: { key: string; value: any }[],
+    addCommit(
+      values: { key: [string, string, string]; value: any }[],
       onReady: (newIds?: Obj<Obj<string>>, error?: boolean) => void,
     ) {
-      for (const { key, value } of values) {
-        _.set(mutationData, key, value);
+      let commitValues = values;
+      if (authField) {
+        const indices = { username: -1, password: -1 };
+        values.forEach(({ key: [type, _, field] }, i) => {
+          if (type === authField.type) {
+            if (field === authField.field) indices.username = i;
+            if (field === 'password') indices.password = i;
+          }
+        });
+        if (indices.username !== -1 || indices.password !== -1) {
+          commitValues = [
+            ...values.filter(
+              (_, i) => i !== indices.username && i !== indices.password,
+            ),
+            {
+              key: [
+                authField.type,
+                values[indices.username].key[1] ||
+                  values[indices.password].key[1],
+                authField.field,
+              ],
+              value: JSON.stringify({
+                username: values[indices.username].value,
+                password: values[indices.password].value,
+              }),
+            },
+          ];
+        }
       }
-      mutationListeners.push(onReady);
+      for (const { key, value } of commitValues) {
+        _.set(commitData, key, value);
+      }
+      commitListeners.push(onReady);
       process();
     },
   };

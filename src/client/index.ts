@@ -33,7 +33,6 @@ export function buildClient(
 ): Client {
   let authState: AuthState | null;
   let schema: Obj<Obj<Field>>;
-  let authField: { type: string; field: string } | null = null;
   let state: ClientState;
   let fetcher: any;
 
@@ -73,24 +72,22 @@ export function buildClient(
         authState.refresh
       ) {
         const newTokens = await auth.refresh(authState.refresh);
-        if (newTokens) {
-          setAuth({ id: authState.id, ...newTokens });
-          const retryResponses = await runFetch(
-            errorResponses.map(({ index }) => body[index]),
-          );
-          errorResponses.forEach(
-            ({ index }, i) => (responses[index] = retryResponses[i]),
-          );
-        }
+        if (newTokens) setAuth({ id: authState.id, ...newTokens });
+        else setAuth(null);
+        const retryResponses = await runFetch(
+          errorResponses.map(({ index }) => body[index]),
+        );
+        errorResponses.forEach(
+          ({ index }, i) => (responses[index] = retryResponses[i]),
+        );
       }
       return responses;
     } catch {
       if (auth && auth.refresh && authState && authState.refresh) {
         const newTokens = await auth.refresh(authState.refresh);
-        if (newTokens) {
-          setAuth({ id: authState.id, ...newTokens });
-          return await runFetch(body);
-        }
+        if (newTokens) setAuth({ id: authState.id, ...newTokens });
+        else setAuth(null);
+        return await runFetch(body);
       }
       return body.map(() => ({ errors: [{ name: '', message: '' }] }));
     }
@@ -104,16 +101,18 @@ export function buildClient(
         'null',
     );
     schema = (await authFetch([{ query: '{ SCHEMA }' }]))[0].data.SCHEMA;
+    let authField: { type: string; field: string } | null = null;
     for (const type of Object.keys(schema)) {
       for (const field of Object.keys(schema[type])) {
         if ((schema[type][field] as any).scalar === 'auth') {
           authField = { type, field };
           (schema[type][field] as any).scalar = 'string';
+          schema[type].password = { scalar: 'string' };
         }
       }
     }
-    state = new ClientState(schema, authField, log);
-    fetcher = createFetcher(authFetch, schema, (data, indices) => {
+    state = new ClientState(schema, log);
+    fetcher = createFetcher(authFetch, schema, authField, (data, indices) => {
       state.setServer(data, indices);
     });
     state.watch(fetcher.process);
@@ -122,57 +121,31 @@ export function buildClient(
 
   let queryCounter = 0;
 
-  const splitAuthField = (
-    values: Obj<Obj>,
-    authKey: [string, string, string] | null,
-  ) => {
-    if (!authField || !authKey) return values;
-    const { username, password } = JSON.parse(_.get(values, authKey) || '{}');
-    _.set(values, authKey, noUndef(username));
-    _.set(values, [authKey[0], authKey[1], 'password'], noUndef(password));
-    return values;
-  };
-
-  const mutate = async (keys: string[], clearKeys?: string[]) => {
-    let resolvePromise: (data: Data | null) => void;
-    const promise = new Promise<Data | null>(
+  const commit = async (keys: [string, string, string][]) => {
+    let resolvePromise: (value: { values: any[]; newIds: Obj } | null) => void;
+    const promise = new Promise<{ values: any[]; newIds: Obj } | null>(
       resolve => (resolvePromise = resolve),
     );
-    fetcher.addMutation(
-      keys
-        .filter(key => !key.endsWith('.password'))
-        .map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
+    fetcher.addCommit(
+      keys.map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
       async (newIds, error) => {
         if (error) {
           resolvePromise(null);
         } else {
-          if (auth && newIds['$user']) {
-            // setAuth(
-            //   await auth.login(
-            //     newIds['$user'].username,
-            //     newIds['$user'].password,
-            //   ),
-            // );
-            delete newIds['$user'];
-          }
-          state.setClient(
-            [...keys, ...(clearKeys || [])].reduce(
-              (res, k) => _.set(res, k, undefined),
-              {},
+          if (auth && newIds['$user']) delete newIds['$user'];
+          state.setClient(keys.map(key => ({ key, value: undefined })));
+          resolvePromise({
+            values: keys.map(([type, id, field]) =>
+              noUndef(
+                _.get(state.combined, [
+                  type,
+                  (newIds[type] && newIds[type][id]) || id,
+                  field,
+                ]),
+              ),
             ),
-          );
-          const data = {};
-          keys.forEach(key => {
-            const [type, id, fieldName] = key.split('.');
-            const newId = newIds[type][id] || id;
-            _.set(
-              data,
-              key,
-              noUndef(_.get(state.combined, [type, newId, fieldName])),
-            );
-            data[type][id].id = newId;
+            newIds,
           });
-          resolvePromise(data);
         }
       },
     );
@@ -224,19 +197,13 @@ export function buildClient(
     get(...args) {
       const [keys, listener] = args as [
         [string, string, string][],
-        (values: Obj<Obj> | null) => void
+        (values: any[] | null) => void
       ];
 
       return promisifyEmitter(innerListener => {
-        let authKey: [string, string, string] | null = null;
-        for (const [type, id, fieldName] of keys) {
-          if (
-            authField &&
-            type === authField.type &&
-            (fieldName === authField.field || fieldName === 'password')
-          ) {
-            authKey = [type, id, authField.field];
-          }
+        if (keys.length === 0) {
+          innerListener([]);
+          return () => {};
         }
 
         let running = true;
@@ -246,33 +213,8 @@ export function buildClient(
             if (isLoading) {
               innerListener(null);
             } else {
-              const values = {};
-              keys.forEach(k =>
-                _.set(values, k, noUndef(_.get(state.combined, k))),
-              );
-
-              innerListener(splitAuthField(values, authKey));
-              unlisten =
-                keys.length === 1
-                  ? state.watch(keys[0].join('.'), value => {
-                      _.set(values, keys[0], value);
-                      if (running) {
-                        innerListener(splitAuthField(values, authKey));
-                      }
-                    })
-                  : state.watch(({ changes, changedData }) => {
-                      const changedKeys = keys.filter(key =>
-                        _.get(changes, key),
-                      );
-                      if (changedKeys.length > 0) {
-                        for (const key of changedKeys) {
-                          _.set(values, key, _.get(changedData, key));
-                        }
-                        if (running) {
-                          innerListener(splitAuthField(values, authKey));
-                        }
-                      }
-                    });
+              innerListener(keys.map(k => noUndef(_.get(state.combined, k))));
+              unlisten = state.watch(keys, innerListener);
             }
           }
         });
@@ -374,10 +316,10 @@ export function buildClient(
       }, onLoad) as any;
     },
 
-    set(...args) {
-      return (state.setClient as any)(...args);
+    set(values) {
+      return state.setClient(values);
     },
 
-    mutate,
+    commit,
   };
 }

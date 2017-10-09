@@ -5,8 +5,8 @@ afterEach(clearClient);
 
 describe('mutations: basic', () => {
   test('simple', async () => {
-    client.set('people', 'A', { firstname: 'Elissa' });
-    await client.mutate(['people.A.firstname']);
+    client.set([{ key: ['people', 'A', 'firstname'], value: 'Elissa' }]);
+    await client.commit([['people', 'A', 'firstname']]);
     expect(
       await client.query(
         `{

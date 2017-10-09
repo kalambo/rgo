@@ -5,9 +5,9 @@ afterEach(clearClient);
 
 describe('get: basic', () => {
   test('single', async () => {
-    expect(await client.get([['people', 'A', 'firstname']])).toEqual({
-      people: { A: { firstname: 'Esperanza' } },
-    });
+    expect(await client.get([['people', 'A', 'firstname']])).toEqual([
+      'Esperanza',
+    ]);
   });
 
   test('multi', async () => {
@@ -17,11 +17,6 @@ describe('get: basic', () => {
         ['people', 'A', 'lastname'],
         ['people', 'B', 'firstname'],
       ]),
-    ).toEqual({
-      people: {
-        A: { firstname: 'Esperanza', lastname: 'Boyle' },
-        B: { firstname: 'Delphia' },
-      },
-    });
+    ).toEqual(['Esperanza', 'Boyle', 'Delphia']);
   });
 });

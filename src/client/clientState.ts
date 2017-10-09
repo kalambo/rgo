@@ -15,7 +15,6 @@ import { DataChanges, DataDiff, FullChanges } from './typings';
 
 export default class ClientState {
   private schema: Obj<Obj<Field>>;
-  private authField: { type: string; field: string } | null = null;
   private log: boolean;
   private newIds: Obj<number>;
 
@@ -25,15 +24,13 @@ export default class ClientState {
   public diff: DataDiff = {};
 
   private listeners: ((value: FullChanges) => void)[] = [];
-  private keyListeners: Obj<((value: any) => void)[]> = {};
+  private keyListeners: {
+    keys: [string, string, string][];
+    emit: (values: any[]) => void;
+  }[] = [];
 
-  public constructor(
-    schema: Obj<Obj<Field>>,
-    authField: { type: string; field: string } | null = null,
-    log: boolean = false,
-  ) {
+  public constructor(schema: Obj<Obj<Field>>, log: boolean = false) {
     this.schema = schema;
-    this.authField = authField;
     this.log = log;
     this.newIds = keysToObject(Object.keys(schema), () => 0);
   }
@@ -41,18 +38,16 @@ export default class ClientState {
   public newId = (type: string) => `$${this.newIds[type]++}`;
 
   public watch(listener: (value: FullChanges) => void): () => void;
-  public watch(key: string, listener: (value: any) => void): () => void;
+  public watch(
+    keys: [string, string, string][],
+    listener: (values: any[]) => void,
+  ): () => void;
   public watch(...args: any[]) {
-    const listener = args[args.length - 1];
-    const listeners =
-      args.length === 1
-        ? this.listeners
-        : this.keyListeners[args[0]] || (this.keyListeners[args[0]] = []);
-    listeners.push(listener);
-    return args.length === 1
-      ? () => (this.listeners = listeners.filter(l => l !== listener))
-      : () =>
-          (this.keyListeners[args[0]] = listeners.filter(l => l !== listener));
+    const listeners = args.length === 1 ? this.listeners : this.keyListeners;
+    const listener =
+      args.length === 1 ? args[0] : { keys: args[0], emit: args[1] };
+    (listeners as any).push(listener);
+    return () => listeners.splice((listeners as any).indexOf(listener), 1);
   }
 
   private emitChanges(changes: DataChanges, indices?: number[]) {
@@ -68,16 +63,11 @@ export default class ClientState {
     }
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
-      for (const type of Object.keys(changes)) {
-        for (const id of Object.keys(changes[type])) {
-          for (const field of Object.keys(changes[type][id])) {
-            const value = noUndef(_.get(this.combined, [type, id, field]));
-            (this.keyListeners[`${type}.${id}.${field}`] || []).forEach(l =>
-              l(value),
-            );
-          }
+      this.keyListeners.forEach(({ keys, emit }) => {
+        if (keys.some(k => _.get(changes, k))) {
+          emit(keys.map(k => noUndef(_.get(this.combined, k))));
         }
-      }
+      });
       const changedData = keysToObject(Object.keys(changes), type =>
         keysToObject(Object.keys(changes[type]), id =>
           keysToObject(Object.keys(changes[type][id]), field =>
@@ -171,28 +161,6 @@ export default class ClientState {
             if (_.get(this.client, [type, id]) !== null) {
               this.combined[type][id] = this.combined[type][id] || {};
             }
-            if (this.authField && type === this.authField.type) {
-              const hasUsername = data[type][id]!.hasOwnProperty(
-                this.authField.field,
-              );
-              const hasPassword = data[type][id]!.hasOwnProperty('password');
-              if (hasUsername || hasPassword) {
-                const prev = JSON.parse(
-                  this[store][type][id]![this.authField.field] || '{}',
-                );
-                const username = hasUsername
-                  ? data[type][id]![this.authField.field] || undefined
-                  : prev.username;
-                const password = hasPassword
-                  ? data[type][id]!.password || undefined
-                  : prev.password;
-                data[type][id]![this.authField.field] =
-                  username || password
-                    ? JSON.stringify({ username, password })
-                    : undefined;
-              }
-              delete data[type][id]!.password;
-            }
             for (const field of Object.keys(data[type][id]!)) {
               const prev = noUndef(_.get(this.combined, [type, id, field]));
               if (store === 'client') {
@@ -259,25 +227,15 @@ export default class ClientState {
     return changes;
   }
 
-  public setClient(value: Obj<Obj<Obj | null | undefined> | undefined>): void;
   public setClient(
-    type: string,
-    value: Obj<Obj | null | undefined> | undefined,
-  ): void;
-  public setClient(
-    type: string,
-    id: string,
-    value: Obj | null | undefined,
-  ): void;
-  public setClient(type: string, id: string, field: string, value: any): void;
-  public setClient(...args: any[]) {
+    values: (
+      | { key: [string, string, string]; value: any }
+      | { key: [string, string]; value?: null })[],
+  ) {
     this.emitChanges(
       this.set(
         'client',
-        args
-          .slice(0, -1)
-          .reverse()
-          .reduce((res, k) => ({ [k]: res }), args[args.length - 1]),
+        values.reduce((res, v) => _.set(res, v.key, v.value), {}),
       ),
     );
   }

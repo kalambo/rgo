@@ -88,9 +88,10 @@ describe('client: set', () => {
         },
       },
     });
-    state.setClient({
-      addresses: { A: { city: 'Torpchester' }, B: { city: 'Homenickstad' } },
-      people: { A: null },
-    });
+    state.setClient([
+      { key: ['addresses', 'A', 'city'], value: 'Torpchester' },
+      { key: ['addresses', 'B', 'city'], value: 'Homenickstad' },
+      { key: ['people', 'A'], value: null },
+    ]);
   });
 });

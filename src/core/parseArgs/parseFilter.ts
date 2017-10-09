@@ -7,6 +7,14 @@ import parseDateString from './parseDateString';
 
 const parser = peg.generate(String.raw`
 
+{
+  function obj(k, v) {
+  	const result = {};
+    result[k] = v;
+    return result;
+  }
+}
+
 start
 = _ main:or _ { return main[0]; }
 / _ { return {}; }
@@ -32,9 +40,9 @@ block
 / statement
 
 statement
-= f:field _ o:op _ e:expr { return [{ [f]: { [o]: e } }]; }
-/ '!' _ f:field { return [{ $or: [{ [f]: { $eq: 'null' } }, { [f]: { $eq: 'false' } }] }]; }
-/ f:field { return [{ $and: [{ [f]: { $ne: 'null' } }, { [f]: { $ne: 'false' } }] }]; }
+= f:field _ o:op _ e:expr { return [obj(f, obj(o, e))]; }
+/ '!' _ f:field { return [{ $or: [obj(f, { $eq: 'null' }), obj(f, { $eq: 'false' })] }]; }
+/ f:field { return [{ $and: [obj(f, { $ne: 'null' }), obj(f, { $ne: 'false' })] }]; }
 
 field
 = '\'' f:[a-z0-9-_]i+ '\'' { return f.join(''); }

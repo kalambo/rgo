@@ -5,7 +5,6 @@ import { AuthConfig, Connector, Mutation } from './typings';
 export default async function mutate(
   fields: Obj<Obj<Field>>,
   connectors: Obj<Connector>,
-  schemaTypes: Obj<Obj<string>>,
   runQuery: (query: string) => Promise<Obj>,
   args,
   {
@@ -83,7 +82,7 @@ export default async function mutate(
       if (
         auth &&
         !await auth.allowMutation(
-          schemaTypes,
+          fields,
           runQuery,
           user,
           type,

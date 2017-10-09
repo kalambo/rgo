@@ -23,7 +23,8 @@ describe('changes: root', () => {
     });
 
     updates.push({
-      func: () => client.set('people', 'C', { lastname: 'Collier' }),
+      func: () =>
+        client.set([{ key: ['people', 'C', 'lastname'], value: 'Collier' }]),
     });
     results.push({
       people: [
@@ -33,7 +34,8 @@ describe('changes: root', () => {
     });
 
     updates.push({
-      func: () => client.set('people', 'F', { firstname: 'Brent' }),
+      func: () =>
+        client.set([{ key: ['people', 'F', 'firstname'], value: 'Brent' }]),
       load: true,
     });
     results.push({
@@ -44,7 +46,8 @@ describe('changes: root', () => {
     });
 
     updates.push({
-      func: () => client.set('people', 'G', { firstname: 'Elissa' }),
+      func: () =>
+        client.set([{ key: ['people', 'G', 'firstname'], value: 'Elissa' }]),
       load: true,
     });
     results.push({
@@ -55,7 +58,7 @@ describe('changes: root', () => {
     });
 
     updates.push({
-      func: () => client.set('people', 'B', null),
+      func: () => client.set([{ key: ['people', 'B'], value: null }]),
       load: true,
     });
     results.push({

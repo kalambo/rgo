@@ -172,13 +172,6 @@ export default async function buildServer(
       ),
     );
 
-    const schemaTypes = keysToObject(typeNames, type =>
-      keysToObject(Object.keys(typeFields[type]), fieldName => {
-        const field = typeFields[type][fieldName];
-        return fieldIs.scalar(field) ? field.scalar : field.type;
-      }),
-    );
-
     const queryTypes = keysToObject(
       typeNames,
       type =>
@@ -251,7 +244,7 @@ export default async function buildServer(
                         applyQueryLimit(
                           queryArgs,
                           await options.auth.limitQuery(
-                            schemaTypes,
+                            typeFields,
                             runQuery,
                             user,
                             field.type,
@@ -366,7 +359,7 @@ export default async function buildServer(
                   applyQueryLimit(
                     queryArgs,
                     await options.auth.limitQuery(
-                      schemaTypes,
+                      typeFields,
                       runQuery,
                       user,
                       type,
@@ -429,7 +422,6 @@ export default async function buildServer(
               return mutate(
                 typeFields,
                 typeConnectors,
-                schemaTypes,
                 runQuery,
                 args,
                 context,

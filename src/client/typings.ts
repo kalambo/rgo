@@ -62,10 +62,10 @@ export interface Client {
   logout(): Promise<void>;
   loggedIn(listener: (value: boolean) => void): () => void;
 
-  get(keys: [string, string, string][]): Promise<Obj<Obj>>;
+  get(keys: [string, string, string][]): Promise<any[]>;
   get(
     keys: [string, string, string][],
-    listener: (values: Obj<Obj> | null) => void,
+    listener: (values: any[] | null) => void,
   ): () => void;
 
   query(queryString: string, options?: QueryOptions): Promise<Obj>;
@@ -91,10 +91,13 @@ export interface Client {
     onChange: ((changes: Data) => void) | true,
   ): () => void;
 
-  set(value: Obj<Obj<Obj | null | undefined> | undefined>): void;
-  set(type: string, value: Obj<Obj | null | undefined> | undefined): void;
-  set(type: string, id: string, value: Obj | null | undefined): void;
-  set(type: string, id: string, field: string, value: any): void;
+  set(
+    values: (
+      | { key: [string, string, string]; value: any }
+      | { key: [string, string]; value?: null })[],
+  ): void;
 
-  mutate(keys: string[], clearKeys?: string[]): Promise<Data | null>;
+  commit(
+    keys: [string, string, string][],
+  ): Promise<{ values: any[]; newIds: Obj } | null>;
 }

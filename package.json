@@ -1,6 +1,6 @@
 {
   "name": "kalambo",
-  "version": "0.2.26",
+  "version": "0.3.0",
   "description": "Kalambo data system",
   "author": "Jon Whitehead",
   "license": "MIT",
@@ -24,27 +24,27 @@
     "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/jest": "^21.1.1",
-    "@types/lodash": "^4.14.76",
+    "@types/jest": "^21.1.2",
+    "@types/lodash": "^4.14.77",
     "@types/uuid": "^3.4.2",
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.0",
-    "fetch-mock": "^5.12.2",
+    "fetch-mock": "^5.13.0",
     "jest": "^21.2.1",
-    "prettier": "^1.7.3",
+    "prettier": "^1.7.4",
     "rimraf": "^2.6.2",
-    "ts-jest": "^21.0.1",
+    "ts-jest": "^21.1.1",
     "typescript": "^2.5.3",
     "uuid": "^3.1.0"
   },
   "dependencies": {
     "@types/flat": "^0.0.28",
-    "@types/graphql": "^0.11.4",
+    "@types/graphql": "^0.11.5",
     "@types/knex": "^0.0.61",
-    "@types/mongodb": "^2.2.11",
+    "@types/mongodb": "^2.2.13",
     "@types/pegjs": "^0.10.0",
     "flat": "^4.0.0",
-    "graphql": "^0.11.6",
+    "graphql": "^0.11.7",
     "knex": "^0.13.0",
     "lodash": "^4.17.4",
     "pegjs": "^0.10.0"
