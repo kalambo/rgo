@@ -1,4 +1,4 @@
-export { default as ClientState } from './clientState';
+export { default as ClientState } from './ClientState';
 
 import {
   Data,
@@ -6,19 +6,23 @@ import {
   ForeignRelationField,
   Obj,
   QueryArgs,
-  QueryRequest,
-  QueryResponse,
   RelationField,
 } from '../core';
 
-import ClientState from './clientState';
-
-export type AuthFetch = (body: QueryRequest[]) => Promise<QueryResponse[]>;
+import ClientState from './ClientState';
 
 export interface AuthState {
   id: string;
   token: string;
   refresh?: string;
+}
+
+export interface AuthConfig {
+  login: (username: string, password: string) => Promise<AuthState>;
+  logout: (authToken: string) => void | Promise<void>;
+  refresh?: (
+    refreshToken: string,
+  ) => Promise<{ token: string; refresh: string } | null>;
 }
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
@@ -47,20 +51,13 @@ export interface QueryLayer {
   };
 }
 
-export interface QueryOptions {
-  variables?: Obj;
-  idsOnly?: boolean;
-}
-
 export interface Client {
-  ready(): Promise<void>;
   schema(): Obj<Obj<Field>>;
   newId(type: string): string;
 
-  login(username: string, password: string): Promise<string | null>;
+  login(username: string, password: string): void;
   login(authState: AuthState): void;
   logout(): Promise<void>;
-  loggedIn(listener: (value: boolean) => void): () => void;
 
   get(keys: [string, string, string][]): Promise<any[]>;
   get(
@@ -68,25 +65,16 @@ export interface Client {
     listener: (values: any[] | null) => void,
   ): () => void;
 
-  query(queryString: string, options?: QueryOptions): Promise<Obj>;
+  query(query: string): Promise<Obj>;
+  query(query: string, info: true): Promise<{ data: Obj; spans: Obj }>;
   query(
-    queryString: string,
-    options: QueryOptions & { info: true },
-  ): Promise<{ data: Obj; spans: Obj }>;
-  query(
-    queryString: string,
+    query: string,
     onLoad: (data: Obj | null) => void,
     onChange: ((changes: Data) => void) | true,
   ): () => void;
   query(
-    queryString: string,
-    options: QueryOptions,
-    onLoad: (data: Obj | null) => void,
-    onChange: ((changes: Data) => void) | true,
-  ): () => void;
-  query(
-    queryString: string,
-    options: QueryOptions & { info: true },
+    query: string,
+    info: true,
     onLoad: (value: { data: Obj; spans: Obj } | null) => void,
     onChange: ((changes: Data) => void) | true,
   ): () => void;

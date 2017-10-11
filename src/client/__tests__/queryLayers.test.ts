@@ -24,9 +24,7 @@ describe('client: queryLayers', () => {
           }
         }
       }`),
-      {},
       null,
-      true,
     );
 
     expect(JSON.stringify(layers)).toEqual(
@@ -44,7 +42,7 @@ describe('client: queryLayers', () => {
             ids: undefined,
           },
           structuralFields: ['lastname', 'createdat', 'id'],
-          scalarFields: { id: true },
+          scalarFields: { id: true, firstname: true },
           relations: [
             {
               root: { type: 'people', field: 'address' },
@@ -59,7 +57,7 @@ describe('client: queryLayers', () => {
                 ids: undefined,
               },
               structuralFields: [],
-              scalarFields: { id: true },
+              scalarFields: { city: true },
               relations: [],
               path: 'people_address',
             },
@@ -76,7 +74,7 @@ describe('client: queryLayers', () => {
                 ids: undefined,
               },
               structuralFields: ['street', 'createdat', 'id'],
-              scalarFields: { id: true },
+              scalarFields: { street: true },
               relations: [],
               path: 'people_places',
             },

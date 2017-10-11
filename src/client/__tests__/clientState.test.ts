@@ -1,13 +1,13 @@
 import * as _ from 'lodash';
 
-import ClientState from '../clientState';
+import ClientState from '../ClientState';
 
 const baseData = require('./setup/data.json');
 const baseSchema = require('./setup/schema.json');
 
 describe('client: set', () => {
   test('basic', () => {
-    const state = new ClientState(baseSchema);
+    const state = new ClientState();
     const resultsList: any[] = [];
     const changesList: any[] = [];
     const expected = _.cloneDeep({
@@ -18,7 +18,7 @@ describe('client: set', () => {
     });
 
     let count = 0;
-    state.watch(({ changes }) => {
+    state.listen(({ changes }) => {
       expect({
         server: state.server,
         client: state.client,
@@ -45,7 +45,7 @@ describe('client: set', () => {
         ),
       ),
     );
-    state.setServer(baseData, []);
+    state.setServer(baseData, baseSchema, []);
 
     delete expected.server.addresses.A;
     expected.server.addresses.F = { city: 'Troyville' };
@@ -63,6 +63,7 @@ describe('client: set', () => {
       {
         addresses: { A: null, F: { city: 'Troyville' } },
       },
+      baseSchema,
       [],
     );
 

@@ -3,7 +3,7 @@ import { clearClient, client, setupClient } from '../setup';
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('changes: root', () => {
+describe('change: root', () => {
   test('test', async done => {
     const query = `{
       people(sort: "firstname", skip: 1, show: 2) {
@@ -48,7 +48,6 @@ describe('changes: root', () => {
     updates.push({
       func: () =>
         client.set([{ key: ['people', 'G', 'firstname'], value: 'Elissa' }]),
-      load: true,
     });
     results.push({
       people: [

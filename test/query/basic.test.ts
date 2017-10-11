@@ -3,7 +3,7 @@ import { clearClient, client, setupClient } from '../setup';
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('queries: basic', () => {
+describe('query: basic', () => {
   test('simple', async () => {
     expect(
       await client.query(

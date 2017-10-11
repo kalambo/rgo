@@ -18,9 +18,7 @@ import { ClientState, QueryLayer } from './typings';
 export default function queryLayers(
   schema: Obj<Obj<Field>>,
   queryDoc: DocumentNode,
-  variables: Obj = {},
   userId: string | null,
-  idsOnly?: boolean,
   addIds?: boolean,
 ) {
   const processRelation = (
@@ -30,17 +28,15 @@ export default function queryLayers(
     path: string,
   ): QueryLayer => {
     const fieldNodes = node.selectionSet!.selections as FieldNode[];
-    const scalarFields: Obj<true> = idsOnly
-      ? { id: true }
-      : keysToObject<string, true>(
-          fieldNodes
-            .filter(({ selectionSet }) => !selectionSet)
-            .map(({ name }) => name.value),
-          () => true,
-        );
+    const scalarFields: Obj<true> = keysToObject<string, true>(
+      fieldNodes
+        .filter(({ selectionSet }) => !selectionSet)
+        .map(({ name }) => name.value),
+      () => true,
+    );
     if (addIds) scalarFields.id = true;
 
-    const plainArgs = parsePlainArgs(node.arguments, variables);
+    const plainArgs = parsePlainArgs(node.arguments);
     const args = parseArgs(plainArgs, userId, schema[field.type]);
     if (root.type && fieldIs.relation(field) && !plainArgs.sort) args.sort = [];
 

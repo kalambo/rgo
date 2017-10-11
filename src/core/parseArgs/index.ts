@@ -17,7 +17,10 @@ const parseValue = (value: ValueNode, variables: Obj) => {
   if (value.kind === 'IntValue') return parseInt(value.value, 10);
   return (value as StringValueNode).value;
 };
-export const parsePlainArgs = (argNodes: ArgumentNode[] = [], variables: Obj) =>
+export const parsePlainArgs = (
+  argNodes: ArgumentNode[] = [],
+  variables: Obj = {},
+) =>
   keysToObject(
     argNodes,
     ({ value }) => {

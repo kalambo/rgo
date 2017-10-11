@@ -31,7 +31,6 @@ export const setupClient = async () => {
     return result;
   });
   client = buildClient(domain);
-  await client.ready();
 };
 
 export const clearClient = () => {

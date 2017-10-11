@@ -2,27 +2,47 @@ export { Client } from './typings';
 export { ScalarName } from '../core';
 
 import * as _ from 'lodash';
-import { parse } from 'graphql';
+import { GraphQLError, parse } from 'graphql';
 
 import {
   Data,
   Field,
+  fieldIs,
+  keysToObject,
+  mapArray,
   noUndef,
   Obj,
   promisifyEmitter,
   QueryRequest,
   QueryResponse,
+  scalars,
+  undefOr,
 } from '../core';
 
-import ClientState from './clientState';
-import createFetcher from './createFetcher';
+import ClientState from './ClientState';
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
-import { AuthState, Client, DataChanges, QueryOptions } from './typings';
+import {
+  AuthConfig,
+  AuthState,
+  Client,
+  DataChanges,
+  QueryLayer,
+} from './typings';
+
+const ops = { $ne: '!=', $lte: '<=', $gte: '>=', $eq: '=', $lt: '<', $gt: '>' };
+const printFilter = filter => {
+  const key = Object.keys(filter)[0];
+  if (!key) return '';
+  if (key === '$and') return `(${filter[key].map(printFilter).join(', ')})`;
+  if (key === '$or') return `(${filter[key].map(printFilter).join(' | ')})`;
+  const op = Object.keys(filter[key])[0];
+  return `${key}${ops[op]}${filter[key][op]}`;
+};
 
 export function buildClient(
   url: string,
-  auth?: {
+  authConfig?: {
     login: (username: string, password: string) => Promise<AuthState>;
     logout: (authToken: string) => void | Promise<void>;
     refresh?: (
@@ -31,196 +51,347 @@ export function buildClient(
   },
   log?: boolean,
 ): Client {
-  let authState: AuthState | null;
   let schema: Obj<Obj<Field>>;
-  let state: ClientState;
-  let fetcher: any;
+  let auth: {
+    config: AuthConfig;
+    field: { type: string; field: string };
+    state: AuthState | null;
+    queue: (any[] | null)[];
+  } | null = null;
+  const state = new ClientState(log);
+  const newIds: Obj<number> = {};
+  let processing: 'schema' | 'auth' | null = 'schema';
 
-  let loggedInListeners: ((value: boolean) => void)[] = [];
-  const setAuth = (newAuth: AuthState | null) => {
-    authState = newAuth;
-    if (!newAuth) localStorage.removeItem('kalamboAuth');
-    else localStorage.setItem('kalamboAuth', JSON.stringify(newAuth));
-    loggedInListeners.forEach(l => l(!!authState));
+  let watchers: ((ready?: boolean, indices?: number[]) => void)[] = [];
+  const fields: { active: Obj<Obj<Obj<number>>>; next: Obj<Obj<Obj<true>>> } = {
+    active: {},
+    next: {},
   };
-  const runFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> => {
+  const queries: Obj<{
+    firstIds?: Obj<Obj<string>>;
+    prev?: {
+      ids: Obj<string[]>;
+      slice: Obj<{ start: number; end?: number }>;
+    };
+    next?: {
+      ids: Obj<string[]>;
+      slice: Obj<{ start: number; end?: number }>;
+      queries: string[];
+    };
+  }> = {};
+  let commits: {
+    values: { key: [string, string, string]; value: any }[];
+    watcher: (
+      response: { newIds?: Obj<Obj<string>>; errors?: GraphQLError[] },
+    ) => void;
+  }[] = [];
+
+  let currentRun: number = -1;
+  const doFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> => {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...authState ? { Authorization: `Bearer ${authState.token}` } : {},
+        ...auth && auth.state
+          ? { Authorization: `Bearer ${auth.state.token}` }
+          : {},
       },
       body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error();
     return await response.json();
   };
-  const authFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> => {
-    try {
-      const responses = await runFetch(body);
-      const errorResponses = responses
-        .map((response, index) => ({ errors: response.errors, index }))
-        .filter(
-          ({ errors }) =>
-            errors && errors!.some(e => e.message === 'Not authorized'),
-        );
-      if (
-        errorResponses.length > 0 &&
-        auth &&
-        auth.refresh &&
-        authState &&
-        authState.refresh
-      ) {
-        const newTokens = await auth.refresh(authState.refresh);
-        if (newTokens) setAuth({ id: authState.id, ...newTokens });
-        else setAuth(null);
-        const retryResponses = await runFetch(
-          errorResponses.map(({ index }) => body[index]),
-        );
-        errorResponses.forEach(
-          ({ index }, i) => (responses[index] = retryResponses[i]),
-        );
-      }
-      return responses;
-    } catch {
-      if (auth && auth.refresh && authState && authState.refresh) {
-        const newTokens = await auth.refresh(authState.refresh);
-        if (newTokens) setAuth({ id: authState.id, ...newTokens });
-        else setAuth(null);
-        return await runFetch(body);
-      }
-      return body.map(() => ({ errors: [{ name: '', message: '' }] }));
-    }
-  };
+  const run = _.throttle(async () => {
+    if (!processing) {
+      const runIndex = ++currentRun;
+      const requests: QueryRequest[] = [];
 
-  const readyListeners: (() => void)[] = [];
-  (async () => {
-    authState = JSON.parse(
-      (typeof localStorage !== 'undefined' &&
-        localStorage.getItem('kalamboAuth')) ||
-        'null',
-    );
-    schema = (await authFetch([{ query: '{ SCHEMA }' }]))[0].data.SCHEMA;
-    let authField: { type: string; field: string } | null = null;
-    for (const type of Object.keys(schema)) {
-      for (const field of Object.keys(schema[type])) {
-        if ((schema[type][field] as any).scalar === 'auth') {
-          authField = { type, field };
-          (schema[type][field] as any).scalar = 'string';
-          schema[type].password = { scalar: 'string' };
-        }
-      }
-    }
-    state = new ClientState(schema, log);
-    fetcher = createFetcher(authFetch, schema, authField, (data, indices) => {
-      state.setServer(data, indices);
-    });
-    state.watch(fetcher.process);
-    readyListeners.forEach(l => l());
-  })();
-
-  let queryCounter = 0;
-
-  const commit = async (keys: [string, string, string][]) => {
-    let resolvePromise: (value: { values: any[]; newIds: Obj } | null) => void;
-    const promise = new Promise<{ values: any[]; newIds: Obj } | null>(
-      resolve => (resolvePromise = resolve),
-    );
-    fetcher.addCommit(
-      keys.map(key => ({ key, value: noUndef(_.get(state.combined, key)) })),
-      async (newIds, error) => {
-        if (error) {
-          resolvePromise(null);
-        } else {
-          if (auth && newIds['$user']) delete newIds['$user'];
-          state.setClient(keys.map(key => ({ key, value: undefined })));
-          resolvePromise({
-            values: keys.map(([type, id, field]) =>
-              noUndef(
-                _.get(state.combined, [
-                  type,
-                  (newIds[type] && newIds[type][id]) || id,
-                  field,
-                ]),
-              ),
-            ),
-            newIds,
+      for (const type of Object.keys(fields.next)) {
+        for (const id of Object.keys(fields.next[type])) {
+          requests.push({
+            query: `{
+                ${type}(filter: "id=${id}") {
+                  id
+                  ${Object.keys(fields.next[type][id])
+                    .map(
+                      f =>
+                        fieldIs.scalar(schema[type][f]) ? f : `${f} { id }`,
+                    )
+                    .join('\n')}
+                }
+              }`,
+            normalize: true,
           });
         }
-      },
-    );
-    return promise;
+      }
+      fields.next = {};
+
+      const queryIndices = Object.keys(queries)
+        .filter(k => queries[k].next)
+        .map(k => parseInt(k, 10));
+      const firstIndicies: Obj<number> = {};
+      for (const i of queryIndices) {
+        firstIndicies[i] = requests.length;
+        requests.push(
+          ...queries[i].next!.queries.map(query => ({
+            query,
+            normalize: true,
+          })),
+        );
+        queries[i].prev = {
+          ids: queries[i].next!.ids,
+          slice: queries[i].next!.slice,
+        };
+        delete queries[i].next;
+      }
+
+      const commitIndices: number[] = [];
+      for (const { values } of commits) {
+        const data = values.reduce((res, { key, value }) => {
+          const field = schema[key[0]][key[2]];
+          const encode = fieldIs.scalar(field) && scalars[field.scalar].encode;
+          return _.set(
+            res,
+            key,
+            value === null || !encode ? value : mapArray(value, encode),
+          );
+        }, {});
+        const types = Object.keys(data);
+        const dataArrays = keysToObject(types, type =>
+          Object.keys(data[type]).map(id => ({ id, ...data[type][id] })),
+        );
+        commitIndices.push(requests.length);
+        requests.push({
+          query: `
+              mutation Mutate(${types
+                .map(t => `$${t}: [${t}Input!]`)
+                .join(', ')}) {
+                commit(${types.map(t => `${t}: $${t}`).join(', ')}) {
+                  ${types
+                    .map(
+                      t => `${t} {
+                        ${Array.from(
+                          new Set([
+                            ...dataArrays[t].reduce<string[]>(
+                              (res, o) => [...res, ...Object.keys(o)],
+                              [],
+                            ),
+                            'createdat',
+                            'modifiedat',
+                          ]),
+                        )
+                          .map(
+                            f =>
+                              fieldIs.scalar(schema[t][f]) ? f : `${f} { id }`,
+                          )
+                          .join('\n')}
+                      }`,
+                    )
+                    .join('\n')}
+                }
+              }
+            `,
+          variables: dataArrays,
+          normalize: true,
+        });
+      }
+      const commitWatchers = commits.map(c => c.watcher);
+      commits = [];
+
+      if (requests.length > 0) {
+        let responses: QueryResponse[];
+        try {
+          responses = await doFetch(requests);
+        } catch {
+          let refreshed = false;
+          if (auth && auth.config.refresh && auth.state && auth.state.refresh) {
+            const newTokens = await auth.config.refresh(auth.state.refresh);
+            if (newTokens) {
+              setAuthState({ ...auth.state, ...newTokens });
+              refreshed = true;
+            }
+          }
+          if (auth && !refreshed) {
+            auth.queue.push(null);
+            processAuth();
+          }
+          responses = await doFetch(requests);
+        }
+        state.setServer(responses[0].data, schema, queryIndices);
+        for (const i of queryIndices) {
+          queries[i].firstIds = responses[firstIndicies[i]].firstIds!;
+        }
+        commitWatchers.forEach((watcher, i) => {
+          const { newIds, errors } = responses[commitIndices[i]];
+          watcher({ newIds, errors });
+        });
+      }
+      if (currentRun === runIndex && !processing) {
+        watchers.forEach(w => w(true, queryIndices));
+      }
+    }
+  }, 100);
+
+  const setAuthState = (authState: AuthState | null) => {
+    if (auth) {
+      auth.state = authState;
+      if (!state) localStorage.removeItem('kalamboAuth');
+      else localStorage.setItem('kalamboAuth', JSON.stringify(authState));
+    }
+  };
+  const processAuth = async () => {
+    if (auth && !processing) {
+      processing = 'auth';
+      let first = true;
+      while (processing) {
+        if (auth.state) {
+          if (auth.queue[0]) auth.queue.unshift(null);
+        } else {
+          auth.queue = auth.queue.slice(auth.queue.findIndex(q => !!q));
+        }
+        if (auth.queue.length > 0) {
+          if (first) {
+            first = false;
+            watchers.forEach(w => w(false));
+            state.setServer(
+              keysToObject(Object.keys(state.server), type =>
+                keysToObject(Object.keys(state.server[type]), () => null),
+              ),
+              schema,
+              [],
+            );
+            fields.next = {};
+            for (const type of Object.keys(fields.active)) {
+              for (const id of Object.keys(fields.active[type])) {
+                for (const field of Object.keys(fields.active[type][id])) {
+                  if (fields.active[type][id][field]) {
+                    _.set(fields.next, [type, id, field], true);
+                  }
+                }
+              }
+            }
+            Object.keys(queries).forEach(k => (queries[k] = {}));
+          }
+          if (auth.queue[0] === null) {
+            await auth.config.logout(auth.state!.token);
+            setAuthState(null);
+          } else if (auth.queue[0]!.length === 1) {
+            setAuthState(auth.queue[0]![0]);
+          } else {
+            setAuthState(
+              await auth.config.login(auth.queue[0]![0], auth.queue[0]![1]),
+            );
+          }
+          auth.queue.shift();
+        } else {
+          processing = null;
+          run();
+        }
+      }
+    }
   };
 
+  (async () => {
+    schema = (await (await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: '{ SCHEMA }' }),
+    })).json()).data.SCHEMA;
+    processing = null;
+    if (authConfig) {
+      let authField: { type: string; field: string };
+      for (const type of Object.keys(schema)) {
+        for (const field of Object.keys(schema[type])) {
+          if ((schema[type][field] as any).scalar === 'auth') {
+            authField = { type, field };
+            (schema[type][field] as any).scalar = 'string';
+            schema[type].password = { scalar: 'string' };
+          }
+        }
+      }
+      auth = {
+        config: authConfig,
+        field: authField!,
+        state: JSON.parse(
+          (typeof localStorage !== 'undefined' &&
+            localStorage.getItem('kalamboAuth')) ||
+            'null',
+        ),
+        queue: [],
+      };
+      processAuth();
+    } else {
+      run();
+    }
+  })();
+
   return {
-    ready() {
-      return new Promise(resolve => {
-        if (schema) resolve();
-        else readyListeners.push(resolve);
-      });
-    },
     schema() {
       return schema;
     },
     newId(type) {
-      return state.newId(type);
+      newIds[type] = newIds[type] || 0;
+      return `$${newIds[type]++}`;
     },
 
-    login(...args: any[]): any {
-      if (args.length === 2) {
-        return (async () => {
-          if (!auth) return 'Auth not configured';
-          try {
-            setAuth(await auth.login(args[0], args[1]));
-            return null;
-          } catch (error) {
-            return error.message as string;
-          }
-        })();
+    async login(...args: any[]) {
+      if (auth) {
+        auth.queue.push(args);
+        processAuth();
       }
-      setAuth(args[0]);
     },
     async logout() {
-      if (auth && authState) {
-        await auth.logout(authState.token);
-        setAuth(null);
+      if (auth) {
+        auth.queue.push(null);
+        processAuth();
       }
-    },
-    loggedIn(listener) {
-      listener(!!authState);
-      loggedInListeners.push(listener);
-      return () => {
-        loggedInListeners = loggedInListeners.filter(l => l !== listener);
-      };
     },
 
     get(...args) {
       const [keys, listener] = args as [
         [string, string, string][],
-        (values: any[] | null) => void
+        ((values: any[] | null) => void) | undefined
       ];
-
       return promisifyEmitter(innerListener => {
         if (keys.length === 0) {
           innerListener([]);
           return () => {};
         }
-
-        let running = true;
+        let ready;
         let unlisten;
-        const unwatch = fetcher.addFields(keys, isLoading => {
-          if (running) {
-            if (isLoading) {
-              innerListener(null);
-            } else {
+        const watcher = newReady => {
+          if (newReady !== ready) {
+            ready = newReady;
+            if (ready) {
               innerListener(keys.map(k => noUndef(_.get(state.combined, k))));
-              unlisten = state.watch(keys, innerListener);
+              unlisten = state.listen(keys, innerListener);
+            } else {
+              innerListener(null);
+              if (unlisten) unlisten();
             }
           }
-        });
+        };
+        watchers.push(watcher);
+        let alreadyFetched = true;
+        const serverKeys = keys.filter(([_, id]) => id[0] !== '$');
+        for (const key of serverKeys) {
+          _.set(
+            fields.active,
+            key,
+            (_.get<number>(fields.active, key) || 0) + 1,
+          );
+          if (_.get(state.server, key) === undefined) {
+            alreadyFetched = false;
+            _.set(fields.next, key, true);
+          }
+        }
+        watcher(alreadyFetched);
+        if (!alreadyFetched) run();
         return () => {
-          running = false;
-          unwatch();
+          watchers.splice(watchers.indexOf(watcher), 1);
+          for (const key of serverKeys) {
+            fields.active[key[0]][key[1]][key[2]]--;
+          }
           if (unlisten) unlisten();
         };
       }, listener) as any;
@@ -228,40 +399,128 @@ export function buildClient(
 
     query(...args) {
       const queryDoc = parse(args[0]);
-      const [options, onLoad, onChange] = (args.length === 3
+      const [withInfo, onLoad, onChange] = (args.length === 3
         ? [undefined, ...args.slice(1)]
         : args.slice(1)) as [
-        (QueryOptions & { info?: true }) | undefined,
+        true | undefined,
         ((data: Obj | { data: Obj; spans: Obj } | null) => void) | undefined,
         ((changes: Data) => void) | true | undefined
       ];
-      const { variables, idsOnly, info: withInfo } =
-        options || ({} as QueryOptions & { info?: true });
 
-      return promisifyEmitter(onLoadInner => {
-        const queryIndex = queryCounter++;
+      return promisifyEmitter(innerListener => {
+        const queryIndex =
+          Math.max(...Object.keys(queries).map(k => parseInt(k, 10)), -1) + 1;
+        queries[queryIndex] = {};
 
-        const layers = queryLayers(
-          schema,
-          queryDoc,
-          variables,
-          authState && authState.id,
-          idsOnly,
-          withInfo,
-        );
-
-        let data = {};
-        let spans = {};
+        let layers: QueryLayer[] | null = null;
         let rootUpdaters:
           | ((changes: DataChanges, update: boolean) => number)[]
           | null = null;
-        let firstIds: Obj<Obj<string>>;
+        let data = {};
+        let spans = {};
 
-        let running = true;
-        const updateQuery = fetcher.addQuery(
-          queryIndex,
-          newFirstIds => {
-            if (newFirstIds) firstIds = newFirstIds;
+        const checkRun = () => {
+          layers =
+            layers ||
+            queryLayers(
+              schema,
+              queryDoc,
+              auth && auth.state && auth.state.id,
+              withInfo,
+            );
+          queries[queryIndex].next = {
+            ids: {},
+            slice: {},
+            queries: [],
+          };
+          let alreadyFetched = true;
+          const processLayer = ({
+            root,
+            field,
+            args,
+            structuralFields,
+            scalarFields,
+            relations,
+            path,
+            getArgsState,
+          }: QueryLayer) => {
+            const fields = Array.from(
+              new Set([
+                'id',
+                ...Object.keys(scalarFields),
+                ...structuralFields,
+              ]),
+            );
+            const inner = `{
+              ${fields.join('\n')}
+              ${relations.map(processLayer).join('\n')}
+            }`;
+            if (fieldIs.foreignRelation(field) || field.isList) {
+              const { extra, ids } = getArgsState(state!);
+              const prev = queries[queryIndex].prev || {
+                ids: {},
+                slice: {},
+              };
+              const newIds = prev.ids[path]
+                ? ids.filter(id => !prev.ids[path].includes(id))
+                : ids;
+              queries[queryIndex].next!.ids[path] = ids;
+              if (newIds.length > 0) {
+                queries[queryIndex].next!.queries.push(`{
+                  ${root.field}(ids:${JSON.stringify(newIds)}) ${inner}
+                }`);
+              }
+              if (
+                !prev.slice[path] ||
+                args.start - extra.start < prev.slice[path].start ||
+                (prev.slice[path].end !== undefined &&
+                  (args.end === undefined ||
+                    args.end + extra.end > prev.slice[path].end!))
+              ) {
+                alreadyFetched = false;
+              }
+              const mappedArgs = {
+                filter: printFilter(args.filter),
+                sort: args.sort
+                  .map(([k, dir]) => (dir === 'asc' ? k : `-${k}`))
+                  .join(', '),
+                skip: args.start - extra.start,
+                show: undefOr(
+                  args.end,
+                  args.end! - args.start + extra.start + extra.end,
+                ),
+                offset: extra.start,
+                trace: args.trace,
+              };
+              const printedArgs = Object.keys(mappedArgs)
+                .filter(k => mappedArgs[k] !== undefined)
+                .map(
+                  k =>
+                    `${k}: ${JSON.stringify(mappedArgs[k]).replace(
+                      /\"([^(\")"]+)\":/g,
+                      '$1:',
+                    )}`,
+                );
+              queries[queryIndex].next!.slice[path] = {
+                start: args.start - extra.start,
+                end: undefOr(args.end, args.end! + extra.end),
+              };
+              return `${root.field}(${printedArgs}) ${inner}`;
+            }
+            return `${root.field} ${inner}`;
+          };
+          const baseQuery = `{
+            ${layers.map(processLayer).join('\n')}
+          }`;
+          if (!alreadyFetched) {
+            queries[queryIndex].next!.queries.unshift(baseQuery);
+          }
+          if (queries[queryIndex].next!.queries.length > 0) {
+            innerListener(null);
+            rootUpdaters = null;
+            run();
+          } else {
+            delete queries[queryIndex].next;
             data = {};
             spans = {};
             rootUpdaters = layers.map(layer =>
@@ -269,7 +528,7 @@ export function buildClient(
                 layer,
                 { '': data },
                 state,
-                firstIds,
+                queries[queryIndex].firstIds!,
                 withInfo && { '': spans },
               ),
             );
@@ -281,37 +540,47 @@ export function buildClient(
                 1,
               );
             }
-            if (running) onLoadInner(withInfo ? { data, spans } : data);
-          },
-          () => {
-            if (running) onLoadInner(null);
-          },
-        );
-        updateQuery(layers, state);
-
-        const unlisten = state.watch(({ changes, changedData, indices }) => {
-          if (!indices || !indices.includes(queryIndex)) {
-            const updateType = rootUpdaters
-              ? Math.max(
-                  ...rootUpdaters.map(updater =>
-                    updater(changes, onChange === true),
-                  ),
-                )
-              : 2;
-            if (updateType === 2) {
-              rootUpdaters = null;
-              updateQuery(layers, state);
-            } else if (updateType === 1) {
-              if (onChange === true) onLoadInner(data);
-              else onChange!(changedData);
-            }
+            innerListener(withInfo ? { data, spans } : data);
           }
-        });
+        };
+
+        let unlisten;
+        const watcher = (ready, indices = [] as number[]) => {
+          if (ready) {
+            if (!layers || indices.includes(queryIndex)) checkRun();
+            unlisten =
+              unlisten ||
+              state.listen(({ changes, changedData, indices }) => {
+                if (!indices || !indices.includes(queryIndex)) {
+                  const updateType = rootUpdaters
+                    ? Math.max(
+                        ...rootUpdaters.map(updater =>
+                          updater(changes, onChange === true),
+                        ),
+                      )
+                    : 2;
+                  if (updateType === 2) {
+                    checkRun();
+                  } else if (updateType === 1) {
+                    if (onChange === true) innerListener(data);
+                    else onChange!(changedData);
+                  }
+                }
+              });
+          } else {
+            innerListener(null);
+            layers = null;
+            rootUpdaters = null;
+            if (unlisten) unlisten();
+          }
+        };
+        watchers.push(watcher);
+        if (schema) checkRun();
 
         return () => {
-          running = false;
-          updateQuery();
-          unlisten();
+          delete queries[queryIndex];
+          watchers.splice(watchers.indexOf(watcher), 1);
+          if (unlisten) unlisten();
         };
       }, onLoad) as any;
     },
@@ -320,6 +589,70 @@ export function buildClient(
       return state.setClient(values);
     },
 
-    commit,
+    async commit(keys: [string, string, string][]) {
+      return new Promise<{
+        values: any[];
+        newIds: Obj;
+      } | null>(resolve => {
+        let values = keys.map(key => ({
+          key,
+          value: noUndef(_.get(state.combined, key)),
+        }));
+        if (auth) {
+          const indices = { username: -1, password: -1 };
+          values.forEach(({ key: [type, _, field] }, i) => {
+            if (type === auth!.field.type) {
+              if (field === auth!.field.field) indices.username = i;
+              if (field === 'password') indices.password = i;
+            }
+          });
+          if (indices.username !== -1 || indices.password !== -1) {
+            values = [
+              ...values.filter(
+                (_, i) => i !== indices.username && i !== indices.password,
+              ),
+              {
+                key: [
+                  auth!.field.type,
+                  values[indices.username].key[1] ||
+                    values[indices.password].key[1],
+                  auth!.field.field,
+                ],
+                value: JSON.stringify(
+                  keysToObject(
+                    ['username', 'password'].filter(k => indices[k] !== -1),
+                    k => values[indices[k]].value,
+                  ),
+                ),
+              },
+            ];
+          }
+        }
+        commits.push({
+          values,
+          watcher: async ({ newIds, errors }) => {
+            if (errors) {
+              resolve(null);
+            } else {
+              if (auth && newIds!['$user']) delete newIds!['$user'];
+              state.setClient(keys.map(key => ({ key, value: undefined })));
+              resolve({
+                values: keys.map(([type, id, field]) =>
+                  noUndef(
+                    _.get(state.combined, [
+                      type,
+                      (newIds![type] && newIds![type][id]) || id,
+                      field,
+                    ]),
+                  ),
+                ),
+                newIds: newIds!,
+              });
+            }
+          },
+        });
+        run();
+      });
+    },
   };
 }

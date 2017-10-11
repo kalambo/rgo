@@ -3,7 +3,7 @@ import { clearClient, client, setupClient, simpleQuery } from '../setup';
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('queries: modified', () => {
+describe('query: modified', () => {
   test('simple: 1st=>0.5th', async () => {
     await client.query(
       `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,

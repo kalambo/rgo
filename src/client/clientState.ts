@@ -14,9 +14,7 @@ import {
 import { DataChanges, DataDiff, FullChanges } from './typings';
 
 export default class ClientState {
-  private schema: Obj<Obj<Field>>;
   private log: boolean;
-  private newIds: Obj<number>;
 
   public server: Data = {};
   public client: Data = {};
@@ -29,20 +27,16 @@ export default class ClientState {
     emit: (values: any[]) => void;
   }[] = [];
 
-  public constructor(schema: Obj<Obj<Field>>, log: boolean = false) {
-    this.schema = schema;
+  public constructor(log: boolean = false) {
     this.log = log;
-    this.newIds = keysToObject(Object.keys(schema), () => 0);
   }
 
-  public newId = (type: string) => `$${this.newIds[type]++}`;
-
-  public watch(listener: (value: FullChanges) => void): () => void;
-  public watch(
+  public listen(listener: (value: FullChanges) => void): () => void;
+  public listen(
     keys: [string, string, string][],
     listener: (values: any[]) => void,
   ): () => void;
-  public watch(...args: any[]) {
+  public listen(...args: any[]) {
     const listeners = args.length === 1 ? this.listeners : this.keyListeners;
     const listener =
       args.length === 1 ? args[0] : { keys: args[0], emit: args[1] };
@@ -79,7 +73,7 @@ export default class ClientState {
     }
   }
 
-  private set(store: 'server' | 'client', data: Obj) {
+  private set(store: 'server' | 'client', data: Obj, schema?: Obj<Obj<Field>>) {
     const changes: DataChanges = {};
     const setChanged = (type: string, id: string, field: string) => {
       changes[type] = changes[type] || {};
@@ -178,7 +172,7 @@ export default class ClientState {
                   this.combined[type][id]![field] = data[type][id][field];
                 }
               } else {
-                const f = this.schema[type][field];
+                const f = schema![type][field];
                 const decode = fieldIs.scalar(f) && scalars[f.scalar].decode;
                 const fieldValue =
                   data[type][id]![field] === null || !decode
@@ -240,7 +234,7 @@ export default class ClientState {
     );
   }
 
-  public setServer(data: Data, indices: number[]) {
-    this.emitChanges(this.set('server', data), indices);
+  public setServer(data: Data, schema: Obj<Obj<Field>>, indices: number[]) {
+    this.emitChanges(this.set('server', data, schema), indices);
   }
 }

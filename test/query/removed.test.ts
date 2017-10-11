@@ -10,7 +10,7 @@ import {
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('queries: removed', () => {
+describe('query: removed', () => {
   test('simple: 1st', async () => {
     client.set([{ key: ['people', 'B'], value: null }]);
     expect(await client.query(simpleQuery)).toEqual({

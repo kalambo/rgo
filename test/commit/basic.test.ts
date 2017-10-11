@@ -3,7 +3,7 @@ import { clearClient, client, setupClient } from '../setup';
 beforeEach(setupClient);
 afterEach(clearClient);
 
-describe('mutations: basic', () => {
+describe('commit: basic', () => {
   test('simple', async () => {
     client.set([{ key: ['people', 'A', 'firstname'], value: 'Elissa' }]);
     await client.commit([['people', 'A', 'firstname']]);
