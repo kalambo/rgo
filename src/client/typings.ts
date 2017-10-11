@@ -17,14 +17,6 @@ export interface AuthState {
   refresh?: string;
 }
 
-export interface AuthConfig {
-  login: (username: string, password: string) => Promise<AuthState>;
-  logout: (authToken: string) => void | Promise<void>;
-  refresh?: (
-    refreshToken: string,
-  ) => Promise<{ token: string; refresh: string } | null>;
-}
-
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 
 export type DataChanges = Obj<Obj<Obj<true>>>;
@@ -54,10 +46,7 @@ export interface QueryLayer {
 export interface Client {
   schema(): Obj<Obj<Field>>;
   newId(type: string): string;
-
-  login(username: string, password: string): void;
-  login(authState: AuthState): void;
-  logout(): Promise<void>;
+  auth(authState?: AuthState): string | null;
 
   get(keys: [string, string, string][]): Promise<any[]>;
   get(

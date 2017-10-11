@@ -22,13 +22,7 @@ import {
 import ClientState from './ClientState';
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
-import {
-  AuthConfig,
-  AuthState,
-  Client,
-  DataChanges,
-  QueryLayer,
-} from './typings';
+import { AuthState, Client, DataChanges, QueryLayer } from './typings';
 
 const ops = { $ne: '!=', $lte: '<=', $gte: '>=', $eq: '=', $lt: '<', $gt: '>' };
 const printFilter = filter => {
@@ -42,25 +36,30 @@ const printFilter = filter => {
 
 export function buildClient(
   url: string,
-  authConfig?: {
-    login: (username: string, password: string) => Promise<AuthState>;
-    logout: (authToken: string) => void | Promise<void>;
-    refresh?: (
-      refreshToken: string,
-    ) => Promise<{ token: string; refresh: string } | null>;
-  },
+  authRefresh?: (
+    refreshToken: string,
+  ) => Promise<{ token: string; refresh: string } | null>,
   log?: boolean,
 ): Client {
   let schema: Obj<Obj<Field>>;
-  let auth: {
-    config: AuthConfig;
-    field: { type: string; field: string };
+  const auth: {
+    refresh: (
+      refreshToken: string,
+    ) => Promise<{ token: string; refresh: string } | null>;
     state: AuthState | null;
-    queue: (any[] | null)[];
-  } | null = null;
+    field?: { type: string; field: string };
+  } | null = authRefresh
+    ? {
+        refresh: authRefresh,
+        state: JSON.parse(
+          (typeof localStorage !== 'undefined' &&
+            localStorage.getItem('kalamboAuth')) ||
+            'null',
+        ),
+      }
+    : null;
   const state = new ClientState(log);
   const newIds: Obj<number> = {};
-  let processing: 'schema' | 'auth' | null = 'schema';
 
   let watchers: ((ready?: boolean, indices?: number[]) => void)[] = [];
   const fields: { active: Obj<Obj<Obj<number>>>; next: Obj<Obj<Obj<true>>> } = {
@@ -102,7 +101,7 @@ export function buildClient(
     return await response.json();
   };
   const run = _.throttle(async () => {
-    if (!processing) {
+    if (schema) {
       const runIndex = ++currentRun;
       const requests: QueryRequest[] = [];
 
@@ -204,17 +203,14 @@ export function buildClient(
           responses = await doFetch(requests);
         } catch {
           let refreshed = false;
-          if (auth && auth.config.refresh && auth.state && auth.state.refresh) {
-            const newTokens = await auth.config.refresh(auth.state.refresh);
+          if (auth && auth.refresh && auth.state && auth.state.refresh) {
+            const newTokens = await auth.refresh(auth.state.refresh);
             if (newTokens) {
-              setAuthState({ ...auth.state, ...newTokens });
+              setAuth({ ...auth.state, ...newTokens });
               refreshed = true;
             }
           }
-          if (auth && !refreshed) {
-            auth.queue.push(null);
-            processAuth();
-          }
+          if (auth && !refreshed) setAuth(null);
           responses = await doFetch(requests);
         }
         state.setServer(responses[0].data, schema, queryIndices);
@@ -226,67 +222,40 @@ export function buildClient(
           watcher({ newIds, errors });
         });
       }
-      if (currentRun === runIndex && !processing) {
+      if (currentRun === runIndex) {
         watchers.forEach(w => w(true, queryIndices));
       }
     }
   }, 100);
 
-  const setAuthState = (authState: AuthState | null) => {
+  const setAuth = (authState: AuthState | null) => {
     if (auth) {
+      const reset =
+        (auth.state && auth.state.id) !== (authState && authState.id);
       auth.state = authState;
-      if (!state) localStorage.removeItem('kalamboAuth');
+      if (!auth.state) localStorage.removeItem('kalamboAuth');
       else localStorage.setItem('kalamboAuth', JSON.stringify(authState));
-    }
-  };
-  const processAuth = async () => {
-    if (auth && !processing) {
-      processing = 'auth';
-      let first = true;
-      while (processing) {
-        if (auth.state) {
-          if (auth.queue[0]) auth.queue.unshift(null);
-        } else {
-          auth.queue = auth.queue.slice(auth.queue.findIndex(q => !!q));
-        }
-        if (auth.queue.length > 0) {
-          if (first) {
-            first = false;
-            watchers.forEach(w => w(false));
-            state.setServer(
-              keysToObject(Object.keys(state.server), type =>
-                keysToObject(Object.keys(state.server[type]), () => null),
-              ),
-              schema,
-              [],
-            );
-            fields.next = {};
-            for (const type of Object.keys(fields.active)) {
-              for (const id of Object.keys(fields.active[type])) {
-                for (const field of Object.keys(fields.active[type][id])) {
-                  if (fields.active[type][id][field]) {
-                    _.set(fields.next, [type, id, field], true);
-                  }
-                }
+      if (reset) {
+        watchers.forEach(w => w(false));
+        state.setServer(
+          keysToObject(Object.keys(state.server), type =>
+            keysToObject(Object.keys(state.server[type]), () => null),
+          ),
+          schema,
+          [],
+        );
+        fields.next = {};
+        for (const type of Object.keys(fields.active)) {
+          for (const id of Object.keys(fields.active[type])) {
+            for (const field of Object.keys(fields.active[type][id])) {
+              if (fields.active[type][id][field]) {
+                _.set(fields.next, [type, id, field], true);
               }
             }
-            Object.keys(queries).forEach(k => (queries[k] = {}));
           }
-          if (auth.queue[0] === null) {
-            await auth.config.logout(auth.state!.token);
-            setAuthState(null);
-          } else if (auth.queue[0]!.length === 1) {
-            setAuthState(auth.queue[0]![0]);
-          } else {
-            setAuthState(
-              await auth.config.login(auth.queue[0]![0], auth.queue[0]![1]),
-            );
-          }
-          auth.queue.shift();
-        } else {
-          processing = null;
-          run();
         }
+        Object.keys(queries).forEach(k => (queries[k] = {}));
+        run();
       }
     }
   };
@@ -297,32 +266,18 @@ export function buildClient(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: '{ SCHEMA }' }),
     })).json()).data.SCHEMA;
-    processing = null;
-    if (authConfig) {
-      let authField: { type: string; field: string };
+    if (auth) {
       for (const type of Object.keys(schema)) {
         for (const field of Object.keys(schema[type])) {
           if ((schema[type][field] as any).scalar === 'auth') {
-            authField = { type, field };
+            auth.field = { type, field };
             (schema[type][field] as any).scalar = 'string';
             schema[type].password = { scalar: 'string' };
           }
         }
       }
-      auth = {
-        config: authConfig,
-        field: authField!,
-        state: JSON.parse(
-          (typeof localStorage !== 'undefined' &&
-            localStorage.getItem('kalamboAuth')) ||
-            'null',
-        ),
-        queue: [],
-      };
-      processAuth();
-    } else {
-      run();
     }
+    run();
   })();
 
   return {
@@ -333,18 +288,10 @@ export function buildClient(
       newIds[type] = newIds[type] || 0;
       return `$${newIds[type]++}`;
     },
-
-    async login(...args: any[]) {
-      if (auth) {
-        auth.queue.push(args);
-        processAuth();
-      }
-    },
-    async logout() {
-      if (auth) {
-        auth.queue.push(null);
-        processAuth();
-      }
+    auth(authState?: AuthState) {
+      const token = auth && auth.state && auth.state.token;
+      setAuth(authState || null);
+      return token;
     },
 
     get(...args) {
@@ -456,7 +403,7 @@ export function buildClient(
               ${relations.map(processLayer).join('\n')}
             }`;
             if (fieldIs.foreignRelation(field) || field.isList) {
-              const { extra, ids } = getArgsState(state!);
+              const { extra, ids } = getArgsState(state);
               const prev = queries[queryIndex].prev || {
                 ids: {},
                 slice: {},
@@ -586,7 +533,7 @@ export function buildClient(
     },
 
     set(values) {
-      return state.setClient(values);
+      if (values.length !== 0) state.setClient(values);
     },
 
     async commit(keys: [string, string, string][]) {
@@ -594,64 +541,68 @@ export function buildClient(
         values: any[];
         newIds: Obj;
       } | null>(resolve => {
-        let values = keys.map(key => ({
-          key,
-          value: noUndef(_.get(state.combined, key)),
-        }));
-        if (auth) {
-          const indices = { username: -1, password: -1 };
-          values.forEach(({ key: [type, _, field] }, i) => {
-            if (type === auth!.field.type) {
-              if (field === auth!.field.field) indices.username = i;
-              if (field === 'password') indices.password = i;
-            }
-          });
-          if (indices.username !== -1 || indices.password !== -1) {
-            values = [
-              ...values.filter(
-                (_, i) => i !== indices.username && i !== indices.password,
-              ),
-              {
-                key: [
-                  auth!.field.type,
-                  values[indices.username].key[1] ||
-                    values[indices.password].key[1],
-                  auth!.field.field,
-                ],
-                value: JSON.stringify(
-                  keysToObject(
-                    ['username', 'password'].filter(k => indices[k] !== -1),
-                    k => values[indices[k]].value,
-                  ),
+        if (keys.length === 0) {
+          resolve({ values: [], newIds: {} });
+        } else {
+          let values = keys.map(key => ({
+            key,
+            value: noUndef(_.get(state.combined, key)),
+          }));
+          if (auth && auth.field) {
+            const indices = { username: -1, password: -1 };
+            values.forEach(({ key: [type, _, field] }, i) => {
+              if (type === auth.field!.type) {
+                if (field === auth.field!.field) indices.username = i;
+                if (field === 'password') indices.password = i;
+              }
+            });
+            if (indices.username !== -1 || indices.password !== -1) {
+              values = [
+                ...values.filter(
+                  (_, i) => i !== indices.username && i !== indices.password,
                 ),
-              },
-            ];
+                {
+                  key: [
+                    auth.field!.type,
+                    values[indices.username].key[1] ||
+                      values[indices.password].key[1],
+                    auth.field!.field,
+                  ],
+                  value: JSON.stringify(
+                    keysToObject(
+                      ['username', 'password'].filter(k => indices[k] !== -1),
+                      k => values[indices[k]].value,
+                    ),
+                  ),
+                },
+              ];
+            }
           }
-        }
-        commits.push({
-          values,
-          watcher: async ({ newIds, errors }) => {
-            if (errors) {
-              resolve(null);
-            } else {
-              if (auth && newIds!['$user']) delete newIds!['$user'];
-              state.setClient(keys.map(key => ({ key, value: undefined })));
-              resolve({
-                values: keys.map(([type, id, field]) =>
-                  noUndef(
-                    _.get(state.combined, [
-                      type,
-                      (newIds![type] && newIds![type][id]) || id,
-                      field,
-                    ]),
+          commits.push({
+            values,
+            watcher: async ({ newIds, errors }) => {
+              if (errors) {
+                resolve(null);
+              } else {
+                if (auth && newIds!['$user']) delete newIds!['$user'];
+                state.setClient(keys.map(key => ({ key, value: undefined })));
+                resolve({
+                  values: keys.map(([type, id, field]) =>
+                    noUndef(
+                      _.get(state.combined, [
+                        type,
+                        (newIds![type] && newIds![type][id]) || id,
+                        field,
+                      ]),
+                    ),
                   ),
-                ),
-                newIds: newIds!,
-              });
-            }
-          },
-        });
-        run();
+                  newIds: newIds!,
+                });
+              }
+            },
+          });
+          run();
+        }
       });
     },
   };
