@@ -9,7 +9,7 @@ const parser = peg.generate(String.raw`
 
 {
   function obj(k, v) {
-  	const result = {};
+    var result = {};
     result[k] = v;
     return result;
   }

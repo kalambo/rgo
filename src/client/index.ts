@@ -232,9 +232,9 @@ export function buildClient(
     if (auth) {
       const reset =
         (auth.state && auth.state.id) !== (authState && authState.id);
-      auth.state = authState;
-      if (!auth.state) localStorage.removeItem('kalamboAuth');
+      if (!authState) localStorage.removeItem('kalamboAuth');
       else localStorage.setItem('kalamboAuth', JSON.stringify(authState));
+      auth.state = authState;
       if (reset) {
         watchers.forEach(w => w(false));
         state.setServer(
