@@ -122,7 +122,7 @@ const compareValues = (a, b) => {
 };
 export const createCompare = <T>(
   get: (value: T, key: string) => any,
-  sort: [string, 'asc' | 'desc'][],
+  sort: [string, 'asc' | 'desc'][] = [],
 ) => (value1: T, value2: T): 0 | 1 | -1 => {
   for (const [key, order] of sort) {
     const v1 = get(value1, key);
@@ -137,42 +137,30 @@ export const createCompare = <T>(
   return 0;
 };
 
-export const runFilter = (filter: any, id: string, record: any): boolean => {
+export const runFilter = (
+  filter: any[] | undefined,
+  id: string,
+  record: any,
+): boolean => {
   if (!record) return false;
+  if (!filter) return true;
 
-  const key = Object.keys(filter)[0];
-  if (!key) return true;
+  if (filter[0] === 'AND') {
+    return filter[1].every(b => runFilter(b, id, record));
+  } else if (filter[0] === 'OR') {
+    return filter[1].some(b => runFilter(b, id, record));
+  }
 
-  if (key === '$and')
-    return (filter[key] as any[]).every(b => runFilter(b, id, record));
-  if (key === '$or')
-    return (filter[key] as any[]).some(b => runFilter(b, id, record));
+  const [key, op, value] = filter;
 
-  const op = Object.keys(filter[key])[0];
-  const value = key === 'id' ? id : record[key];
-  if (op === '$eq') return value === filter[key][op];
-  if (op === '$ne') return value !== filter[key][op];
-  if (op === '$lt') return value < filter[key][op];
-  if (op === '$lte') return value <= filter[key][op];
-  if (op === '$gt') return value > filter[key][op];
-  if (op === '$gte') return value >= filter[key][op];
-  if (op === '$in') return filter[key][op].includes(value);
+  const v = key === 'id' ? id : record[key];
+  if (op === '=') return v === value;
+  if (op === '!=') return v !== value;
+  if (op === '<') return v < value;
+  if (op === '<=') return v <= value;
+  if (op === '>') return v > value;
+  if (op === '>=') return v >= value;
+  if (op === 'in') return value.includes(v);
 
   return false;
-};
-
-export const getFilterFields = (obj: any): string[] => {
-  if (Array.isArray(obj)) {
-    return obj.reduce(
-      (res, o) => [...res, ...getFilterFields(o)],
-      [] as string[],
-    );
-  }
-  if (isObject(obj)) {
-    return Object.keys(obj).reduce(
-      (res, k) => [...res, ...(k[0] === '$' ? getFilterFields(obj[k]) : [k])],
-      [] as string[],
-    );
-  }
-  return [];
 };

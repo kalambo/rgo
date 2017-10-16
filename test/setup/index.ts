@@ -39,7 +39,7 @@ export const clearClient = () => {
 };
 
 export const simpleQuery = `{
-  people(sort: "firstname", skip: 1, show: 2) {
+  people(sort: "firstname", start: 1, end: 3) {
     firstname
     address {
       city
@@ -48,7 +48,7 @@ export const simpleQuery = `{
 }`;
 
 export const relationQuery = `{
-  people(sort: "firstname", skip: 1, show: 2) {
+  people(sort: "firstname", start: 1, end: 3) {
     firstname
     places {
       city
@@ -57,7 +57,7 @@ export const relationQuery = `{
 }`;
 
 export const sortedRelationQuery = `{
-  people(sort: "firstname", skip: 1, show: 2) {
+  people(sort: "firstname", start: 1, end: 3) {
     firstname
     places(sort: "city") {
       city

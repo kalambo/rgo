@@ -109,7 +109,7 @@ export function buildClient(
         for (const id of Object.keys(fields.next[type])) {
           requests.push({
             query: `{
-                ${type}(filter: "id=${id}") {
+                ${type}(filter: ["id", "=", "${id}"]) {
                   id
                   ${Object.keys(fields.next[type][id])
                     .map(
@@ -414,42 +414,38 @@ export function buildClient(
               queries[queryIndex].next!.ids[path] = ids;
               if (newIds.length > 0) {
                 queries[queryIndex].next!.queries.push(`{
-                  ${root.field}(ids:${JSON.stringify(newIds)}) ${inner}
+                  ${root.field}(filter: ["id", "in", ${JSON.stringify(
+                  newIds,
+                )}]) ${inner}
                 }`);
               }
               if (
                 !prev.slice[path] ||
-                args.start - extra.start < prev.slice[path].start ||
+                (args.start || 0) - extra.start < prev.slice[path].start ||
                 (prev.slice[path].end !== undefined &&
                   (args.end === undefined ||
                     args.end + extra.end > prev.slice[path].end!))
               ) {
                 alreadyFetched = false;
               }
-              const mappedArgs = {
-                filter: printFilter(args.filter),
-                sort: args.sort
-                  .map(([k, dir]) => (dir === 'asc' ? k : `-${k}`))
-                  .join(', '),
-                skip: args.start - extra.start,
-                show: undefOr(
-                  args.end,
-                  args.end! - args.start + extra.start + extra.end,
-                ),
+              const fullArgs = {
+                ...args,
+                start: (args.start || 0) - extra.start,
+                end: undefOr(args.end, args.end! + extra.end),
                 offset: extra.start,
-                trace: args.trace,
+                trace: prev.slice[path],
               };
-              const printedArgs = Object.keys(mappedArgs)
-                .filter(k => mappedArgs[k] !== undefined)
+              const printedArgs = Object.keys(fullArgs)
+                .filter(k => fullArgs[k] !== undefined)
                 .map(
                   k =>
-                    `${k}: ${JSON.stringify(mappedArgs[k]).replace(
+                    `${k}: ${JSON.stringify(fullArgs[k]).replace(
                       /\"([^(\")"]+)\":/g,
                       '$1:',
                     )}`,
                 );
               queries[queryIndex].next!.slice[path] = {
-                start: args.start - extra.start,
+                start: (args.start || 0) - extra.start,
                 end: undefOr(args.end, args.end! + extra.end),
               };
               return `${root.field}(${printedArgs}) ${inner}`;

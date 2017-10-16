@@ -6,7 +6,7 @@ afterEach(clearClient);
 describe('change: root', () => {
   test('test', async done => {
     const query = `{
-      people(sort: "firstname", skip: 1, show: 2) {
+      people(sort: "firstname", start: 1, end: 3) {
         firstname
         lastname
       }
@@ -71,7 +71,7 @@ describe('change: root', () => {
     let nextLoad = true;
     client.query(
       `{
-        people(sort: "firstname", skip: 1, show: 2) {
+        people(sort: "firstname", start: 1, end: 3) {
           firstname
           lastname
         }

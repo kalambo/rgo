@@ -1,11 +1,11 @@
 export { default as ClientState } from './ClientState';
 
 import {
+  Args,
   Data,
   Field,
   ForeignRelationField,
   Obj,
-  QueryArgs,
   RelationField,
 } from '../core';
 
@@ -30,7 +30,7 @@ export interface FullChanges {
 export interface QueryLayer {
   root: { type?: string; field: string };
   field: ForeignRelationField | RelationField;
-  args: QueryArgs;
+  args: Args;
   structuralFields: string[];
   scalarFields: Obj<true>;
   relations: QueryLayer[];

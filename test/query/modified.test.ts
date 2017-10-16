@@ -5,9 +5,7 @@ afterEach(clearClient);
 
 describe('query: modified', () => {
   test('simple: 1st=>0.5th', async () => {
-    await client.query(
-      `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
-    );
+    await client.query(`{ people(sort: "firstname", end: 1) { firstname } }`);
     client.set([{ key: ['people', 'B', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
@@ -17,9 +15,7 @@ describe('query: modified', () => {
     });
   });
   test('simple: 1st=>1.5th', async () => {
-    await client.query(
-      `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
-    );
+    await client.query(`{ people(sort: "firstname", end: 1) { firstname } }`);
     client.set([{ key: ['people', 'B', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
@@ -29,9 +25,7 @@ describe('query: modified', () => {
     });
   });
   test('simple: 1st=>2.5th', async () => {
-    await client.query(
-      `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
-    );
+    await client.query(`{ people(sort: "firstname", end: 1) { firstname } }`);
     client.set([{ key: ['people', 'B', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
@@ -41,9 +35,7 @@ describe('query: modified', () => {
     });
   });
   test('simple: 1st=>3.5th', async () => {
-    await client.query(
-      `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
-    );
+    await client.query(`{ people(sort: "firstname", end: 1) { firstname } }`);
     client.set([{ key: ['people', 'B', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
@@ -53,9 +45,7 @@ describe('query: modified', () => {
     });
   });
   test('simple: 1st=>4.5th', async () => {
-    await client.query(
-      `{ people(sort: "firstname", skip: 0, show: 1) { firstname } }`,
-    );
+    await client.query(`{ people(sort: "firstname", end: 1) { firstname } }`);
     client.set([{ key: ['people', 'B', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
@@ -67,7 +57,7 @@ describe('query: modified', () => {
 
   test('simple: 2nd=>0.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 1, end: 2) { firstname } }`,
     );
     client.set([{ key: ['people', 'C', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -79,7 +69,7 @@ describe('query: modified', () => {
   });
   test('simple: 2nd=>1.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 1, end: 2) { firstname } }`,
     );
     client.set([{ key: ['people', 'C', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -91,7 +81,7 @@ describe('query: modified', () => {
   });
   test('simple: 2nd=>2.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 1, end: 2) { firstname } }`,
     );
     client.set([{ key: ['people', 'C', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -103,7 +93,7 @@ describe('query: modified', () => {
   });
   test('simple: 2nd=>3.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 1, end: 2) { firstname } }`,
     );
     client.set([{ key: ['people', 'C', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -115,7 +105,7 @@ describe('query: modified', () => {
   });
   test('simple: 2nd=>4.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 1, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 1, end: 2) { firstname } }`,
     );
     client.set([{ key: ['people', 'C', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -128,7 +118,7 @@ describe('query: modified', () => {
 
   test('simple: 3rd=>0.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 2, end: 3) { firstname } }`,
     );
     client.set([{ key: ['people', 'A', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -140,7 +130,7 @@ describe('query: modified', () => {
   });
   test('simple: 3rd=>1.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 2, end: 3) { firstname } }`,
     );
     client.set([{ key: ['people', 'A', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -152,7 +142,7 @@ describe('query: modified', () => {
   });
   test('simple: 3rd=>2.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 2, end: 3) { firstname } }`,
     );
     client.set([{ key: ['people', 'A', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -164,7 +154,7 @@ describe('query: modified', () => {
   });
   test('simple: 3rd=>3.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 2, end: 3) { firstname } }`,
     );
     client.set([{ key: ['people', 'A', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -176,7 +166,7 @@ describe('query: modified', () => {
   });
   test('simple: 3rd=>4.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 2, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 2, end: 3) { firstname } }`,
     );
     client.set([{ key: ['people', 'A', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -189,7 +179,7 @@ describe('query: modified', () => {
 
   test('simple: 4rd=>0.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 3, end: 4) { firstname } }`,
     );
     client.set([{ key: ['people', 'D', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -201,7 +191,7 @@ describe('query: modified', () => {
   });
   test('simple: 4rd=>1.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 3, end: 4) { firstname } }`,
     );
     client.set([{ key: ['people', 'D', 'firstname'], value: 'Elissa' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -213,7 +203,7 @@ describe('query: modified', () => {
   });
   test('simple: 4rd=>2.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 3, end: 4) { firstname } }`,
     );
     client.set([{ key: ['people', 'D', 'firstname'], value: 'Ernest' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -225,7 +215,7 @@ describe('query: modified', () => {
   });
   test('simple: 4rd=>3.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 3, end: 4) { firstname } }`,
     );
     client.set([{ key: ['people', 'D', 'firstname'], value: 'Faye' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -237,7 +227,7 @@ describe('query: modified', () => {
   });
   test('simple: 4rd=>4.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 3, show: 1) { firstname } }`,
+      `{ people(sort: "firstname", start: 3, end: 4) { firstname } }`,
     );
     client.set([{ key: ['people', 'D', 'firstname'], value: 'Richie' }]);
     expect(await client.query(simpleQuery)).toEqual({
@@ -249,9 +239,7 @@ describe('query: modified', () => {
   });
 
   test('simple: 1st=>3.5th, 2nd => 0.5th', async () => {
-    await client.query(
-      `{ people(sort: "firstname", skip: 0, show: 2) { firstname } }`,
-    );
+    await client.query(`{ people(sort: "firstname", end: 2) { firstname } }`);
     client.set([
       { key: ['people', 'B', 'firstname'], value: 'Faye' },
       { key: ['people', 'C', 'firstname'], value: 'Brent' },
@@ -265,7 +253,7 @@ describe('query: modified', () => {
   });
   test('simple: 2nd=>4.5th, 3rd => 1.5th', async () => {
     await client.query(
-      `{ people(sort: "firstname", skip: 1, show: 2) { firstname } }`,
+      `{ people(sort: "firstname", start: 1, end: 3) { firstname } }`,
     );
     client.set([
       { key: ['people', 'C', 'firstname'], value: 'Richie' },

@@ -4,16 +4,21 @@ import {
   Field,
   fieldIs,
   ForeignRelationField,
-  getFilterFields,
   keysToObject,
   Obj,
   parseArgs,
-  parsePlainArgs,
   RelationField,
   runFilter,
 } from '../core';
 
 import { ClientState, QueryLayer } from './typings';
+
+export const getFilterFields = (filter: any[]): string[] => {
+  if (filter[0] === 'AND' || filter[0] === 'OR') {
+    return filter[1].reduce((res, f) => [...res, ...getFilterFields(f)], []);
+  }
+  return [filter[0]];
+};
 
 export default function queryLayers(
   schema: Obj<Obj<Field>>,
@@ -36,11 +41,8 @@ export default function queryLayers(
     );
     if (addIds) scalarFields.id = true;
 
-    const plainArgs = parsePlainArgs(node.arguments);
-    const args = parseArgs(plainArgs, userId, schema[field.type]);
-    if (root.type && fieldIs.relation(field) && !plainArgs.sort) args.sort = [];
-
-    const filterFields = getFilterFields(args.filter);
+    const args = parseArgs(node.arguments, userId, schema[field.type]);
+    const filterFields = args.filter ? getFilterFields(args.filter) : [];
     const argsState = { extra: { start: 0, end: 0 }, ids: [] as string[] };
     const getArgsState = (state?: ClientState) => {
       if (state) {
@@ -84,7 +86,10 @@ export default function queryLayers(
             }
           }
         }
-        argsState.extra.start = Math.min(args.start, argsState.extra.start);
+        argsState.extra.start = Math.min(
+          args.start || 0,
+          argsState.extra.start,
+        );
       }
       return argsState;
     };
@@ -93,7 +98,15 @@ export default function queryLayers(
       root,
       field,
       args,
-      structuralFields: [...filterFields, ...args.sort.map(([f]) => f)],
+      structuralFields: Array.from(
+        new Set([
+          ...filterFields,
+          ...(args.sort || []).map(([f]) => f),
+          ...(args.sort || !root.type || fieldIs.foreignRelation(field)
+            ? ['createdat']
+            : []),
+        ]),
+      ),
       scalarFields,
       relations: fieldNodes
         .filter(({ selectionSet }) => selectionSet)

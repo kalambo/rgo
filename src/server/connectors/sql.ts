@@ -14,36 +14,22 @@ const sqlScalars = {
   json: 'JSON',
 };
 
-const ops = {
-  $ne: '!=',
-  $lte: '<=',
-  $gte: '>=',
-  $eq: '=',
-  $lt: '<',
-  $gt: '>',
-  $in: 'in',
-};
 export function applyFilter(
   knex: knex.QueryBuilder,
-  filter: any,
+  filter: any[],
   isOr?: boolean,
 ) {
-  const key = Object.keys(filter)[0];
-  if (!key) return knex;
-  if (key === '$and' || key === '$or') {
+  if (filter[0] === 'AND' || filter[0] === 'OR') {
     return knex.where(function(this: knex.QueryBuilder) {
-      filter[key].forEach(f => applyFilter(this, f, key === '$or'));
+      filter[1].forEach(f => applyFilter(this, f, filter[0] === 'OR'));
     });
   }
-  const op = Object.keys(filter[key])[0];
-  if (filter[key][op] === null && ['$eq', '$ne'].includes(op)) {
-    return knex[isOr ? 'orWhere' : 'where'](
-      key,
-      `IS${op === '$ne' ? ' NOT' : ''}`,
-      filter[key][op],
-    );
+  if (filter[2] === null && ['=', '!='].includes(filter[1])) {
+    return knex[
+      `${isOr ? 'orWhere' : 'where'}${filter[1] === '=' ? 'Null' : 'NotNull'}`
+    ](filter[0]);
   }
-  return knex[isOr ? 'orWhere' : 'where'](key, ops[op], filter[key][op]);
+  return knex[isOr ? 'orWhere' : 'where'](filter[0], filter[1], filter[2]);
 }
 
 export default {
@@ -55,19 +41,21 @@ export default {
     return {
       newId,
 
-      async query({ filter = {}, sort = [], start = 0, end, fields }) {
+      async query({ filter, sort, start = 0, end, fields }) {
         if (start === end) return [];
-        const query = applyFilter(knex(), filter);
-        sort.forEach(([field, dir]) => {
-          if (
-            fieldsTypes[field].scalar === 'string' &&
-            !fieldsTypes[field].isList
-          ) {
-            query.orderByRaw(`lower("${field}") ${dir}`);
-          } else {
-            query.orderBy(field, dir);
-          }
-        });
+        const query = filter ? applyFilter(knex(), filter) : knex();
+        if (sort) {
+          sort.forEach(([field, dir]) => {
+            if (
+              fieldsTypes[field].scalar === 'string' &&
+              !fieldsTypes[field].isList
+            ) {
+              query.orderByRaw(`lower("${field}") ${dir}`);
+            } else {
+              query.orderBy(field, dir);
+            }
+          });
+        }
         query.offset(start);
         if (end !== undefined) query.limit(end);
         query.select(...(fields || []));

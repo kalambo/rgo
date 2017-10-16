@@ -13,13 +13,13 @@ describe('client: queryLayers', () => {
     const layers = queryLayers(
       baseSchema,
       parse(`{
-        people(filter: "lastname=Cole") {
+        people(filter: "firstname=Delphia, lastname=Cole") {
           id
           firstname
           address {
             city
           }
-          places(skip: 2, show: 2, sort: "street") {
+          places(sort: "street", start: 2, end: 4) {
             street
           }
         }
@@ -33,29 +33,18 @@ describe('client: queryLayers', () => {
           root: { field: 'people' },
           field: { type: 'people', isList: true },
           args: {
-            filter: { lastname: { $eq: 'Cole' } },
-            sort: [['createdat', 'desc'], ['id', 'asc']],
-            start: 0,
-            end: undefined,
-            fields: undefined,
-            trace: undefined,
-            ids: undefined,
+            filter: [
+              'AND',
+              [['firstname', '=', 'Delphia'], ['lastname', '=', 'Cole']],
+            ],
           },
-          structuralFields: ['lastname', 'createdat', 'id'],
+          structuralFields: ['firstname', 'lastname', 'createdat'],
           scalarFields: { id: true, firstname: true },
           relations: [
             {
               root: { type: 'people', field: 'address' },
               field: { type: 'addresses' },
-              args: {
-                filter: {},
-                sort: [],
-                start: 0,
-                end: undefined,
-                fields: undefined,
-                trace: undefined,
-                ids: undefined,
-              },
+              args: {},
               structuralFields: [],
               scalarFields: { city: true },
               relations: [],
@@ -65,15 +54,11 @@ describe('client: queryLayers', () => {
               root: { type: 'people', field: 'places' },
               field: { type: 'addresses', isList: true },
               args: {
-                filter: {},
-                sort: [['street', 'asc'], ['createdat', 'desc'], ['id', 'asc']],
+                sort: [['street', 'asc']],
                 start: 2,
                 end: 4,
-                fields: undefined,
-                trace: undefined,
-                ids: undefined,
               },
-              structuralFields: ['street', 'createdat', 'id'],
+              structuralFields: ['street', 'createdat'],
               scalarFields: { street: true },
               relations: [],
               path: 'people_places',

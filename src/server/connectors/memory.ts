@@ -13,15 +13,13 @@ export default function memoryConnector(
   return {
     newId,
 
-    async query({ filter = {}, sort = [], start = 0, end }) {
+    async query({ filter, sort, start = 0, end }) {
       if (start === end) return [];
-
       const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
       const compareFunc = createCompare(
         (record: Obj, key) => record[key],
         sort,
       );
-
       return _.cloneDeep(
         records
           .filter(filterFunc)

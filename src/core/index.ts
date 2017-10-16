@@ -1,4 +1,4 @@
-export { default as parseArgs, parsePlainArgs } from './parseArgs';
+export { default as parseArgs } from './parseArgs';
 export { default as scalars } from './scalars';
 export {
   Args,
@@ -7,7 +7,6 @@ export {
   fieldIs,
   ForeignRelationField,
   Obj,
-  QueryArgs,
   QueryRequest,
   QueryResponse,
   RelationField,
@@ -16,7 +15,6 @@ export {
 } from './typings';
 export {
   createCompare,
-  getFilterFields,
   isObject,
   keysToObject,
   locationOf,

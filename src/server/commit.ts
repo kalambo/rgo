@@ -58,14 +58,10 @@ export default async function mutate(
         delete data[auth.usernameField];
         if (!prev || prev[auth.usernameField] !== username) {
           const existingUser = await connectors[type].query({
-            filter: {
-              $and: [
-                { [auth.usernameField]: { $eq: username } },
-                { id: { $ne: mId } },
-              ],
-            },
-            sort: [],
-            start: 0,
+            filter: [
+              'AND',
+              [[auth.usernameField, '=', username], ['id', '!=', mId]],
+            ],
             end: 1,
             fields: ['id'],
           });

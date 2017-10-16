@@ -60,7 +60,7 @@ describe('query: basic', () => {
     expect(
       await client.query(
         `{
-          people(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", start: 1, end: 3) {
             firstname
             address {
               city
@@ -98,7 +98,7 @@ describe('query: basic', () => {
     expect(
       await client.query(
         `{
-          people(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", start: 1, end: 3) {
             firstname
             places {
               city
@@ -144,7 +144,7 @@ describe('query: basic', () => {
     expect(
       await client.query(
         `{
-          people(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", start: 1, end: 3) {
             firstname
             places(sort: "city") {
               city
@@ -189,7 +189,7 @@ describe('query: basic', () => {
     expect(
       await client.query(
         `{
-          people(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", start: 1, end: 3) {
             firstname
             address {
               city

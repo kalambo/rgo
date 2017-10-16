@@ -3,6 +3,7 @@ export { connectors };
 
 import {
   execute,
+  FieldNode,
   GraphQLBoolean,
   GraphQLInputObjectType,
   GraphQLID,
@@ -18,6 +19,7 @@ import {
 import * as _ from 'lodash';
 
 import {
+  Args,
   Data,
   Field,
   fieldIs,
@@ -25,7 +27,6 @@ import {
   noUndef,
   Obj,
   parseArgs,
-  QueryArgs,
   QueryRequest,
   QueryResponse,
   scalars,
@@ -43,15 +44,18 @@ import {
 } from './typings';
 
 const argTypes = {
-  filter: { type: GraphQLString },
-  sort: { type: GraphQLString },
-  skip: { type: GraphQLInt },
-  show: { type: GraphQLInt },
+  filter: { type: scalars.json.type },
+  sort: { type: scalars.json.type },
+  start: { type: GraphQLInt },
+  end: { type: GraphQLInt },
   offset: { type: GraphQLInt },
   trace: {
     type: new GraphQLInputObjectType({
       name: 'Trace',
-      fields: { start: { type: GraphQLInt }, end: { type: GraphQLInt } },
+      fields: {
+        start: { type: new GraphQLNonNull(GraphQLInt) },
+        end: { type: GraphQLInt },
+      },
     }),
   },
 };
@@ -103,20 +107,34 @@ const getSchema = async (
   };
 };
 
-const applyQueryLimit = (queryArgs: QueryArgs, limit: QueryLimit) => {
+const addDefaultSort = (sort?: [string, 'asc' | 'desc'][]) => {
+  if (sort) {
+    if (!sort.some(([f]) => f === 'createdat')) {
+      sort.push(['createdat', 'desc']);
+    }
+    if (!sort.some(([f]) => f === 'id')) {
+      sort.push(['id', 'asc']);
+    }
+  }
+};
+
+const getSelectionFields = (fields: Obj<Field>, info: GraphQLResolveInfo) =>
+  info.fieldNodes[0].selectionSet!.selections
+    .map((f: FieldNode) => f.name.value)
+    .filter(fieldName => !fieldIs.foreignRelation(fields[fieldName]));
+
+const applyQueryLimit = (args: Args, limit: QueryLimit) => {
   if (limit === false) return true;
   if (!limit) {
-    queryArgs.end = queryArgs.start;
+    args.end = args.start;
   } else {
     if (limit.filter) {
-      queryArgs.filter = {
-        $and: [queryArgs.filter, limit.filter],
-      };
+      args.filter = args.filter
+        ? ['AND', [args.filter, limit.filter]]
+        : limit.filter;
     }
     if (limit.fields) {
-      queryArgs.fields = queryArgs.fields!.filter(f =>
-        limit.fields!.includes(f),
-      );
+      args.fields = args.fields!.filter(f => limit.fields!.includes(f));
     }
   }
 };
@@ -210,7 +228,7 @@ export default async function buildServer(
                 resolve: batch(
                   async (
                     roots: any[],
-                    args,
+                    plainArgs,
                     {
                       user,
                       internal,
@@ -222,28 +240,36 @@ export default async function buildServer(
                       ? 'id'
                       : field.foreign;
 
-                    const queryArgs = parseArgs(
-                      args,
+                    const args = parseArgs(
+                      plainArgs,
                       user && user.id,
                       typeFields[field.type],
-                      info,
                     );
-                    queryArgs.fields = Array.from(
-                      new Set([relField, ...(queryArgs.fields || [])]),
+                    if (!args.sort && fieldIs.foreignRelation(field)) {
+                      args.sort = [];
+                    }
+                    addDefaultSort(args.sort);
+                    args.fields = Array.from(
+                      new Set([
+                        relField,
+                        ...getSelectionFields(typeFields[field.type], info),
+                      ]),
                     );
-                    queryArgs.filter = {
-                      ...queryArgs.filter,
-                      [relField]: {
-                        $in: roots.reduce(
-                          (res, root) => res.concat(root[rootField] || []),
-                          [],
-                        ),
-                      },
-                    };
+                    const relFilter = [
+                      relField,
+                      'in',
+                      roots.reduce(
+                        (res, root) => res.concat(root[rootField] || []),
+                        [],
+                      ),
+                    ];
+                    args.filter = args.filter
+                      ? ['AND', [args.filter, relFilter]]
+                      : relFilter;
                     if (options.auth && !internal) {
                       if (
                         applyQueryLimit(
-                          queryArgs,
+                          args,
                           await options.auth.limitQuery(
                             typeFields,
                             runQuery,
@@ -258,11 +284,14 @@ export default async function buildServer(
                       }
                     }
 
-                    const results = await typeConnectors[field.type].query({
-                      ...queryArgs,
-                      start: 0,
-                      end: queryArgs.start === queryArgs.end ? 0 : undefined,
-                    });
+                    const results =
+                      (args.start || 0) === args.end
+                        ? []
+                        : await typeConnectors[field.type].query({
+                            ...args,
+                            start: undefined,
+                            end: undefined,
+                          });
 
                     return roots.map(root => {
                       if (fieldIs.relation(field)) {
@@ -273,10 +302,10 @@ export default async function buildServer(
                         if (args.sort) {
                           return results
                             .filter(r => root[f].includes(r.id))
-                            .slice(queryArgs.start, queryArgs.end);
+                            .slice(args.start, args.end);
                         }
                         return root[f]
-                          .slice(queryArgs.start, queryArgs.end)
+                          .slice(args.start, args.end)
                           .map(id => results.find(r => r.id === id));
                       }
                       return results
@@ -286,7 +315,7 @@ export default async function buildServer(
                               ? r[relField].includes(root.id)
                               : r[relField] === root.id,
                         )
-                        .slice(queryArgs.start, queryArgs.end);
+                        .slice(args.start, args.end);
                     });
                   },
                 ),
@@ -340,25 +369,25 @@ export default async function buildServer(
           },
           ...keysToObject(typeNames, type => ({
             type: new GraphQLList(new GraphQLNonNull(queryTypes[type])),
-            args: {
-              ids: {
-                type: new GraphQLList(new GraphQLNonNull(GraphQLString)),
-              },
-              ...argTypes,
-            },
+            args: argTypes,
             async resolve(
               _root: any,
-              args,
+              plainArgs,
               { user, internal }: { user: Obj | null; internal?: boolean },
               info: GraphQLResolveInfo,
             ) {
-              const queryArgs = args.ids
-                ? { filter: { id: { $in: args.ids } }, sort: [], start: 0 }
-                : parseArgs(args, user && user.id, typeFields[type], info);
+              const args = parseArgs(
+                plainArgs,
+                user && user.id,
+                typeFields[type],
+              );
+              args.sort = args.sort || [];
+              addDefaultSort(args.sort);
+              args.fields = getSelectionFields(typeFields[type], info);
               if (options.auth && !internal) {
                 if (
                   applyQueryLimit(
-                    queryArgs,
+                    args,
                     await options.auth.limitQuery(
                       typeFields,
                       runQuery,
@@ -373,32 +402,31 @@ export default async function buildServer(
                 }
               }
 
-              if (queryArgs.trace) {
+              if (args.trace) {
                 return (await Promise.all([
-                  queryArgs.start === queryArgs.trace.start
+                  (args.start || 0) === args.trace.start
                     ? []
                     : typeConnectors[type].query({
-                        ...queryArgs,
-                        end: queryArgs.trace.start,
+                        ...args,
+                        end: args.trace.start,
                       }),
                   typeConnectors[type].query({
-                    ...queryArgs,
-                    start: queryArgs.trace.start,
-                    end: queryArgs.trace.end,
+                    ...args,
+                    start: args.trace.start,
+                    end: args.trace.end,
                     fields: ['id'],
                   }),
-                  queryArgs.trace.end === undefined ||
-                  (queryArgs.end !== undefined &&
-                    queryArgs.end === queryArgs.trace.end)
+                  args.trace.end === undefined ||
+                  (args.end !== undefined && args.end === args.trace.end)
                     ? []
                     : typeConnectors[type].query({
-                        ...queryArgs,
-                        start: queryArgs.trace.end,
+                        ...args,
+                        start: args.trace.end,
                       }),
                 ])).reduce((res, records) => res.concat(records), []);
               }
 
-              return await typeConnectors[type].query(queryArgs);
+              return await typeConnectors[type].query(args);
             },
           })),
         },
@@ -629,7 +657,7 @@ export default async function buildServer(
           typeFields,
           data,
           queryDoc,
-          variables,
+          argTypes,
           result.data!,
         );
       }),

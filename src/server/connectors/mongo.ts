@@ -7,20 +7,6 @@ import { Connector, FieldDbMap } from '../typings';
 
 const isObject = v =>
   Object.prototype.toString.call(v) === '[object Object]' && !v._bsontype;
-const mongoFilter = (filter: any) => {
-  if (Array.isArray(filter)) return filter.map(mongoFilter);
-  if (isObject(filter)) {
-    return keysToObject(Object.keys(filter), k => {
-      if (k === '$or') {
-        const k2 = Object.keys(filter[k][0])[0];
-        if (filter[k][0][k2].$eq === null)
-          return [...filter[k], { [k2]: { $exists: false } }];
-      }
-      return mongoFilter(filter[k]);
-    });
-  }
-  return filter;
-};
 
 export default function mongoConnector(
   collection: Collection,
@@ -71,29 +57,49 @@ export default function mongoConnector(
     );
   };
 
+  const ops = {
+    '=': '$eq',
+    '!=': '$ne',
+    '<': '$lt',
+    '<=': '$lte',
+    '>': '$gt',
+    '>=': '$gte',
+    in: '$in',
+  };
+  const mongoFilter = (filter: any[]) => {
+    if (filter[0] === 'AND' || filter[0] === 'OR') {
+      return {
+        [filter[0] === 'AND' ? '$and' : '$or']: filter[1].map(mongoFilter),
+      };
+    }
+    return {
+      [fieldDbKeys[filter[0]] || filter[0]]: { [ops[filter[1]]]: filter[2] },
+    };
+  };
+
   return {
     newId,
 
-    async query({ filter = {}, sort = [], start = 0, end, fields }) {
+    async query({ filter, sort, start = 0, end, fields }) {
       if (start === end) return [];
-
-      return (await collection
-        .find(
-          toDb(mongoFilter(filter), { flat: true }),
-          toDb(keysToObject(fields || [], () => true), {
-            flat: true,
-            ignoreValues: true,
-          }),
-          start,
-          undefOr(end, end! - start),
-        )
-        .sort(
+      const result = collection.find(
+        filter && toDb(mongoFilter(filter), { flat: true }),
+        toDb(keysToObject(fields || [], () => true), {
+          flat: true,
+          ignoreValues: true,
+        }),
+        start,
+        undefOr(end, end! - start),
+      );
+      if (sort) {
+        result.sort(
           toDb(
             sort.map(([field, order]) => [fieldDbKeys[field] || field, order]),
             { flat: true, ignoreValues: true },
           ),
-        )
-        .toArray()).map(fromDb);
+        );
+      }
+      return (await result.toArray()).map(fromDb);
     },
 
     async findById(id) {

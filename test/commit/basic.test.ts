@@ -10,7 +10,7 @@ describe('commit: basic', () => {
     expect(
       await client.query(
         `{
-          people(filter:"id=A") {
+          people(filter: "id=A") {
             firstname
           }
         }`,

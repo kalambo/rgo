@@ -79,7 +79,7 @@ export default function readLayer(
       const value = state.combined[root.type][rootId]![root.field];
       if (fieldIs.relation(field)) {
         if (field.isList) {
-          if (!args.sort.length) {
+          if (!args.sort) {
             rootRecordIds[rootId] = ((value || []) as string[]).map(
               id => (filteredIds.includes(id) ? id : null),
             );
@@ -107,7 +107,7 @@ export default function readLayer(
     if (rootRecordIds[rootId].length === 0) {
       rootRecords[rootId][root.field] =
         fieldIs.foreignRelation(field) || field.isList ? [] : null;
-    } else if (fieldIs.relation(field) && field.isList && !args.sort.length) {
+    } else if (fieldIs.relation(field) && field.isList && !args.sort) {
       rootRecords[rootId][root.field] = rootRecordIds[rootId].map(getRecord);
     } else if (fieldIs.foreignRelation(field) || field.isList) {
       const queryFirst = {
@@ -154,7 +154,10 @@ export default function readLayer(
       rootRecords[rootId][root.field] = rootRecordIds[rootId]
         .slice(
           sliceStarts[rootId],
-          undefOr(args.end, sliceStarts[rootId] + args.end! - args.start),
+          undefOr(
+            args.end,
+            sliceStarts[rootId] + args.end! - (args.start || 0),
+          ),
         )
         .map(getRecord);
     } else {

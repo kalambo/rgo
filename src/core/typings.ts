@@ -14,26 +14,13 @@ export type ScalarName =
 export type Data = Obj<Obj<Obj | null>>;
 
 export interface Args {
-  filter?: string;
-  sort?: string;
-  skip?: number;
-  show?: number;
-  offset?: number;
-  trace?: {
-    start?: number;
-    end?: number;
-  };
-  ids?: string[];
-}
-
-export interface QueryArgs {
-  filter: any;
-  sort: [string, 'asc' | 'desc'][];
-  start: number;
+  filter?: any[];
+  sort?: [string, 'asc' | 'desc'][];
+  start?: number;
   end?: number;
-  fields?: string[];
+  offset?: number;
   trace?: { start: number; end?: number };
-  ids?: string[];
+  fields?: string[];
 }
 
 export interface ScalarField {

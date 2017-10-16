@@ -1,4 +1,4 @@
-import { Field, Obj, QueryArgs, ScalarName } from '../core';
+import { Args, Field, Obj, ScalarName } from '../core';
 
 export interface DbField {
   scalar: ScalarName;
@@ -8,7 +8,7 @@ export interface DbField {
 export interface Connector {
   newId: () => string;
 
-  query: (args: QueryArgs) => Promise<any[]>;
+  query: (args: Args) => Promise<any[]>;
 
   findById: (id: string) => Promise<any>;
 

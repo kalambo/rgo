@@ -27,11 +27,28 @@ describe('query: basic', () => {
     });
   });
 
+  test('filter', async () => {
+    expect(
+      await client.query(
+        `{
+          people(filter: "firstname=Delphia") {
+            firstname
+            address {
+              city
+            }
+          }
+        }`,
+      ),
+    ).toEqual({
+      people: [{ firstname: 'Delphia', address: { city: 'Tobyhaven' } }],
+    });
+  });
+
   test('slice', async () => {
     expect(
       await client.query(
         `{
-          people(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", start: 1, end: 3) {
             firstname
             address {
               city
@@ -51,7 +68,7 @@ describe('query: basic', () => {
     expect(
       await client.query(
         `{
-          people(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", start: 1, end: 3) {
             firstname
             places {
               city
@@ -81,7 +98,7 @@ describe('query: basic', () => {
     expect(
       await client.query(
         `{
-          people(sort: "firstname", skip: 1, show: 2) {
+          people(sort: "firstname", start: 1, end: 3) {
             firstname
             places(sort: "city") {
               city

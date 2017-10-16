@@ -1,6 +1,13 @@
-import { DocumentNode, FieldNode, OperationDefinitionNode } from 'graphql';
+import {
+  DocumentNode,
+  FieldNode,
+  GraphQLInputType,
+  OperationDefinitionNode,
+  valueFromAST,
+} from 'graphql';
 
 import {
+  Args,
   Data,
   Field,
   fieldIs,
@@ -8,7 +15,6 @@ import {
   keysToObject,
   mapArray,
   Obj,
-  parsePlainArgs,
   RelationField,
 } from '../core';
 
@@ -16,7 +22,7 @@ export default function normalize(
   typeFields: Obj<Obj<Field>>,
   data: Data,
   queryDoc: DocumentNode,
-  variables: Obj,
+  argTypes: Obj<{ type: GraphQLInputType }>,
   result: Obj,
 ) {
   const operationNode = queryDoc.definitions[0] as OperationDefinitionNode;
@@ -54,7 +60,6 @@ export default function normalize(
   }
 
   const firstIds: Obj<Obj<string>> = {};
-  let idsQuery: boolean = false;
 
   const processLayer = (
     root: { type?: string; field: string },
@@ -62,7 +67,6 @@ export default function normalize(
     { arguments: argNodes, selectionSet }: FieldNode,
     queryResults: Obj<(Obj | null)[]>,
     path: string,
-    variables: Obj,
   ) => {
     const fieldNodes = selectionSet!.selections as FieldNode[];
     const scalarFields = fieldNodes
@@ -71,29 +75,31 @@ export default function normalize(
     const relationFields = fieldNodes
       .filter(({ selectionSet }) => selectionSet)
       .map(node => node.name.value);
-    const args = parsePlainArgs(argNodes, variables);
-    if (args.ids) idsQuery = true;
+
+    const args: Args = keysToObject(
+      argNodes || [],
+      ({ value, name }) => valueFromAST(value, argTypes[name.value].type),
+      ({ name }) => name.value,
+    );
 
     data[field.type] = data[field.type] || {};
     if (
-      !idsQuery &&
-      (!root.type ||
-        fieldIs.foreignRelation(field) ||
-        (field.isList && args.sort))
+      !root.type ||
+      fieldIs.foreignRelation(field) ||
+      (field.isList && args.sort)
     ) {
       firstIds[path] = {};
     }
     Object.keys(queryResults).forEach(rootId => {
       if (root.type && fieldIs.relation(field) && field.isList && !args.sort) {
         if (data[root.type][rootId]![root.field]) {
-          data[root.type][rootId]![root.field].unshift(args.skip || 0);
+          data[root.type][rootId]![root.field].unshift(args.start || 0);
         }
       }
       queryResults[rootId].forEach(
         (record, index) =>
           record &&
-          (idsQuery ||
-            !args.trace ||
+          (!args.trace ||
             args.trace.start === undefined ||
             index < args.trace.start ||
             args.trace.end === undefined ||
@@ -135,7 +141,6 @@ export default function normalize(
           {},
         ),
         `${path}_${node.name.value}`,
-        variables,
       ),
     );
   };
@@ -148,8 +153,7 @@ export default function normalize(
       node,
       { '': result![node.name.value] || [] },
       node.name.value,
-      variables,
     ),
   );
-  return idsQuery ? {} : { firstIds };
+  return { firstIds };
 }

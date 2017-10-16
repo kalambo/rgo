@@ -4,7 +4,7 @@ beforeEach(setupClient);
 afterEach(clearClient);
 
 describe('query: added', () => {
-  test.only('simple: 0.5th', async () => {
+  test('simple: 0.5th', async () => {
     client.set([{ key: ['people', 'F', 'firstname'], value: 'Brent' }]);
     expect(await client.query(simpleQuery)).toEqual({
       people: [
