@@ -4,6 +4,7 @@ import * as uuid from 'uuid/v1';
 import { buildClient, buildServer, Client, connectors } from '../../src';
 
 const baseData = require('./data.json');
+const baseSchema = require('./schema.json');
 
 const domain = 'https://api.kalambo.org';
 
@@ -11,18 +12,28 @@ export let client: Client;
 
 export const setupClient = async () => {
   const db: any = {};
-  const server = await buildServer(
-    (_, type) =>
-      db[type] ||
-      (db[type] = connectors.memory(
+  const server = await buildServer({
+    addresses: {
+      fields: baseSchema.addresses,
+      connector: connectors.memory(
         uuid,
-        Object.keys(baseData[type || 'schema']).map(id => ({
+        Object.keys(baseData.addresses).map(id => ({
           id,
-          ...baseData[type || 'schema'][id],
+          ...baseData.addresses[id],
         })),
-      )),
-    () => {},
-  );
+      ),
+    },
+    people: {
+      fields: baseSchema.people,
+      connector: connectors.memory(
+        uuid,
+        Object.keys(baseData.people).map(id => ({
+          id,
+          ...baseData.people[id],
+        })),
+      ),
+    },
+  });
   fetchMock.post(domain, async (_, opts) => {
     const queries = JSON.parse(opts.body);
     // console.log(JSON.stringify(queries, null, 2));

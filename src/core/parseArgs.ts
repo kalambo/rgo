@@ -103,6 +103,7 @@ export default function parseArgs(
   args: Obj | ArgumentNode[] = [],
   userId: string | null,
   fields: Obj<Field>,
+  allowNullSort?: boolean,
 ): Args {
   const result = Array.isArray(args)
     ? keysToObject(
@@ -126,6 +127,15 @@ export default function parseArgs(
     result.sort = result.sort
       .split(/[\s,]+/)
       .map(s => [s[0] === '-' ? s.slice(1) : s, s[0] === '-' ? 'desc' : 'asc']);
+  }
+  if (!allowNullSort) result.sort = result.sort || [];
+  if (result.sort) {
+    if (!result.sort.some(([f]) => f === 'createdat')) {
+      result.sort.push(['createdat', 'desc']);
+    }
+    if (!result.sort.some(([f]) => f === 'id')) {
+      result.sort.push(['id', 'asc']);
+    }
   }
   return result;
 }

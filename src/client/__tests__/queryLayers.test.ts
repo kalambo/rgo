@@ -37,8 +37,9 @@ describe('client: queryLayers', () => {
               'AND',
               [['firstname', '=', 'Delphia'], ['lastname', '=', 'Cole']],
             ],
+            sort: [['createdat', 'desc'], ['id', 'asc']],
           },
-          structuralFields: ['firstname', 'lastname', 'createdat'],
+          structuralFields: ['firstname', 'lastname', 'createdat', 'id'],
           scalarFields: { id: true, firstname: true },
           relations: [
             {
@@ -54,11 +55,11 @@ describe('client: queryLayers', () => {
               root: { type: 'people', field: 'places' },
               field: { type: 'addresses', isList: true },
               args: {
-                sort: [['street', 'asc']],
+                sort: [['street', 'asc'], ['createdat', 'desc'], ['id', 'asc']],
                 start: 2,
                 end: 4,
               },
-              structuralFields: ['street', 'createdat'],
+              structuralFields: ['street', 'createdat', 'id'],
               scalarFields: { street: true },
               relations: [],
               path: 'people_places',

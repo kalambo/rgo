@@ -2,7 +2,15 @@ export { Client } from './typings';
 export { ScalarName } from '../core';
 
 import * as _ from 'lodash';
-import { GraphQLError, parse } from 'graphql';
+import {
+  buildClientSchema,
+  GraphQLError,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  introspectionQuery,
+  parse,
+} from 'graphql';
 
 import {
   Data,
@@ -261,11 +269,23 @@ export function buildClient(
   };
 
   (async () => {
-    schema = (await (await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: '{ SCHEMA }' }),
-    })).json()).data.SCHEMA;
+    const schemaFields = buildClientSchema(
+      (await (await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: introspectionQuery }),
+      })).json()).data,
+    )
+      .getQueryType()
+      .getFields();
+    schema = keysToObject(Object.keys(schemaFields), type => {
+      const fields = (schemaFields[type].type as GraphQLList<
+        GraphQLNonNull<GraphQLObjectType>
+      >).ofType.ofType.getFields();
+      return keysToObject(Object.keys(fields), field =>
+        JSON.parse(fields[field].description),
+      );
+    });
     if (auth) {
       for (const type of Object.keys(schema)) {
         for (const field of Object.keys(schema[type])) {

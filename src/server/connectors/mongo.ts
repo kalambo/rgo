@@ -1,28 +1,67 @@
 import { Collection } from 'mongodb';
 import * as flatten from 'flat';
+import * as set from 'lodash/fp/set';
 
-import { keysToObject, mapArray, mapObject, Obj, undefOr } from '../../core';
+import { keysToObject, mapArray, Obj, undefOr } from '../../core';
 
-import { Connector, FieldDbMap } from '../typings';
+import { Connector } from '../typings';
 
 const isObject = v =>
   Object.prototype.toString.call(v) === '[object Object]' && !v._bsontype;
+
+const flatSet = (obj: any, key: string, value: any, flat?: boolean) =>
+  flat ? { ...obj, [key]: value } : set(key, value, obj);
+
+const mapObject = (
+  obj: any,
+  config: {
+    valueMaps?: Obj<((value: any) => any) | true>;
+    newKeys?: Obj<string>;
+    flat?: boolean;
+    continue?: (value: any) => boolean;
+  },
+  activeField?: string,
+) => {
+  if (activeField && !(config.continue && config.continue(obj))) {
+    const map = (config.valueMaps && config.valueMaps[activeField])!;
+    return map === true ? obj : map(obj);
+  }
+  if (!obj) return obj;
+  if (Array.isArray(obj)) return obj.map(o => mapObject(o, config));
+  if (isObject(obj)) {
+    return Object.keys(obj).reduce(
+      (res, k) =>
+        flatSet(
+          res,
+          (config.newKeys && config.newKeys[k]) || k,
+          mapObject(
+            obj[k],
+            config,
+            activeField ||
+              (config.valueMaps && config.valueMaps[k] ? k : undefined),
+          ),
+          config.flat,
+        ),
+      {},
+    );
+  }
+};
 
 export default function mongoConnector(
   collection: Collection,
   newId: () => string,
   fieldDbKeys: Obj<string>,
-  fieldMaps: Obj<FieldDbMap | null>,
+  fieldMaps: Obj<{
+    toDb(value: any): any;
+    fromDb(value: any): any;
+  } | null>,
 ): Connector {
   const toDbMaps = {
-    base: keysToObject(
+    base: keysToObject<((value: any) => any) | true>(
       Object.keys(fieldMaps),
       k => (fieldMaps[k] && fieldMaps[k]!.toDb) || true,
     ),
-    ignoreValues: keysToObject<string, true>(
-      Object.keys(fieldMaps),
-      () => true,
-    ),
+    ignoreValues: keysToObject<true>(Object.keys(fieldMaps), () => true),
   };
   const toDb = (
     obj,
@@ -79,7 +118,6 @@ export default function mongoConnector(
 
   return {
     newId,
-
     async query({ filter, sort, start = 0, end, fields }) {
       if (start === end) return [];
       const result = collection.find(
@@ -101,11 +139,9 @@ export default function mongoConnector(
       }
       return (await result.toArray()).map(fromDb);
     },
-
     async findById(id) {
       return fromDb(await collection.findOne({ [fieldDbKeys.id || 'id']: id }));
     },
-
     async insert(id, data) {
       const obj = { id, ...data };
       await collection.insert(toDb(obj));
@@ -118,7 +154,6 @@ export default function mongoConnector(
       const filter = toDb({ id }, { flat: true });
       await collection.deleteOne(filter);
     },
-
     async dump() {
       return (await collection.find().toArray()).map(fromDb);
     },

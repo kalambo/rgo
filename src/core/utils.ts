@@ -1,5 +1,3 @@
-import * as set from 'lodash/fp/set';
-
 import { Obj } from './typings';
 
 export const noUndef = (v: any, replacer: any = null) =>
@@ -14,62 +12,20 @@ export const isObject = v =>
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
-export interface MapConfig {
-  valueMaps?: Obj<((value: any) => any) | true>;
-  newKeys?: Obj<string>;
-  flat?: boolean;
-  continue?: (value: any) => boolean;
-}
-
-const flatSet = (obj: any, key: string, value: any, flat?: boolean) =>
-  flat ? { ...obj, [key]: value } : set(key, value, obj);
-
-export const keysToObject = <T, U>(
-  keys: T[],
-  valueMap: (k: T, i: number) => U | undefined,
-  keyMap?: (k: T, i: number) => string,
-) =>
-  keys.reduce(
-    (res, k, i) => {
-      const newValue = valueMap(k, i);
-      return newValue === undefined
-        ? res
-        : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
-    },
-    {} as Obj<U>,
-  );
-
-export const mapObject = (
-  obj: any,
-  config: MapConfig,
-  activeField?: string,
+export const keysToObject = <T, U = any>(
+  keys: U[],
+  valueMap: T | ((k: U, i: number) => T | undefined),
+  keyMap?: (k: U, i: number) => string,
 ) => {
-  if (activeField && !(config.continue && config.continue(obj))) {
-    const map = (config.valueMaps && config.valueMaps[activeField])!;
-    return map === true ? obj : map(obj);
-  }
-
-  if (!obj) return obj;
-
-  if (Array.isArray(obj)) return obj.map(o => mapObject(o, config));
-
-  if (isObject(obj)) {
-    return Object.keys(obj).reduce(
-      (res, k) =>
-        flatSet(
-          res,
-          (config.newKeys && config.newKeys[k]) || k,
-          mapObject(
-            obj[k],
-            config,
-            activeField ||
-              (config.valueMaps && config.valueMaps[k] ? k : undefined),
-          ),
-          config.flat,
-        ),
-      {},
-    );
-  }
+  const valueFunc = typeof valueMap === 'function';
+  return keys.reduce<Obj<T>>((res, k, i) => {
+    const newValue = valueFunc
+      ? (valueMap as ((k: U, i: number) => T | undefined))(k, i)
+      : valueMap as T;
+    return newValue === undefined
+      ? res
+      : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
+  }, {});
 };
 
 const binarySearch = <T>(

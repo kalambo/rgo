@@ -1,8 +1,8 @@
 import * as knex from 'knex';
 
-import { Obj } from '../../core';
+import { Field, fieldIs, keysToObject, Obj, ScalarName } from '../../core';
 
-import { Connector, DbField } from '../typings';
+import { Connector } from '../typings';
 
 const sqlScalars = {
   boolean: 'BOOLEAN',
@@ -12,6 +12,19 @@ const sqlScalars = {
   date: 'TIMESTAMPTZ',
   file: 'TEXT',
   json: 'JSON',
+};
+
+interface DbField {
+  scalar: ScalarName;
+  isList?: boolean;
+}
+
+const toDbField = (field: Field): DbField | null => {
+  if (fieldIs.foreignRelation(field)) return null;
+  return {
+    scalar: fieldIs.scalar(field) ? field.scalar : 'string',
+    isList: field.isList,
+  };
 };
 
 export function applyFilter(
@@ -32,91 +45,89 @@ export function applyFilter(
   return knex[isOr ? 'orWhere' : 'where'](filter[0], filter[1], filter[2]);
 }
 
-export default {
-  type(
-    knex: () => knex.QueryBuilder,
-    newId: () => string,
-    fieldsTypes: Obj<DbField>,
-  ): Connector {
-    return {
-      newId,
+export default async function sql(
+  knex: knex,
+  type: string,
+  newId: () => string,
+  fieldTypes: Obj<Field>,
+  owner?: string,
+): Promise<Connector> {
+  const dbFields = keysToObject(
+    Object.keys(fieldTypes).filter(f => toDbField(fieldTypes[f])),
+    f => toDbField(fieldTypes[f])!,
+  );
 
-      async query({ filter, sort, start = 0, end, fields }) {
-        if (start === end) return [];
-        const query = filter ? applyFilter(knex(), filter) : knex();
-        if (sort) {
-          sort.forEach(([field, dir]) => {
-            if (
-              fieldsTypes[field].scalar === 'string' &&
-              !fieldsTypes[field].isList
-            ) {
-              query.orderByRaw(`lower("${field}") ${dir}`);
-            } else {
-              query.orderBy(field, dir);
-            }
-          });
-        }
-        query.offset(start);
-        if (end !== undefined) query.limit(end);
-        query.select(...(fields || []));
-        return await query;
-      },
+  const columns = await knex(type).columnInfo();
+  if (Object.keys(columns).length === 0) {
+    await knex.schema.createTable(type, table => {
+      table.text('id').primary();
+      table.timestamp('createdat');
+      table.timestamp('modifiedat');
+    });
+    if (owner) await knex.raw('ALTER TABLE ?? OWNER TO ??;', [type, owner]);
+  }
+  for (const field of Array.from(
+    new Set([...Object.keys(columns), ...Object.keys(dbFields)]),
+  )) {
+    if (!columns[field] && dbFields[field]) {
+      await knex.schema.table(type, table => {
+        table.specificType(
+          field,
+          `${sqlScalars[dbFields[field].scalar]}${dbFields[field].isList
+            ? '[]'
+            : ''}`,
+        );
+      });
+    } else if (columns[field] && !dbFields[field]) {
+      // await knex.schema.table(type, table => {
+      //   table.dropColumn(field);
+      // });
+    }
+  }
 
-      async findById(id) {
-        return await knex()
-          .where('id', id)
-          .first();
-      },
-
-      async insert(id, data) {
-        await knex().insert({ id, ...data });
-      },
-      async update(id, data) {
-        await knex()
-          .where('id', id)
-          .update(data);
-      },
-      async delete(id) {
-        await knex()
-          .where('id', id)
-          .delete();
-      },
-
-      async dump() {
-        return await knex().select();
-      },
-      async restore(data) {
-        await knex().truncate();
-        await knex().insert(data);
-      },
-    };
-  },
-
-  alter(knex: knex, owner?: string) {
-    return async (type, field, info) => {
-      if (field === undefined) {
-        await knex.schema.createTable(type, table => {
-          table.text('id').primary();
-          table.timestamp('createdat');
-          table.timestamp('modifiedat');
-        });
-        if (owner) {
-          await knex.raw('ALTER TABLE ?? OWNER TO ??;', [type, owner]);
-        }
-      } else if (field === null) {
-        await knex.schema.dropTable(type);
-      } else if (info) {
-        await knex.schema.table(type, table => {
-          table.specificType(
-            field,
-            `${sqlScalars[info.scalar]}${info.isList ? '[]' : ''}`,
-          );
-        });
-      } else {
-        await knex.schema.table(type, table => {
-          table.dropColumn(field);
+  return {
+    newId,
+    async query({ filter, sort, start = 0, end, fields }) {
+      if (start === end) return [];
+      const query = filter ? applyFilter(knex(type), filter) : knex(type);
+      if (sort) {
+        sort.forEach(([field, dir]) => {
+          if (dbFields[field].scalar === 'string' && !dbFields[field].isList) {
+            query.orderByRaw(`lower("${field}") ${dir}`);
+          } else {
+            query.orderBy(field, dir);
+          }
         });
       }
-    };
-  },
-};
+      query.offset(start);
+      if (end !== undefined) query.limit(end);
+      query.select(...(fields || []));
+      return await query;
+    },
+    async findById(id) {
+      return await knex(type)
+        .where('id', id)
+        .first();
+    },
+    async insert(id, data) {
+      await knex(type).insert({ id, ...data });
+    },
+    async update(id, data) {
+      await knex(type)
+        .where('id', id)
+        .update(data);
+    },
+    async delete(id) {
+      await knex(type)
+        .where('id', id)
+        .delete();
+    },
+    async dump() {
+      return await knex(type).select();
+    },
+    async restore(data) {
+      await knex(type).truncate();
+      await knex(type).insert(data);
+    },
+  };
+}

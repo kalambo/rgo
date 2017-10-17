@@ -9,10 +9,8 @@ export default function memoryConnector(
   initialData: Obj[] = [],
 ): Connector {
   const records = initialData;
-
   return {
     newId,
-
     async query({ filter, sort, start = 0, end }) {
       if (start === end) return [];
       const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
@@ -27,11 +25,9 @@ export default function memoryConnector(
           .slice(start, end),
       );
     },
-
     async findById(id) {
       return _.cloneDeep(records.find(record => record.id === id) || null);
     },
-
     async insert(id, data) {
       records.push({ id, ...data });
     },
@@ -41,7 +37,6 @@ export default function memoryConnector(
     async delete(id) {
       records.splice(records.findIndex(record => record.id === id), 1);
     },
-
     async dump() {
       return records;
     },

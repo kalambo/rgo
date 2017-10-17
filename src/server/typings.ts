@@ -1,23 +1,16 @@
-import { Args, Field, Obj, ScalarName } from '../core';
+import { Args, Field, Obj } from '../core';
 
-export interface DbField {
-  scalar: ScalarName;
-  isList?: boolean;
-}
+export interface Methods {}
 
 export interface Connector {
-  newId: () => string;
-
-  query: (args: Args) => Promise<any[]>;
-
-  findById: (id: string) => Promise<any>;
-
-  insert: (id: string, data: any) => Promise<void>;
-  update: (id: string, data: any) => Promise<void>;
-  delete: (id: string) => Promise<void>;
-
-  dump: () => Promise<any[]>;
-  restore: (data: any[]) => Promise<void>;
+  newId(): string;
+  query(args: Args): Promise<any[]>;
+  findById(id: string): Promise<any>;
+  insert(id: string, data: any): Promise<void>;
+  update(id: string, data: any): Promise<void>;
+  delete(id: string): Promise<void>;
+  dump(): Promise<any[]>;
+  restore(data: any[]): Promise<void>;
 }
 
 export interface Mutation {
@@ -56,9 +49,4 @@ export interface AuthConfig {
     prev: Obj | null,
   ) => boolean | Promise<boolean>;
   allowAlter: (user: Obj | null) => boolean | Promise<boolean>;
-}
-
-export interface FieldDbMap {
-  toDb: (value: any) => any;
-  fromDb: (value: any) => any;
 }

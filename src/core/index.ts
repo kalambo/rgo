@@ -19,7 +19,6 @@ export {
   keysToObject,
   locationOf,
   mapArray,
-  mapObject,
   noUndef,
   promisifyEmitter,
   runFilter,

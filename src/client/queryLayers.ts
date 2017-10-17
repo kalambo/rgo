@@ -33,7 +33,7 @@ export default function queryLayers(
     path: string,
   ): QueryLayer => {
     const fieldNodes = node.selectionSet!.selections as FieldNode[];
-    const scalarFields: Obj<true> = keysToObject<string, true>(
+    const scalarFields: Obj<true> = keysToObject<true>(
       fieldNodes
         .filter(({ selectionSet }) => !selectionSet)
         .map(({ name }) => name.value),
@@ -41,7 +41,12 @@ export default function queryLayers(
     );
     if (addIds) scalarFields.id = true;
 
-    const args = parseArgs(node.arguments, userId, schema[field.type]);
+    const args = parseArgs(
+      node.arguments,
+      userId,
+      schema[field.type],
+      !!root.type && fieldIs.relation(field),
+    );
     const filterFields = args.filter ? getFilterFields(args.filter) : [];
     const argsState = { extra: { start: 0, end: 0 }, ids: [] as string[] };
     const getArgsState = (state?: ClientState) => {
@@ -99,13 +104,7 @@ export default function queryLayers(
       field,
       args,
       structuralFields: Array.from(
-        new Set([
-          ...filterFields,
-          ...(args.sort || []).map(([f]) => f),
-          ...(args.sort || !root.type || fieldIs.foreignRelation(field)
-            ? ['createdat']
-            : []),
-        ]),
+        new Set([...filterFields, ...(args.sort || []).map(([f]) => f)]),
       ),
       scalarFields,
       relations: fieldNodes
