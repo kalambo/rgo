@@ -1,6 +1,13 @@
 import * as knex from 'knex';
 
-import { Field, fieldIs, keysToObject, Obj, ScalarName } from '../../core';
+import {
+  Field,
+  fieldIs,
+  keysToObject,
+  Obj,
+  RelationField,
+  ScalarField,
+} from '../../core';
 
 import { Connector } from '../typings';
 
@@ -12,19 +19,6 @@ const sqlScalars = {
   date: 'TIMESTAMPTZ',
   file: 'TEXT',
   json: 'JSON',
-};
-
-interface DbField {
-  scalar: ScalarName;
-  isList?: boolean;
-}
-
-const toDbField = (field: Field): DbField | null => {
-  if (fieldIs.foreignRelation(field)) return null;
-  return {
-    scalar: fieldIs.scalar(field) ? field.scalar : 'string',
-    isList: field.isList,
-  };
 };
 
 export function applyFilter(
@@ -52,31 +46,36 @@ export default async function sql(
   fieldTypes: Obj<Field>,
   owner?: string,
 ): Promise<Connector> {
-  const dbFields = keysToObject(
-    Object.keys(fieldTypes).filter(f => toDbField(fieldTypes[f])),
-    f => toDbField(fieldTypes[f])!,
-  );
+  const dbFields: Obj<string> = {
+    createdat: 'TIMESTAMPTZ',
+    modifiedat: 'TIMESTAMPTZ',
+    ...keysToObject(
+      Object.keys(fieldTypes).filter(
+        f => !fieldIs.foreignRelation(fieldTypes[f]),
+      ),
+      f => {
+        const field = fieldTypes[f] as RelationField | ScalarField;
+        return `${sqlScalars[
+          fieldIs.scalar(field) ? field.scalar : 'string'
+        ]}${field.isList ? '[]' : ''}`;
+      },
+    ),
+  };
 
-  const columns = await knex(type).columnInfo();
+  const columns: Obj<knex.ColumnInfo> = (await knex(type).columnInfo()) as any;
   if (Object.keys(columns).length === 0) {
     await knex.schema.createTable(type, table => {
       table.text('id').primary();
-      table.timestamp('createdat');
-      table.timestamp('modifiedat');
     });
     if (owner) await knex.raw('ALTER TABLE ?? OWNER TO ??;', [type, owner]);
   }
+  delete columns.id;
   for (const field of Array.from(
     new Set([...Object.keys(columns), ...Object.keys(dbFields)]),
   )) {
     if (!columns[field] && dbFields[field]) {
       await knex.schema.table(type, table => {
-        table.specificType(
-          field,
-          `${sqlScalars[dbFields[field].scalar]}${dbFields[field].isList
-            ? '[]'
-            : ''}`,
-        );
+        table.specificType(field, dbFields[field]);
       });
     } else if (columns[field] && !dbFields[field]) {
       // await knex.schema.table(type, table => {
@@ -92,7 +91,7 @@ export default async function sql(
       const query = filter ? applyFilter(knex(type), filter) : knex(type);
       if (sort) {
         sort.forEach(([field, dir]) => {
-          if (dbFields[field].scalar === 'string' && !dbFields[field].isList) {
+          if (dbFields[field] === 'TEXT') {
             query.orderByRaw(`lower("${field}") ${dir}`);
           } else {
             query.orderBy(field, dir);

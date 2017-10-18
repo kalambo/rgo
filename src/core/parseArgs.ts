@@ -18,11 +18,11 @@ or2
 / and
 
 and
-= lhs:block _ ',' __ rhs:and2 { return [['AND', lhs.concat(rhs)]]; }
+= lhs:block _ ',' _ rhs:and2 { return [['AND', lhs.concat(rhs)]]; }
 / block
 
 and2
-= lhs:block _ ',' __ rhs:and2 { return lhs.concat(rhs); }
+= lhs:block _ ',' _ rhs:and2 { return lhs.concat(rhs); }
 / block
 
 block
@@ -50,8 +50,6 @@ expr
 
 _
 = whiteSpace*
-__
-= whiteSpace+
 
 whiteSpace
 = [ \t\n\r]+

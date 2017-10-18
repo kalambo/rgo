@@ -16,22 +16,24 @@ import {
 } from 'graphql';
 
 import {
-  Args,
+  createCompare,
   Data,
   Field,
   fieldIs,
+  ForeignRelationField,
   keysToObject,
   Obj,
   parseArgs,
   QueryRequest,
   QueryResponse,
+  RelationField,
   scalars,
 } from '../core';
 
 import batch from './batch';
 import commit from './commit';
 import normalizeResult from './normalize';
-import { AuthConfig, Connector, Mutation, QueryLimit } from './typings';
+import { AuthConfig, Connector, Mutation } from './typings';
 
 const argTypes = {
   filter: { type: scalars.json.type },
@@ -48,28 +50,6 @@ const argTypes = {
       },
     }),
   },
-};
-
-const getSelectionFields = (fields: Obj<Field>, info: GraphQLResolveInfo) =>
-  info.fieldNodes[0].selectionSet!.selections
-    .map((f: FieldNode) => f.name.value)
-    .filter(fieldName => !fieldIs.foreignRelation(fields[fieldName]));
-
-const applyQueryLimit = (args: Args, limit: QueryLimit) => {
-  if (limit === false) return true;
-  if (!limit) {
-    args.end = args.start;
-  } else {
-    if (limit.filter) {
-      args.filter = args.filter
-        ? ['AND', [args.filter, limit.filter]]
-        : limit.filter;
-    }
-    if (limit.fields) {
-      args.fields = args.fields!.filter(f => limit.fields!.includes(f));
-      args.fields = Array.from(new Set([...args.fields, 'id', 'createdat']));
-    }
-  }
 };
 
 export default async function buildServer(
@@ -102,6 +82,78 @@ export default async function buildServer(
       typeNames,
       type => schema[type].connector,
     );
+
+    const getRecords = async (
+      field: ForeignRelationField | RelationField,
+      args: Obj,
+      { user, internal }: { user: Obj | null; internal?: boolean },
+      info: GraphQLResolveInfo,
+      extra?: { filter: any[]; fields: string[] },
+    ) => {
+      const parsedArgs = parseArgs(
+        args,
+        user && user.id,
+        typeFields[field.type],
+        fieldIs.relation(field),
+      );
+      parsedArgs.fields = info.fieldNodes[0].selectionSet!.selections
+        .map((f: FieldNode) => f.name.value)
+        .filter(
+          fieldName =>
+            !fieldIs.foreignRelation(typeFields[field.type][fieldName]),
+        );
+      if (extra) {
+        parsedArgs.filter = parsedArgs.filter
+          ? ['AND', [parsedArgs.filter, extra.filter]]
+          : extra.filter;
+        parsedArgs.fields = Array.from(
+          new Set([...parsedArgs.fields!, ...extra.fields]),
+        );
+      }
+
+      if (internal || !options.auth) {
+        return await typeConnectors[field.type].query(parsedArgs);
+      }
+
+      const limits = await options.auth.limitQuery(
+        typeFields,
+        runQuery,
+        user,
+        field.type,
+      );
+      const limitsMap: Obj<any[][]> = {};
+      limits.forEach(({ filter, fields }) => {
+        const key = (fields || []).sort().join('-');
+        limitsMap[key] = limitsMap[key] || [];
+        if (filter) limitsMap[key].push(filter);
+      });
+      const groupedLimits = Object.keys(limitsMap).map(key => {
+        const fields = key
+          ? ['id', 'createdat', 'modifiedat', ...key.split('-')]
+          : undefined;
+        return {
+          filter:
+            parsedArgs.filter && limitsMap[key].length > 0
+              ? ['AND', [parsedArgs.filter, ['OR', limitsMap[key]]]]
+              : parsedArgs.filter || limitsMap[key],
+          fields:
+            parsedArgs.fields && fields
+              ? parsedArgs.fields.filter(f => fields.includes(f))
+              : parsedArgs.fields || fields,
+        };
+      });
+
+      const data: Obj<Obj> = {};
+      for (const records of await Promise.all(
+        groupedLimits.map(typeConnectors[field.type].query),
+      )) {
+        records.forEach(r => (data[r.id] = { ...(data[r.id] || {}), ...r }));
+      }
+      return Object.keys(data)
+        .map(id => data[id])
+        .sort(createCompare((record, key) => record[key], parsedArgs.sort))
+        .slice(parsedArgs.start, parsedArgs.end);
+    };
 
     const queryTypes = keysToObject(
       typeNames,
@@ -148,11 +200,8 @@ export default async function buildServer(
                 resolve: batch(
                   async (
                     roots: any[],
-                    plainArgs,
-                    {
-                      user,
-                      internal,
-                    }: { user: Obj | null; internal?: boolean },
+                    args: Obj,
+                    context: { user: Obj | null; internal?: boolean },
                     info: GraphQLResolveInfo,
                   ) => {
                     const rootField = fieldIs.relation(field) ? f : 'id';
@@ -160,72 +209,40 @@ export default async function buildServer(
                       ? 'id'
                       : field.foreign;
 
-                    const args = parseArgs(
-                      plainArgs,
-                      user && user.id,
-                      typeFields[field.type],
-                      fieldIs.relation(field),
-                    );
-                    args.fields = Array.from(
-                      new Set([
-                        relField,
-                        ...getSelectionFields(typeFields[field.type], info),
-                      ]),
-                    );
-                    const relFilter = [
-                      relField,
-                      'in',
-                      roots.reduce(
-                        (res, root) => res.concat(root[rootField] || []),
-                        [],
-                      ),
-                    ];
-                    args.filter = args.filter
-                      ? ['AND', [args.filter, relFilter]]
-                      : relFilter;
-                    if (options.auth && !internal) {
-                      if (
-                        applyQueryLimit(
-                          args,
-                          await options.auth.limitQuery(
-                            typeFields,
-                            runQuery,
-                            user,
-                            field.type,
+                    const records = await getRecords(
+                      field,
+                      { ...args, start: undefined, end: undefined },
+                      context,
+                      info,
+                      {
+                        filter: [
+                          relField,
+                          'in',
+                          roots.reduce(
+                            (res, root) => res.concat(root[rootField] || []),
+                            [],
                           ),
-                        )
-                      ) {
-                        const error = new Error('Not authorized') as any;
-                        error.status = 401;
-                        return error;
-                      }
-                    }
-
-                    const results =
-                      (args.start || 0) === args.end
-                        ? []
-                        : await typeConnectors[field.type].query({
-                            ...args,
-                            start: undefined,
-                            end: undefined,
-                          });
+                        ],
+                        fields: [relField],
+                      },
+                    );
 
                     return roots.map(root => {
                       if (fieldIs.relation(field)) {
                         if (!field.isList) {
-                          return results.find(r => r.id === root[f]);
+                          return records.find(r => r.id === root[f]);
                         }
                         if (!root[f]) return [];
                         if (args.sort) {
-                          return results
+                          return records
                             .filter(r => root[f].includes(r.id))
                             .slice(args.start, args.end);
                         }
                         return root[f]
                           .slice(args.start, args.end)
-                          .map(id => results.find(r => r.id === id));
+                          .map(id => records.find(r => r.id === id));
                       }
-                      return results
+                      return records
                         .filter(
                           r =>
                             Array.isArray(r[relField])
@@ -276,59 +293,11 @@ export default async function buildServer(
           args: argTypes,
           async resolve(
             _root: any,
-            plainArgs,
-            { user, internal }: { user: Obj | null; internal?: boolean },
+            args: Obj,
+            conext: { user: Obj | null; internal?: boolean },
             info: GraphQLResolveInfo,
           ) {
-            const args = parseArgs(
-              plainArgs,
-              user && user.id,
-              typeFields[type],
-            );
-            args.fields = getSelectionFields(typeFields[type], info);
-            if (options.auth && !internal) {
-              if (
-                applyQueryLimit(
-                  args,
-                  await options.auth.limitQuery(
-                    typeFields,
-                    runQuery,
-                    user,
-                    type,
-                  ),
-                )
-              ) {
-                const error = new Error('Not authorized') as any;
-                error.status = 401;
-                return error;
-              }
-            }
-
-            if (args.trace) {
-              return (await Promise.all([
-                (args.start || 0) === args.trace.start
-                  ? []
-                  : typeConnectors[type].query({
-                      ...args,
-                      end: args.trace.start,
-                    }),
-                typeConnectors[type].query({
-                  ...args,
-                  start: args.trace.start,
-                  end: args.trace.end,
-                  fields: ['id'],
-                }),
-                args.trace.end === undefined ||
-                (args.end !== undefined && args.end === args.trace.end)
-                  ? []
-                  : typeConnectors[type].query({
-                      ...args,
-                      start: args.trace.end,
-                    }),
-              ])).reduce((res, records) => res.concat(records), []);
-            }
-
-            return await typeConnectors[type].query(args);
+            return await getRecords({ type, isList: true }, args, conext, info);
           },
         })),
       }),

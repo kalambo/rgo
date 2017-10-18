@@ -81,12 +81,10 @@ export const createCompare = <T>(
   sort: [string, 'asc' | 'desc'][] = [],
 ) => (value1: T, value2: T): 0 | 1 | -1 => {
   for (const [key, order] of sort) {
-    const v1 = get(value1, key);
-    const v2 = get(value2, key);
-    const v1Null = v1 === null || v1 === undefined;
-    const v2Null = v2 === null || v2 === undefined;
-    if (v1Null && !v2Null) return 1;
-    if (v2Null && !v1Null) return -1;
+    const v1 = noUndef(get(value1, key));
+    const v2 = noUndef(get(value2, key));
+    if (v1 === null && v2 !== null) return 1;
+    if (v1 !== null && v2 === null) return -1;
     const comp = compareValues(v1, v2);
     if (comp) return order === 'asc' ? comp : -comp as 1 | -1;
   }
@@ -109,7 +107,7 @@ export const runFilter = (
 
   const [key, op, value] = filter;
 
-  const v = key === 'id' ? id : record[key];
+  const v = key === 'id' ? id : noUndef(record[key]);
   if (op === '=') return v === value;
   if (op === '!=') return v !== value;
   if (op === '<') return v < value;

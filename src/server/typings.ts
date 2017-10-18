@@ -19,7 +19,7 @@ export interface Mutation {
   prev: Obj | null;
 }
 
-export type QueryLimit = false | null | { filter?: any; fields?: string[] };
+export type QueryLimit = { filter?: any[]; fields?: string[] };
 
 export interface AuthConfig {
   type: string;
@@ -38,7 +38,7 @@ export interface AuthConfig {
     runQuery: (query: string) => Promise<Obj>,
     user: Obj | null,
     type: string,
-  ) => QueryLimit | Promise<QueryLimit>;
+  ) => QueryLimit[] | Promise<QueryLimit[]>;
   allowMutation: (
     schema: Obj<Obj<Field>>,
     runQuery: (query: string) => Promise<Obj>,
