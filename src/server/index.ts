@@ -96,20 +96,23 @@ export default async function buildServer(
         typeFields[field.type],
         fieldIs.relation(field),
       );
-      parsedArgs.fields = info.fieldNodes[0].selectionSet!.selections
-        .map((f: FieldNode) => f.name.value)
-        .filter(
-          fieldName =>
-            !fieldIs.foreignRelation(typeFields[field.type][fieldName]),
-        );
       if (extra) {
         parsedArgs.filter = parsedArgs.filter
           ? ['AND', [parsedArgs.filter, extra.filter]]
           : extra.filter;
-        parsedArgs.fields = Array.from(
-          new Set([...parsedArgs.fields!, ...extra.fields]),
-        );
       }
+      parsedArgs.fields = Array.from(
+        new Set([
+          'id',
+          ...info.fieldNodes[0].selectionSet!.selections
+            .map((f: FieldNode) => f.name.value)
+            .filter(
+              fieldName =>
+                !fieldIs.foreignRelation(typeFields[field.type][fieldName]),
+            ),
+          ...(extra ? extra.fields : []),
+        ]),
+      );
 
       if (internal || !options.auth) {
         return await typeConnectors[field.type].query(parsedArgs);
