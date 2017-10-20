@@ -345,7 +345,7 @@ export function buildClient(
           _.set(
             fields.active,
             key,
-            (_.get<number>(fields.active, key) || 0) + 1,
+            ((_.get(fields.active, key) as any) || 0) + 1,
           );
           if (_.get(state.server, key) === undefined) {
             alreadyFetched = false;
@@ -511,25 +511,29 @@ export function buildClient(
         const watcher = (ready, indices = [] as number[]) => {
           if (ready) {
             if (!layers || indices.includes(queryIndex)) checkRun();
-            unlisten =
-              unlisten ||
-              state.listen(({ changes, changedData, indices }) => {
-                if (!indices || !indices.includes(queryIndex)) {
-                  const updateType = rootUpdaters
-                    ? Math.max(
-                        ...rootUpdaters.map(updater =>
-                          updater(changes, onChange === true),
-                        ),
-                      )
-                    : 2;
-                  if (updateType === 2) {
-                    checkRun();
-                  } else if (updateType === 1) {
-                    if (onChange === true) innerListener(data);
-                    else onChange!(changedData);
+            // if no listener for query then above checkRun() can lead to
+            // immediate stop of this query, so need to check still running
+            if (queries[queryIndex]) {
+              unlisten =
+                unlisten ||
+                state.listen(({ changes, changedData, indices }) => {
+                  if (!indices || !indices.includes(queryIndex)) {
+                    const updateType = rootUpdaters
+                      ? Math.max(
+                          ...rootUpdaters.map(updater =>
+                            updater(changes, onChange === true),
+                          ),
+                        )
+                      : 2;
+                    if (updateType === 2) {
+                      checkRun();
+                    } else if (updateType === 1) {
+                      if (onChange === true) innerListener(data);
+                      else onChange!(changedData);
+                    }
                   }
-                }
-              });
+                });
+            }
           } else {
             innerListener(null);
             layers = null;

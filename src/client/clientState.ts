@@ -58,7 +58,7 @@ export default class ClientState {
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
       this.keyListeners.forEach(({ keys, emit }) => {
-        if (keys.some(k => _.get(changes, k))) {
+        if (keys.some(k => _.get(changes, k) as any)) {
           emit(keys.map(k => noUndef(_.get(this.combined, k))));
         }
       });
