@@ -110,6 +110,7 @@ export default async function buildServer(
               fieldName =>
                 !fieldIs.foreignRelation(typeFields[field.type][fieldName]),
             ),
+          ...(parsedArgs.sort || []).map(([f]) => f),
           ...(extra ? extra.fields : []),
         ]),
       );
@@ -145,6 +146,13 @@ export default async function buildServer(
               : parsedArgs.fields || fields,
         };
       });
+
+      if (groupedLimits.length === 1) {
+        return await typeConnectors[field.type].query({
+          ...parsedArgs,
+          ...groupedLimits[0],
+        });
+      }
 
       const data: Obj<Obj> = {};
       for (const records of await Promise.all(

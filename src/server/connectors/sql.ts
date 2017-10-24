@@ -94,7 +94,7 @@ export default async function sql(
           if (dbFields[field] === 'TEXT') {
             query.orderByRaw(`lower("${field}") ${dir}`);
           } else {
-            query.orderBy(field, dir);
+            query.orderByRaw(`${field} ${dir} NULLS LAST`);
           }
         });
       }
