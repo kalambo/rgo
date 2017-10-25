@@ -7,16 +7,18 @@ import {
 } from 'graphql';
 
 import {
-  Args,
   Data,
   Field,
   fieldIs,
   ForeignRelationField,
+  FullArgs,
   keysToObject,
   mapArray,
   Obj,
   RelationField,
 } from '../core';
+
+const toArray = (x: any) => (Array.isArray(x) ? x : [x]);
 
 export default function normalize(
   typeFields: Obj<Obj<Field>>,
@@ -74,9 +76,12 @@ export default function normalize(
       .map(node => node.name.value);
     const relationFields = fieldNodes
       .filter(({ selectionSet }) => selectionSet)
-      .map(node => node.name.value);
+      .map(node => ({
+        name: node.name.value,
+        alias: node.alias && node.alias.value,
+      }));
 
-    const args: Args = keysToObject(
+    const args: FullArgs = keysToObject(
       argNodes || [],
       ({ value, name }) => valueFromAST(value, argTypes[name.value].type),
       ({ name }) => name.value,
@@ -109,7 +114,10 @@ export default function normalize(
             ...keysToObject(scalarFields, f => record[f]),
             ...keysToObject(
               relationFields,
-              f => record[f] && mapArray(record[f], rec => rec && rec.id),
+              ({ name, alias }) =>
+                record[alias || name] &&
+                mapArray(record[alias || name], rec => rec && rec.id),
+              ({ name }) => name,
             ),
           }),
       );
@@ -121,7 +129,10 @@ export default function normalize(
 
     fieldNodes.filter(({ selectionSet }) => selectionSet).forEach(node =>
       processLayer(
-        { type: field.type, field: node.name.value },
+        {
+          type: field.type,
+          field: node.name.value,
+        },
         typeFields[field.type][node.name.value] as
           | ForeignRelationField
           | RelationField,
@@ -132,15 +143,15 @@ export default function normalize(
             ...keysToObject(
               queryResults[rootId].filter(record => record) as Obj[],
               record =>
-                Array.isArray(record[node.name.value])
-                  ? record[node.name.value]
-                  : [record[node.name.value]],
+                toArray(
+                  record[node.alias ? node.alias.value : node.name.value],
+                ),
               record => record.id,
             ),
           }),
           {},
         ),
-        `${path}_${node.name.value}`,
+        `${path}_${node.alias ? node.alias.value : node.name.value}`,
       ),
     );
   };
@@ -151,8 +162,8 @@ export default function normalize(
       { field: node.name.value },
       { type: node.name.value, isList: true },
       node,
-      { '': result![node.name.value] || [] },
-      node.name.value,
+      { '': result![node.alias ? node.alias.value : node.name.value] || [] },
+      node.alias ? node.alias.value : node.name.value,
     ),
   );
   return { firstIds };

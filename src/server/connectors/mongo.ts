@@ -106,9 +106,11 @@ export default function mongoConnector(
     in: '$in',
   };
   const mongoFilter = (filter: any[]) => {
-    if (filter[0] === 'AND' || filter[0] === 'OR') {
+    if (Array.isArray(filter[1] || [])) {
       return {
-        [filter[0] === 'AND' ? '$and' : '$or']: filter[1].map(mongoFilter),
+        [filter[0].toLowerCase() === 'and' ? '$and' : '$or']: filter
+          .slice(1)
+          .map(mongoFilter),
       };
     }
     return {
@@ -132,8 +134,17 @@ export default function mongoConnector(
       if (sort) {
         result.sort(
           toDb(
-            sort.map(([field, order]) => [fieldDbKeys[field] || field, order]),
-            { flat: true, ignoreValues: true },
+            sort.map(s => {
+              const field = s.replace('-', '');
+              return [
+                fieldDbKeys[field] || field,
+                s[0] === '-' ? 'desc' : 'asc',
+              ];
+            }),
+            {
+              flat: true,
+              ignoreValues: true,
+            },
           ),
         );
       }

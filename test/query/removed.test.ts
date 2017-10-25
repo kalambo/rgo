@@ -1,14 +1,50 @@
-import {
-  clearClient,
-  client,
-  setupClient,
-  relationQuery,
-  simpleQuery,
-  sortedRelationQuery,
-} from '../setup';
+import { clearClient, client, setupClient } from '../setup';
 
 beforeEach(setupClient);
 afterEach(clearClient);
+
+const simpleQuery = {
+  name: 'people',
+  sort: ['firstname'],
+  start: 1,
+  end: 3,
+  fields: [
+    'firstname',
+    {
+      name: 'address',
+      fields: ['city'],
+    },
+  ],
+};
+
+const relationQuery = {
+  name: 'people',
+  sort: ['firstname'],
+  start: 1,
+  end: 3,
+  fields: [
+    'firstname',
+    {
+      name: 'places',
+      fields: ['city'],
+    },
+  ],
+};
+
+const sortedRelationQuery = {
+  name: 'people',
+  sort: ['firstname'],
+  start: 1,
+  end: 3,
+  fields: [
+    'firstname',
+    {
+      name: 'places',
+      sort: ['city'],
+      fields: ['city'],
+    },
+  ],
+};
 
 describe('query: removed', () => {
   test('simple: 1st', async () => {

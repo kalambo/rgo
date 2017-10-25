@@ -1,7 +1,14 @@
 import { ArgumentNode, StringValueNode } from 'graphql';
 import * as peg from 'pegjs';
 
-import { Args, Field, fieldIs, keysToObject, Obj, ScalarName } from '../core';
+import {
+  Field,
+  fieldIs,
+  FullArgs,
+  keysToObject,
+  Obj,
+  ScalarName,
+} from '../core';
 
 const parser = peg.generate(String.raw`
 
@@ -10,7 +17,7 @@ start
 / _ { return {}; }
 
 or
-= lhs:and _ '|' _ rhs:or2 { return [['OR', lhs.concat(rhs)]]; }
+= lhs:and _ '|' _ rhs:or2 { return [['or'].concat(lhs).concat(rhs)]; }
 / and
 
 or2
@@ -18,7 +25,7 @@ or2
 / and
 
 and
-= lhs:block _ ',' _ rhs:and2 { return [['AND', lhs.concat(rhs)]]; }
+= lhs:block _ ',' _ rhs:and2 { return [['and'].concat(lhs).concat(rhs)]; }
 / block
 
 and2
@@ -82,15 +89,18 @@ const parseValue = (value: string, scalar: ScalarName) => {
 };
 
 const parseFilterValues = (filter: any[], fields: Obj<Field>) => {
-  if (filter[0] === 'AND' || filter[0] === 'OR') {
-    return [filter[0], filter[1].map(f => parseFilterValues(f, fields))];
+  if (Array.isArray(filter[1] || [])) {
+    return [
+      filter[0],
+      ...filter.slice(1).map(f => parseFilterValues(f, fields)),
+    ];
   }
   const [fieldName, op, value] = filter;
   const field = fields[fieldName];
   const scalar = fieldIs.scalar(field) ? field.scalar : 'string';
   if (scalar === 'boolean' && (op === '=' || op === '!=') && value === 'null') {
     return [
-      op === '=' ? 'OR' : 'AND',
+      op === '=' ? 'or' : 'and',
       [[fieldName, op, null], [fieldName, op, false]],
     ];
   }
@@ -99,10 +109,9 @@ const parseFilterValues = (filter: any[], fields: Obj<Field>) => {
 
 export default function parseArgs(
   args: Obj | ArgumentNode[] = [],
-  userId: string | null,
   fields: Obj<Field>,
-  allowNullSort?: boolean,
-): Args {
+  allowNullSort: boolean,
+): FullArgs {
   const result = Array.isArray(args)
     ? keysToObject(
         args,
@@ -115,24 +124,20 @@ export default function parseArgs(
     : args;
   if (result.filter && typeof result.filter === 'string') {
     result.filter = parseFilterValues(
-      parser(
-        result.filter.replace(/\$user/g, userId || '').replace(/OR/g, '|'),
-      ),
+      parser(result.filter.replace(/\sOR\s/g, ' | ')),
       fields,
     );
   }
   if (result.sort && typeof result.sort === 'string') {
-    result.sort = result.sort
-      .split(/[\s,]+/)
-      .map(s => [s[0] === '-' ? s.slice(1) : s, s[0] === '-' ? 'desc' : 'asc']);
+    result.sort = result.sort.split(/[\s,]+/);
   }
   if (!allowNullSort) result.sort = result.sort || [];
   if (result.sort) {
-    if (!result.sort.some(([f]) => f === 'createdat')) {
-      result.sort.push(['createdat', 'desc']);
+    if (!result.sort.some(s => s.replace('-', '') === 'createdat')) {
+      result.sort.push('-createdat');
     }
-    if (!result.sort.some(([f]) => f === 'id')) {
-      result.sort.push(['id', 'asc']);
+    if (!result.sort.some(s => s.replace('-', '') === 'id')) {
+      result.sort.push('id');
     }
   }
   return result;

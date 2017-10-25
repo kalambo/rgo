@@ -23,7 +23,6 @@ import {
   ForeignRelationField,
   keysToObject,
   Obj,
-  parseArgs,
   QueryRequest,
   QueryResponse,
   RelationField,
@@ -33,6 +32,7 @@ import {
 import batch from './batch';
 import commit from './commit';
 import normalizeResult from './normalize';
+import parseArgs from './parseArgs';
 import { AuthConfig, Connector, Mutation } from './typings';
 
 const argTypes = {
@@ -50,6 +50,15 @@ const argTypes = {
       },
     }),
   },
+};
+
+const mapFilterUserId = (filter: any[] | undefined, userId: string | null) => {
+  if (!filter) return filter;
+  if (Array.isArray(filter[1] || [])) {
+    return [filter[0], ...filter.slice(1).map(f => mapFilterUserId(f, userId))];
+  }
+  if (filter[2] === '$user') return [filter[0], filter[1], userId || ''];
+  return filter;
 };
 
 export default async function buildServer(
@@ -92,15 +101,15 @@ export default async function buildServer(
     ) => {
       const parsedArgs = parseArgs(
         args,
-        user && user.id,
         typeFields[field.type],
         fieldIs.relation(field),
       );
       if (extra) {
         parsedArgs.filter = parsedArgs.filter
-          ? ['AND', [parsedArgs.filter, extra.filter]]
+          ? ['and', parsedArgs.filter, extra.filter]
           : extra.filter;
       }
+      parsedArgs.filter = mapFilterUserId(parsedArgs.filter, user && user.id);
       parsedArgs.fields = Array.from(
         new Set([
           'id',
@@ -110,7 +119,7 @@ export default async function buildServer(
               fieldName =>
                 !fieldIs.foreignRelation(typeFields[field.type][fieldName]),
             ),
-          ...(parsedArgs.sort || []).map(([f]) => f),
+          ...(parsedArgs.sort || []).map(s => s.replace('-', '')),
           ...(extra ? extra.fields : []),
         ]),
       );
@@ -138,8 +147,8 @@ export default async function buildServer(
         return {
           filter:
             parsedArgs.filter && limitsMap[key].length > 0
-              ? ['AND', [parsedArgs.filter, ['OR', limitsMap[key]]]]
-              : parsedArgs.filter || limitsMap[key],
+              ? ['and', parsedArgs.filter, ['or', ...limitsMap[key]]]
+              : parsedArgs.filter || ['or', ...limitsMap[key]],
           fields:
             parsedArgs.fields && fields
               ? parsedArgs.fields.filter(f => fields.includes(f))

@@ -26,9 +26,11 @@ export function applyFilter(
   filter: any[],
   isOr?: boolean,
 ) {
-  if (filter[0] === 'AND' || filter[0] === 'OR') {
+  if (Array.isArray(filter[1] || [])) {
     return knex.where(function(this: knex.QueryBuilder) {
-      filter[1].forEach(f => applyFilter(this, f, filter[0] === 'OR'));
+      filter
+        .slice(1)
+        .forEach(f => applyFilter(this, f, filter[0].toLowerCase() === 'or'));
     });
   }
   if (filter[2] === null && ['=', '!='].includes(filter[1])) {
@@ -90,7 +92,9 @@ export default async function sql(
       if (start === end) return [];
       const query = filter ? applyFilter(knex(type), filter) : knex(type);
       if (sort) {
-        sort.forEach(([field, dir]) => {
+        sort.forEach(s => {
+          const field = s.replace('-', '');
+          const dir = s[0] === '-' ? 'desc' : 'asc';
           if (dbFields[field] === 'TEXT') {
             query.orderByRaw(`lower("${field}") ${dir}`);
           } else {

@@ -59,8 +59,9 @@ export default async function mutate(
         if (!prev || prev[auth.usernameField] !== username) {
           const existingUser = await connectors[type].query({
             filter: [
-              'AND',
-              [[auth.usernameField, '=', username], ['id', '!=', mId]],
+              'and',
+              [auth.usernameField, '=', username],
+              ['id', '!=', mId],
             ],
             end: 1,
             fields: ['id'],

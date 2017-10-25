@@ -5,6 +5,7 @@ import {
   Data,
   Field,
   ForeignRelationField,
+  FullArgs,
   Obj,
   RelationField,
 } from '../core';
@@ -27,10 +28,16 @@ export interface FullChanges {
   indices?: number[];
 }
 
+export interface Query extends Args {
+  name: string;
+  alias?: string;
+  fields: (string | Query)[];
+}
+
 export interface QueryLayer {
-  root: { type?: string; field: string };
+  root: { type?: string; field: string; alias?: string };
   field: ForeignRelationField | RelationField;
-  args: Args;
+  args: FullArgs;
   structuralFields: string[];
   scalarFields: Obj<true>;
   relations: QueryLayer[];
@@ -48,24 +55,11 @@ export interface Client {
   newId(type: string): string;
   auth(authState?: AuthState): string | null;
 
-  get(keys: [string, string, string][]): Promise<any[]>;
-  get(
-    keys: [string, string, string][],
-    listener: (values: any[] | null) => void,
-  ): () => void;
-
-  query(query: string): Promise<Obj>;
-  query(query: string, info: true): Promise<{ data: Obj; spans: Obj }>;
+  query(query: Query | Query[]): Promise<Obj>;
   query(
-    query: string,
+    query: Query | Query[],
     onLoad: (data: Obj | null) => void,
-    onChange: ((changes: Data) => void) | true,
-  ): () => void;
-  query(
-    query: string,
-    info: true,
-    onLoad: (value: { data: Obj; spans: Obj } | null) => void,
-    onChange: ((changes: Data) => void) | true,
+    onChange?: ((changes: Data) => void),
   ): () => void;
 
   set(

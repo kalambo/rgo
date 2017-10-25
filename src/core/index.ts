@@ -1,4 +1,3 @@
-export { default as parseArgs } from './parseArgs';
 export { default as scalars } from './scalars';
 export {
   Args,
@@ -6,6 +5,7 @@ export {
   Field,
   fieldIs,
   ForeignRelationField,
+  FullArgs,
   Obj,
   QueryRequest,
   QueryResponse,

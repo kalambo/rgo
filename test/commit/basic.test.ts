@@ -8,13 +8,11 @@ describe('commit: basic', () => {
     client.set([{ key: ['people', 'A', 'firstname'], value: 'Elissa' }]);
     await client.commit([['people', 'A', 'firstname']]);
     expect(
-      await client.query(
-        `{
-          people(filter: "id=A") {
-            firstname
-          }
-        }`,
-      ),
+      await client.query({
+        name: 'people',
+        filter: ['id', '=', 'A'],
+        fields: ['firstname'],
+      }),
     ).toEqual({ people: [{ firstname: 'Elissa' }] });
   });
 });

@@ -1,52 +1,50 @@
-import { DocumentNode, FieldNode, OperationDefinitionNode } from 'graphql';
-
 import {
+  Args,
   Field,
   fieldIs,
   ForeignRelationField,
   keysToObject,
   Obj,
-  parseArgs,
   RelationField,
   runFilter,
 } from '../core';
 
-import { ClientState, QueryLayer } from './typings';
+import { ClientState, Query, QueryLayer } from './typings';
 
 export const getFilterFields = (filter: any[]): string[] => {
-  if (filter[0] === 'AND' || filter[0] === 'OR') {
-    return filter[1].reduce((res, f) => [...res, ...getFilterFields(f)], []);
+  if (Array.isArray(filter[1] || [])) {
+    return filter
+      .slice(1)
+      .reduce((res, f) => [...res, ...getFilterFields(f)], []);
   }
   return [filter[0]];
 };
 
-export default function queryLayers(
-  schema: Obj<Obj<Field>>,
-  queryDoc: DocumentNode,
-  userId: string | null,
-  addIds?: boolean,
-) {
+export default function queryLayers(schema: Obj<Obj<Field>>, query: Query[]) {
   const processRelation = (
-    root: { type?: string; field: string },
+    root: { type?: string; field: string; alias?: string },
     field: ForeignRelationField | RelationField,
-    node: FieldNode,
+    args: Args,
+    fields: (string | Query)[],
     path: string,
   ): QueryLayer => {
-    const fieldNodes = node.selectionSet!.selections as FieldNode[];
     const scalarFields: Obj<true> = keysToObject<true>(
-      fieldNodes
-        .filter(({ selectionSet }) => !selectionSet)
-        .map(({ name }) => name.value),
-      () => true,
+      fields.filter(f => typeof f === 'string'),
+      true,
     );
-    if (addIds) scalarFields.id = true;
 
-    const args = parseArgs(
-      node.arguments,
-      userId,
-      schema[field.type],
-      !!root.type && fieldIs.relation(field),
-    );
+    if (!root.type || fieldIs.foreignRelation(field)) {
+      args.sort = args.sort || [];
+    }
+    if (args.sort) {
+      if (!args.sort.some(s => s.replace('-', '') === 'createdat')) {
+        args.sort.push('-createdat');
+      }
+      if (!args.sort.some(s => s.replace('-', '') === 'id')) {
+        args.sort.push('id');
+      }
+    }
+
     const filterFields = args.filter ? getFilterFields(args.filter) : [];
     const argsState = { extra: { start: 0, end: 0 }, ids: [] as string[] };
     const getArgsState = (state?: ClientState) => {
@@ -104,20 +102,24 @@ export default function queryLayers(
       field,
       args,
       structuralFields: Array.from(
-        new Set([...filterFields, ...(args.sort || []).map(([f]) => f)]),
+        new Set([
+          ...filterFields,
+          ...(args.sort || []).map(s => s.replace('-', '')),
+        ]),
       ),
       scalarFields,
-      relations: fieldNodes
-        .filter(({ selectionSet }) => selectionSet)
-        .map(node => {
-          const schemaField = schema[field.type][node.name.value] as
+      relations: fields
+        .filter(f => typeof f !== 'string')
+        .map(({ name, alias, fields, ...args }: Query) => {
+          const schemaField = schema[field.type][name] as
             | ForeignRelationField
             | RelationField;
           return processRelation(
-            { type: field.type, field: node.name.value },
+            { type: field.type, field: name, alias },
             schemaField,
-            node,
-            `${path}_${node.name.value}`,
+            args,
+            fields,
+            `${path}_${alias || name}`,
           );
         }),
       path,
@@ -125,14 +127,13 @@ export default function queryLayers(
     };
   };
 
-  const rootSelection = (queryDoc.definitions[0] as OperationDefinitionNode)
-    .selectionSet.selections as FieldNode[];
-  return rootSelection.map(node =>
+  return query.map(({ name, alias, fields, ...args }) =>
     processRelation(
-      { field: node.name.value },
-      { type: node.name.value, isList: true },
-      node,
-      node.name.value,
+      { field: name, alias },
+      { type: name, isList: true },
+      args,
+      fields,
+      alias || name,
     ),
   );
 }

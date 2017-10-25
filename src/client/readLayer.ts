@@ -14,6 +14,15 @@ import { ClientState, DataChanges, QueryLayer } from './typings';
 const isOrIncludes = <T>(value: T | T[], elem: T) =>
   Array.isArray(value) ? value.includes(elem) : value === elem;
 
+const mapFilterUserId = (filter: any[] | undefined, userId: string | null) => {
+  if (!filter) return filter;
+  if (Array.isArray(filter[1] || [])) {
+    return [filter[0], ...filter.slice(1).map(f => mapFilterUserId(f, userId))];
+  }
+  if (filter[2] === '$user') return [filter[0], filter[1], userId || ''];
+  return filter;
+};
+
 export default function readLayer(
   {
     root,
@@ -27,10 +36,11 @@ export default function readLayer(
   rootRecords: Obj<Obj>,
   state: ClientState,
   firstIds: Obj<Obj<string>>,
-  rootSpans?: Obj<Obj>,
+  userId: string | null,
 ) {
+  const mappedFilter = mapFilterUserId(args.filter, userId);
   const filter = (id: string) =>
-    runFilter(args.filter, id, state.combined[field.type][id]);
+    runFilter(mappedFilter, id, state.combined[field.type][id]);
   const compare = createCompare(
     (id: string, key) =>
       key === 'id' ? id : state.combined[field.type][id]![key],
@@ -105,10 +115,12 @@ export default function readLayer(
     }
 
     if (rootRecordIds[rootId].length === 0) {
-      rootRecords[rootId][root.field] =
+      rootRecords[rootId][root.alias || root.field] =
         fieldIs.foreignRelation(field) || field.isList ? [] : null;
     } else if (fieldIs.relation(field) && field.isList && !args.sort) {
-      rootRecords[rootId][root.field] = rootRecordIds[rootId].map(getRecord);
+      rootRecords[rootId][root.alias || root.field] = rootRecordIds[rootId].map(
+        getRecord,
+      );
     } else if (fieldIs.foreignRelation(field) || field.isList) {
       const queryFirst = {
         id: firstIds[path][rootId],
@@ -126,7 +138,7 @@ export default function readLayer(
         if (state.diff[field.type][id] === 0) {
           if (
             state.server[field.type][id] &&
-            runFilter(args.filter, id, state.server[field.type][id]) &&
+            runFilter(mappedFilter, id, state.server[field.type][id]) &&
             compareRecords(state.server[field.type][id]!, queryFirst) === -1
           ) {
             sliceStarts[rootId] += 1;
@@ -143,7 +155,7 @@ export default function readLayer(
             (!root.type ||
               fieldIs.foreignRelation(field) ||
               state.combined[root.type][rootId]![root.field].includes(id)) &&
-            runFilter(args.filter, id, serverRecord)
+            runFilter(mappedFilter, id, serverRecord)
           ) {
             if (compareRecords({ id, ...serverRecord }, queryFirst) === -1) {
               sliceStarts[rootId] += 1;
@@ -151,7 +163,7 @@ export default function readLayer(
           }
         }
       }
-      rootRecords[rootId][root.field] = rootRecordIds[rootId]
+      rootRecords[rootId][root.alias || root.field] = rootRecordIds[rootId]
         .slice(
           sliceStarts[rootId],
           undefOr(
@@ -161,40 +173,16 @@ export default function readLayer(
         )
         .map(getRecord);
     } else {
-      rootRecords[rootId][root.field] = getRecord(
+      rootRecords[rootId][root.alias || root.field] = getRecord(
         rootRecordIds[rootId][0] || null,
       );
     }
   };
   rootIds.forEach(initRootRecords);
 
-  const recordSpans =
-    rootSpans && keysToObject(Object.keys(records), () => ({}));
-
   const relationUpdaters = relations.map(relationLayer =>
-    readLayer(relationLayer, records, state, firstIds, recordSpans),
+    readLayer(relationLayer, records, state, firstIds, userId),
   );
-
-  if (rootSpans) {
-    Object.keys(records).forEach(id => {
-      const relationCounts = relations.map(({ root }) =>
-        recordSpans![id][root.field].reduce((res, v) => res + v[''], 0),
-      );
-      recordSpans![id][''] = Math.max(...relationCounts, 1);
-      relations.forEach(({ root }, i) => {
-        const diff = recordSpans![id][''] - relationCounts[i];
-        if (diff > 0) recordSpans![id][root.field].push(diff);
-      });
-    });
-    rootIds.forEach(rootId => {
-      rootSpans[rootId][root.field] = rootRecordIds[rootId].map(
-        id => (id ? recordSpans![id] : { '': 1 }),
-      );
-      if (rootSpans[rootId][root.field].length === 0) {
-        rootSpans[rootId][root.field] = [{ '': 1 }];
-      }
-    });
-  }
 
   return (changes: DataChanges, update: boolean) => {
     const relationsChange = Math.max(

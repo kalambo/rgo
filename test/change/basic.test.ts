@@ -5,13 +5,6 @@ afterEach(clearClient);
 
 describe('change: root', () => {
   test('test', async done => {
-    const query = `{
-      people(sort: "firstname", start: 1, end: 3) {
-        firstname
-        lastname
-      }
-    }`;
-
     const results: any[] = [];
     const updates: { func: () => void; load?: true }[] = [];
 
@@ -70,12 +63,13 @@ describe('change: root', () => {
     let count = -1;
     let nextLoad = true;
     client.query(
-      `{
-        people(sort: "firstname", start: 1, end: 3) {
-          firstname
-          lastname
-        }
-      }`,
+      {
+        name: 'people',
+        sort: ['firstname'],
+        start: 1,
+        end: 3,
+        fields: ['firstname', 'lastname'],
+      },
       value => {
         if (nextLoad) {
           expect(value).toBe(null);
@@ -91,7 +85,6 @@ describe('change: root', () => {
           }
         }
       },
-      true,
     );
   });
 });

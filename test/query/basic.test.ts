@@ -6,16 +6,17 @@ afterEach(clearClient);
 describe('query: basic', () => {
   test('simple', async () => {
     expect(
-      await client.query(
-        `{
-          people(sort: "firstname") {
-            firstname
-            address {
-              city
-            }
-          }
-        }`,
-      ),
+      await client.query({
+        name: 'people',
+        sort: ['firstname'],
+        fields: [
+          'firstname',
+          {
+            name: 'address',
+            fields: ['city'],
+          },
+        ],
+      }),
     ).toEqual({
       people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
@@ -29,16 +30,17 @@ describe('query: basic', () => {
 
   test('filter', async () => {
     expect(
-      await client.query(
-        `{
-          people(filter: "firstname=Delphia") {
-            firstname
-            address {
-              city
-            }
-          }
-        }`,
-      ),
+      await client.query({
+        name: 'people',
+        filter: ['firstname', '=', 'Delphia'],
+        fields: [
+          'firstname',
+          {
+            name: 'address',
+            fields: ['city'],
+          },
+        ],
+      }),
     ).toEqual({
       people: [{ firstname: 'Delphia', address: { city: 'Tobyhaven' } }],
     });
@@ -46,16 +48,19 @@ describe('query: basic', () => {
 
   test('slice', async () => {
     expect(
-      await client.query(
-        `{
-          people(sort: "firstname", start: 1, end: 3) {
-            firstname
-            address {
-              city
-            }
-          }
-        }`,
-      ),
+      await client.query({
+        name: 'people',
+        sort: ['firstname'],
+        start: 1,
+        end: 3,
+        fields: [
+          'firstname',
+          {
+            name: 'address',
+            fields: ['city'],
+          },
+        ],
+      }),
     ).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -66,16 +71,19 @@ describe('query: basic', () => {
 
   test('relation', async () => {
     expect(
-      await client.query(
-        `{
-          people(sort: "firstname", start: 1, end: 3) {
-            firstname
-            places {
-              city
-            }
-          }
-        }`,
-      ),
+      await client.query({
+        name: 'people',
+        sort: ['firstname'],
+        start: 1,
+        end: 3,
+        fields: [
+          'firstname',
+          {
+            name: 'places',
+            fields: ['city'],
+          },
+        ],
+      }),
     ).toEqual({
       people: [
         {
@@ -96,16 +104,20 @@ describe('query: basic', () => {
 
   test('relation with sort', async () => {
     expect(
-      await client.query(
-        `{
-          people(sort: "firstname", start: 1, end: 3) {
-            firstname
-            places(sort: "city") {
-              city
-            }
-          }
-        }`,
-      ),
+      await client.query({
+        name: 'people',
+        sort: ['firstname'],
+        start: 1,
+        end: 3,
+        fields: [
+          'firstname',
+          {
+            name: 'places',
+            sort: ['city'],
+            fields: ['city'],
+          },
+        ],
+      }),
     ).toEqual({
       people: [
         {
@@ -121,6 +133,35 @@ describe('query: basic', () => {
           ],
         },
       ],
+    });
+  });
+
+  test('alias', async () => {
+    expect(
+      await client.query([
+        {
+          name: 'people',
+          alias: 'a',
+          filter: ['id', '=', 'A'],
+          fields: ['firstname', 'lastname'],
+        },
+        {
+          name: 'people',
+          alias: 'b',
+          filter: ['id', '=', 'B'],
+          fields: [
+            'firstname',
+            {
+              name: 'address',
+              alias: 'c',
+              fields: ['city'],
+            },
+          ],
+        },
+      ]),
+    ).toEqual({
+      a: [{ firstname: 'Esperanza', lastname: 'Boyle' }],
+      b: [{ firstname: 'Delphia', c: { city: 'Tobyhaven' } }],
     });
   });
 });

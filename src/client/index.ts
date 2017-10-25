@@ -1,4 +1,4 @@
-export { Client } from './typings';
+export { Client, Query } from './typings';
 export { ScalarName } from '../core';
 
 import * as _ from 'lodash';
@@ -9,7 +9,6 @@ import {
   GraphQLNonNull,
   GraphQLObjectType,
   introspectionQuery,
-  parse,
 } from 'graphql';
 
 import {
@@ -30,7 +29,7 @@ import {
 import ClientState from './ClientState';
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
-import { AuthState, Client, DataChanges, QueryLayer } from './typings';
+import { AuthState, Client, DataChanges, Query, QueryLayer } from './typings';
 
 const ops = { $ne: '!=', $lte: '<=', $gte: '>=', $eq: '=', $lt: '<', $gt: '>' };
 const printFilter = filter => {
@@ -70,10 +69,6 @@ export function buildClient(
   const newIds: Obj<number> = {};
 
   let watchers: ((ready?: boolean, indices?: number[]) => void)[] = [];
-  const fields: { active: Obj<Obj<Obj<number>>>; next: Obj<Obj<Obj<true>>> } = {
-    active: {},
-    next: {},
-  };
   const queries: Obj<{
     firstIds?: Obj<Obj<string>>;
     prev?: {
@@ -112,26 +107,6 @@ export function buildClient(
     if (schema) {
       const runIndex = ++currentRun;
       const requests: QueryRequest[] = [];
-
-      for (const type of Object.keys(fields.next)) {
-        for (const id of Object.keys(fields.next[type])) {
-          requests.push({
-            query: `{
-                ${type}(filter: ["id", "=", "${id}"]) {
-                  id
-                  ${Object.keys(fields.next[type][id])
-                    .map(
-                      f =>
-                        fieldIs.scalar(schema[type][f]) ? f : `${f} { id }`,
-                    )
-                    .join('\n')}
-                }
-              }`,
-            normalize: true,
-          });
-        }
-      }
-      fields.next = {};
 
       const queryIndices = Object.keys(queries)
         .filter(k => queries[k].next)
@@ -252,16 +227,6 @@ export function buildClient(
           schema,
           [],
         );
-        fields.next = {};
-        for (const type of Object.keys(fields.active)) {
-          for (const id of Object.keys(fields.active[type])) {
-            for (const field of Object.keys(fields.active[type][id])) {
-              if (fields.active[type][id][field]) {
-                _.set(fields.next, [type, id, field], true);
-              }
-            }
-          }
-        }
         Object.keys(queries).forEach(k => (queries[k] = {}));
         run();
       }
@@ -314,64 +279,11 @@ export function buildClient(
       return token;
     },
 
-    get(...args) {
-      const [keys, listener] = args as [
-        [string, string, string][],
-        ((values: any[] | null) => void) | undefined
-      ];
-      return promisifyEmitter(innerListener => {
-        if (keys.length === 0) {
-          innerListener([]);
-          return () => {};
-        }
-        let ready;
-        let unlisten;
-        const watcher = newReady => {
-          if (newReady !== ready) {
-            ready = newReady;
-            if (ready) {
-              innerListener(keys.map(k => noUndef(_.get(state.combined, k))));
-              unlisten = state.listen(keys, innerListener);
-            } else {
-              innerListener(null);
-              if (unlisten) unlisten();
-            }
-          }
-        };
-        watchers.push(watcher);
-        let alreadyFetched = true;
-        const serverKeys = keys.filter(([_, id]) => id[0] !== '$');
-        for (const key of serverKeys) {
-          _.set(
-            fields.active,
-            key,
-            ((_.get(fields.active, key) as any) || 0) + 1,
-          );
-          if (_.get(state.server, key) === undefined) {
-            alreadyFetched = false;
-            _.set(fields.next, key, true);
-          }
-        }
-        watcher(alreadyFetched);
-        if (!alreadyFetched) run();
-        return () => {
-          watchers.splice(watchers.indexOf(watcher), 1);
-          for (const key of serverKeys) {
-            fields.active[key[0]][key[1]][key[2]]--;
-          }
-          if (unlisten) unlisten();
-        };
-      }, listener) as any;
-    },
-
     query(...args) {
-      const queryDoc = parse(args[0]);
-      const [withInfo, onLoad, onChange] = (args.length === 3
-        ? [undefined, ...args.slice(1)]
-        : args.slice(1)) as [
-        true | undefined,
+      const query: Query[] = Array.isArray(args[0]) ? args[0] : [args[0]];
+      const [onLoad, onChange] = args.slice(1) as [
         ((data: Obj | { data: Obj; spans: Obj } | null) => void) | undefined,
-        ((changes: Data) => void) | true | undefined
+        ((changes: Data) => void) | undefined
       ];
 
       return promisifyEmitter(innerListener => {
@@ -384,17 +296,9 @@ export function buildClient(
           | ((changes: DataChanges, update: boolean) => number)[]
           | null = null;
         let data = {};
-        let spans = {};
 
         const checkRun = () => {
-          layers =
-            layers ||
-            queryLayers(
-              schema,
-              queryDoc,
-              auth && auth.state && auth.state.id,
-              withInfo,
-            );
+          layers = layers || queryLayers(schema, query);
           queries[queryIndex].next = {
             ids: {},
             slice: {},
@@ -418,6 +322,7 @@ export function buildClient(
                 ...structuralFields,
               ]),
             );
+            const base = `${root.alias ? `${root.alias}:` : ''}${root.field}`;
             const inner = `{
               ${fields.join('\n')}
               ${relations.map(processLayer).join('\n')}
@@ -468,9 +373,9 @@ export function buildClient(
                 start: (args.start || 0) - extra.start,
                 end: undefOr(args.end, args.end! + extra.end),
               };
-              return `${root.field}(${printedArgs}) ${inner}`;
+              return `${base}(${printedArgs}) ${inner}`;
             }
-            return `${root.field} ${inner}`;
+            return `${base} ${inner}`;
           };
           const baseQuery = `{
             ${layers.map(processLayer).join('\n')}
@@ -485,25 +390,16 @@ export function buildClient(
           } else {
             delete queries[queryIndex].next;
             data = {};
-            spans = {};
             rootUpdaters = layers.map(layer =>
               readLayer(
                 layer,
                 { '': data },
                 state,
                 queries[queryIndex].firstIds!,
-                withInfo && { '': spans },
+                auth && auth.state && auth.state.id,
               ),
             );
-            if (withInfo) {
-              spans[''] = Math.max(
-                ...layers.map(({ root }) =>
-                  spans[root.field].reduce((res, v) => res + v[''], 0),
-                ),
-                1,
-              );
-            }
-            innerListener(withInfo ? { data, spans } : data);
+            innerListener(data);
           }
         };
 
@@ -521,14 +417,14 @@ export function buildClient(
                     const updateType = rootUpdaters
                       ? Math.max(
                           ...rootUpdaters.map(updater =>
-                            updater(changes, onChange === true),
+                            updater(changes, !onChange),
                           ),
                         )
                       : 2;
                     if (updateType === 2) {
                       checkRun();
                     } else if (updateType === 1) {
-                      if (onChange === true) innerListener(data);
+                      if (!onChange) innerListener(data);
                       else onChange!(changedData);
                     }
                   }

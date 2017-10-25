@@ -15,9 +15,11 @@ export type Data = Obj<Obj<Obj | null>>;
 
 export interface Args {
   filter?: any[];
-  sort?: [string, 'asc' | 'desc'][];
+  sort?: string[];
   start?: number;
   end?: number;
+}
+export interface FullArgs extends Args {
   offset?: number;
   trace?: { start: number; end?: number };
   fields?: string[];

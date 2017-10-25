@@ -36,9 +36,12 @@ export const setupClient = async () => {
   });
   fetchMock.post(domain, async (_, opts) => {
     const queries = JSON.parse(opts.body);
-    // console.log(JSON.stringify(queries, null, 2));
     const result = await server(queries);
-    // console.log(JSON.stringify(result, null, 2));
+    // const introspection = JSON.stringify(queries).includes('Introspection');
+    // if (!introspection) {
+    //   console.log(JSON.stringify(queries, null, 2));
+    //   console.log(JSON.stringify(result, null, 2));
+    // }
     return result;
   });
   client = buildClient(domain);
@@ -48,30 +51,3 @@ export const clearClient = () => {
   fetchMock.restore();
   client = null;
 };
-
-export const simpleQuery = `{
-  people(sort: "firstname", start: 1, end: 3) {
-    firstname
-    address {
-      city
-    }
-  }
-}`;
-
-export const relationQuery = `{
-  people(sort: "firstname", start: 1, end: 3) {
-    firstname
-    places {
-      city
-    }
-  }
-}`;
-
-export const sortedRelationQuery = `{
-  people(sort: "firstname", start: 1, end: 3) {
-    firstname
-    places(sort: "city") {
-      city
-    }
-  }
-}`;

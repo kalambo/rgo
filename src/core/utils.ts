@@ -78,15 +78,17 @@ const compareValues = (a, b) => {
 };
 export const createCompare = <T>(
   get: (value: T, key: string) => any,
-  sort: [string, 'asc' | 'desc'][] = [],
+  sort: string[] = [],
 ) => (value1: T, value2: T): 0 | 1 | -1 => {
-  for (const [key, order] of sort) {
+  for (const s of sort) {
+    const key = s.replace('-', '');
+    const dir = s[0] === '-' ? 'desc' : 'asc';
     const v1 = noUndef(get(value1, key));
     const v2 = noUndef(get(value2, key));
     if (v1 === null && v2 !== null) return 1;
     if (v1 !== null && v2 === null) return -1;
     const comp = compareValues(v1, v2);
-    if (comp) return order === 'asc' ? comp : -comp as 1 | -1;
+    if (comp) return dir === 'asc' ? comp : -comp as 1 | -1;
   }
   return 0;
 };
@@ -99,10 +101,12 @@ export const runFilter = (
   if (!record) return false;
   if (!filter) return true;
 
-  if (filter[0] === 'AND') {
-    return filter[1].every(b => runFilter(b, id, record));
-  } else if (filter[0] === 'OR') {
-    return filter[1].some(b => runFilter(b, id, record));
+  if (Array.isArray(filter[1] || [])) {
+    if (filter[0].toLowerCase() === 'and') {
+      return filter.slice(1).every(b => runFilter(b, id, record));
+    } else if (filter[0].toLowerCase() === 'or') {
+      return filter.slice(1).some(b => runFilter(b, id, record));
+    }
   }
 
   const [key, op, value] = filter;

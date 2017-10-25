@@ -22,26 +22,14 @@ export default class ClientState {
   public diff: DataDiff = {};
 
   private listeners: ((value: FullChanges) => void)[] = [];
-  private keyListeners: {
-    keys: [string, string, string][];
-    emit: (values: any[]) => void;
-  }[] = [];
 
   public constructor(log: boolean = false) {
     this.log = log;
   }
 
-  public listen(listener: (value: FullChanges) => void): () => void;
-  public listen(
-    keys: [string, string, string][],
-    listener: (values: any[]) => void,
-  ): () => void;
-  public listen(...args: any[]) {
-    const listeners = args.length === 1 ? this.listeners : this.keyListeners;
-    const listener =
-      args.length === 1 ? args[0] : { keys: args[0], emit: args[1] };
-    (listeners as any).push(listener);
-    return () => listeners.splice((listeners as any).indexOf(listener), 1);
+  public listen(listener: (value: FullChanges) => void) {
+    this.listeners.push(listener);
+    return () => this.listeners.splice(this.listeners.indexOf(listener), 1);
   }
 
   private emitChanges(changes: DataChanges, indices?: number[]) {
@@ -57,11 +45,6 @@ export default class ClientState {
     }
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
-      this.keyListeners.forEach(({ keys, emit }) => {
-        if (keys.some(k => _.get(changes, k) as any)) {
-          emit(keys.map(k => noUndef(_.get(this.combined, k))));
-        }
-      });
       const changedData = keysToObject(Object.keys(changes), type =>
         keysToObject(Object.keys(changes[type]), id =>
           keysToObject(Object.keys(changes[type][id]), field =>

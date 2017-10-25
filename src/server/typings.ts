@@ -1,10 +1,10 @@
-import { Args, Field, Obj } from '../core';
+import { Field, FullArgs, Obj } from '../core';
 
 export interface Methods {}
 
 export interface Connector {
   newId(): string;
-  query(args: Args): Promise<any[]>;
+  query(args: FullArgs): Promise<any[]>;
   findById(id: string): Promise<any>;
   insert(id: string, data: any): Promise<void>;
   update(id: string, data: any): Promise<void>;
