@@ -8,11 +8,9 @@
   "module": "lib/client/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "prettier":
-      "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
+    "prettier": "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
     "clean": "rimraf lib/*",
-    "build":
-      "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
+    "build": "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
     "test": "jest",
     "prepare": "yarn run test && yarn run build"
   },
@@ -21,7 +19,11 @@
       ".(ts|tsx)": "<rootDir>/node_modules/ts-jest/preprocessor.js"
     },
     "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
-    "moduleFileExtensions": ["ts", "tsx", "js"]
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
+    ]
   },
   "devDependencies": {
     "@types/jest": "^21.1.4",
@@ -47,6 +49,7 @@
     "graphql": "^0.11.7",
     "knex": "^0.13.0",
     "lodash": "^4.17.4",
-    "pegjs": "^0.10.0"
+    "pegjs": "^0.10.0",
+    "stringify-object": "^3.2.1"
   }
 }

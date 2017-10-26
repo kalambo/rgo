@@ -5,7 +5,7 @@ afterEach(clearClient);
 
 const query = {
   name: 'people',
-  sort: ['firstname'],
+  sort: 'firstname',
   start: 1,
   end: 3,
   fields: [
@@ -21,7 +21,7 @@ describe('query: modified', () => {
   test('simple: 1st=>0.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       end: 1,
       fields: ['firstname'],
     });
@@ -36,7 +36,7 @@ describe('query: modified', () => {
   test('simple: 1st=>1.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       end: 1,
       fields: ['firstname'],
     });
@@ -51,7 +51,7 @@ describe('query: modified', () => {
   test('simple: 1st=>2.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       end: 1,
       fields: ['firstname'],
     });
@@ -66,7 +66,7 @@ describe('query: modified', () => {
   test('simple: 1st=>3.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       end: 1,
       fields: ['firstname'],
     });
@@ -81,7 +81,7 @@ describe('query: modified', () => {
   test('simple: 1st=>4.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       end: 1,
       fields: ['firstname'],
     });
@@ -97,7 +97,7 @@ describe('query: modified', () => {
   test('simple: 2nd=>0.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 1,
       end: 2,
       fields: ['firstname'],
@@ -113,7 +113,7 @@ describe('query: modified', () => {
   test('simple: 2nd=>1.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 1,
       end: 2,
       fields: ['firstname'],
@@ -129,7 +129,7 @@ describe('query: modified', () => {
   test('simple: 2nd=>2.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 1,
       end: 2,
       fields: ['firstname'],
@@ -145,7 +145,7 @@ describe('query: modified', () => {
   test('simple: 2nd=>3.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 1,
       end: 2,
       fields: ['firstname'],
@@ -161,7 +161,7 @@ describe('query: modified', () => {
   test('simple: 2nd=>4.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 1,
       end: 2,
       fields: ['firstname'],
@@ -178,7 +178,7 @@ describe('query: modified', () => {
   test('simple: 3rd=>0.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 2,
       end: 3,
       fields: ['firstname'],
@@ -194,7 +194,7 @@ describe('query: modified', () => {
   test('simple: 3rd=>1.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 2,
       end: 3,
       fields: ['firstname'],
@@ -210,7 +210,7 @@ describe('query: modified', () => {
   test('simple: 3rd=>2.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 2,
       end: 3,
       fields: ['firstname'],
@@ -226,7 +226,7 @@ describe('query: modified', () => {
   test('simple: 3rd=>3.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 2,
       end: 3,
       fields: ['firstname'],
@@ -242,7 +242,7 @@ describe('query: modified', () => {
   test('simple: 3rd=>4.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 2,
       end: 3,
       fields: ['firstname'],
@@ -259,7 +259,7 @@ describe('query: modified', () => {
   test('simple: 4rd=>0.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 3,
       end: 4,
       fields: ['firstname'],
@@ -275,7 +275,7 @@ describe('query: modified', () => {
   test('simple: 4rd=>1.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 3,
       end: 4,
       fields: ['firstname'],
@@ -291,7 +291,7 @@ describe('query: modified', () => {
   test('simple: 4rd=>2.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 3,
       end: 4,
       fields: ['firstname'],
@@ -307,7 +307,7 @@ describe('query: modified', () => {
   test('simple: 4rd=>3.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 3,
       end: 4,
       fields: ['firstname'],
@@ -323,7 +323,7 @@ describe('query: modified', () => {
   test('simple: 4rd=>4.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 3,
       end: 4,
       fields: ['firstname'],
@@ -340,7 +340,7 @@ describe('query: modified', () => {
   test('simple: 1st=>3.5th, 2nd => 0.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       end: 2,
       fields: ['firstname'],
     });
@@ -358,7 +358,7 @@ describe('query: modified', () => {
   test('simple: 2nd=>4.5th, 3rd => 1.5th', async () => {
     await client.query({
       name: 'people',
-      sort: ['firstname'],
+      sort: 'firstname',
       start: 1,
       end: 3,
       fields: ['firstname'],

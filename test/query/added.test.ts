@@ -5,7 +5,7 @@ afterEach(clearClient);
 
 const query = {
   name: 'people',
-  sort: ['firstname'],
+  sort: 'firstname',
   start: 1,
   end: 3,
   fields: [

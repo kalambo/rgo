@@ -10,7 +10,7 @@ describe('commit: basic', () => {
     expect(
       await client.query({
         name: 'people',
-        filter: ['id', '=', 'A'],
+        filter: 'A',
         fields: ['firstname'],
       }),
     ).toEqual({ people: [{ firstname: 'Elissa' }] });

@@ -1,12 +1,12 @@
 export { default as ClientState } from './ClientState';
 
 import {
-  Args,
   Data,
   Field,
   ForeignRelationField,
   FullArgs,
   Obj,
+  Query,
   RelationField,
 } from '../core';
 
@@ -28,12 +28,6 @@ export interface FullChanges {
   indices?: number[];
 }
 
-export interface Query extends Args {
-  name: string;
-  alias?: string;
-  fields: (string | Query)[];
-}
-
 export interface QueryLayer {
   root: { type?: string; field: string; alias?: string };
   field: ForeignRelationField | RelationField;
@@ -51,7 +45,7 @@ export interface QueryLayer {
 }
 
 export interface Client {
-  schema(): Obj<Obj<Field>>;
+  schema: Obj<Obj<Field>>;
   newId(type: string): string;
   auth(authState?: AuthState): string | null;
 

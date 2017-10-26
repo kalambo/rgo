@@ -9,11 +9,7 @@ describe('client: queryLayers', () => {
         queryLayers(baseSchema, [
           {
             name: 'people',
-            filter: [
-              'and',
-              ['firstname', '=', 'Delphia'],
-              ['lastname', '=', 'Cole'],
-            ],
+            filter: ['and', ['firstname', 'Delphia'], ['lastname', 'Cole']],
             fields: [
               'id',
               'firstname',
@@ -23,7 +19,7 @@ describe('client: queryLayers', () => {
               },
               {
                 name: 'places',
-                sort: ['street'],
+                sort: 'street',
                 start: 2,
                 end: 4,
                 fields: ['street'],
@@ -38,11 +34,7 @@ describe('client: queryLayers', () => {
           root: { field: 'people' },
           field: { type: 'people', isList: true },
           args: {
-            filter: [
-              'and',
-              ['firstname', '=', 'Delphia'],
-              ['lastname', '=', 'Cole'],
-            ],
+            filter: ['and', ['firstname', 'Delphia'], ['lastname', 'Cole']],
             sort: ['-createdat', 'id'],
           },
           structuralFields: ['firstname', 'lastname', 'createdat', 'id'],

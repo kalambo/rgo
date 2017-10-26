@@ -1,4 +1,4 @@
-import { Field, FullArgs, Obj } from '../core';
+import { Field, FullArgs, Obj, Query } from '../core';
 
 export interface Methods {}
 
@@ -35,13 +35,13 @@ export interface AuthConfig {
   getUserId(authToken: string): Promise<string | null>;
   limitQuery: (
     schema: Obj<Obj<Field>>,
-    runQuery: (query: string) => Promise<Obj>,
+    runQuery: (query: Query | Query[]) => Promise<Obj>,
     user: Obj | null,
     type: string,
   ) => QueryLimit[] | Promise<QueryLimit[]>;
   allowMutation: (
     schema: Obj<Obj<Field>>,
-    runQuery: (query: string) => Promise<Obj>,
+    runQuery: (query: Query | Query[]) => Promise<Obj>,
     user: Obj | null,
     type: string,
     id: string,

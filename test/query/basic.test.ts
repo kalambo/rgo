@@ -8,7 +8,7 @@ describe('query: basic', () => {
     expect(
       await client.query({
         name: 'people',
-        sort: ['firstname'],
+        sort: 'firstname',
         fields: [
           'firstname',
           {
@@ -32,7 +32,7 @@ describe('query: basic', () => {
     expect(
       await client.query({
         name: 'people',
-        filter: ['firstname', '=', 'Delphia'],
+        filter: ['firstname', 'Delphia'],
         fields: [
           'firstname',
           {
@@ -50,7 +50,7 @@ describe('query: basic', () => {
     expect(
       await client.query({
         name: 'people',
-        sort: ['firstname'],
+        sort: 'firstname',
         start: 1,
         end: 3,
         fields: [
@@ -73,7 +73,7 @@ describe('query: basic', () => {
     expect(
       await client.query({
         name: 'people',
-        sort: ['firstname'],
+        sort: 'firstname',
         start: 1,
         end: 3,
         fields: [
@@ -106,14 +106,14 @@ describe('query: basic', () => {
     expect(
       await client.query({
         name: 'people',
-        sort: ['firstname'],
+        sort: 'firstname',
         start: 1,
         end: 3,
         fields: [
           'firstname',
           {
             name: 'places',
-            sort: ['city'],
+            sort: 'city',
             fields: ['city'],
           },
         ],
@@ -136,19 +136,39 @@ describe('query: basic', () => {
     });
   });
 
+  test('relation ids', async () => {
+    expect(
+      await client.query([
+        {
+          name: 'people',
+          sort: 'firstname',
+          fields: ['firstname', 'address', 'places'],
+        },
+      ]),
+    ).toEqual({
+      people: [
+        { firstname: 'Delphia', address: 'B', places: ['B', 'C', null] },
+        { firstname: 'Ena', address: 'C', places: [null, 'C', 'D'] },
+        { firstname: 'Esperanza', address: 'A', places: ['A', 'B', 'C'] },
+        { firstname: 'Griffin', address: 'D', places: ['D'] },
+        { firstname: null, address: null, places: [] },
+      ],
+    });
+  });
+
   test('alias', async () => {
     expect(
       await client.query([
         {
           name: 'people',
           alias: 'a',
-          filter: ['id', '=', 'A'],
+          filter: 'A',
           fields: ['firstname', 'lastname'],
         },
         {
           name: 'people',
           alias: 'b',
-          filter: ['id', '=', 'B'],
+          filter: 'B',
           fields: [
             'firstname',
             {

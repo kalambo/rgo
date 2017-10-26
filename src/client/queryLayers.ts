@@ -12,7 +12,7 @@ import {
 import { ClientState, Query, QueryLayer } from './typings';
 
 export const getFilterFields = (filter: any[]): string[] => {
-  if (Array.isArray(filter[1] || [])) {
+  if (['and', 'or'].includes(filter[0].toLowerCase())) {
     return filter
       .slice(1)
       .reduce((res, f) => [...res, ...getFilterFields(f)], []);
@@ -28,6 +28,13 @@ export default function queryLayers(schema: Obj<Obj<Field>>, query: Query[]) {
     fields: (string | Query)[],
     path: string,
   ): QueryLayer => {
+    if (args.filter && !Array.isArray(args.filter)) {
+      args.filter = ['id', args.filter];
+    }
+    if (args.sort && !Array.isArray(args.sort)) {
+      args.sort = [args.sort];
+    }
+
     const scalarFields: Obj<true> = keysToObject<true>(
       fields.filter(f => typeof f === 'string'),
       true,
@@ -117,7 +124,7 @@ export default function queryLayers(schema: Obj<Obj<Field>>, query: Query[]) {
           return processRelation(
             { type: field.type, field: name, alias },
             schemaField,
-            args,
+            args as Args,
             fields,
             `${path}_${alias || name}`,
           );
@@ -131,7 +138,7 @@ export default function queryLayers(schema: Obj<Obj<Field>>, query: Query[]) {
     processRelation(
       { field: name, alias },
       { type: name, isList: true },
-      args,
+      args as Args,
       fields,
       alias || name,
     ),

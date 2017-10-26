@@ -1,3 +1,3 @@
-export { buildClient, Client, Query } from './client';
-export { ScalarName } from './core';
+export { buildClient, Client } from './client';
+export { Query, ScalarName } from './core';
 export { default as buildServer, connectors } from './server';

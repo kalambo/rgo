@@ -23,6 +23,8 @@ import {
   ForeignRelationField,
   keysToObject,
   Obj,
+  printArgs,
+  Query,
   QueryRequest,
   QueryResponse,
   RelationField,
@@ -32,7 +34,6 @@ import {
 import batch from './batch';
 import commit from './commit';
 import normalizeResult from './normalize';
-import parseArgs from './parseArgs';
 import { AuthConfig, Connector, Mutation } from './typings';
 
 const argTypes = {
@@ -54,10 +55,12 @@ const argTypes = {
 
 const mapFilterUserId = (filter: any[] | undefined, userId: string | null) => {
   if (!filter) return filter;
-  if (Array.isArray(filter[1] || [])) {
+  if (['and', 'or'].includes(filter[0].toLowerCase())) {
     return [filter[0], ...filter.slice(1).map(f => mapFilterUserId(f, userId))];
   }
-  if (filter[2] === '$user') return [filter[0], filter[1], userId || ''];
+  const op = filter.length === 3 ? filter[1] : '=';
+  const value = filter[filter.length - 1];
+  if (value === '$user') return [filter[0], op, userId || ''];
   return filter;
 };
 
@@ -99,18 +102,28 @@ export default async function buildServer(
       info: GraphQLResolveInfo,
       extra?: { filter: any[]; fields: string[] },
     ) => {
-      const parsedArgs = parseArgs(
-        args,
-        typeFields[field.type],
-        fieldIs.relation(field),
-      );
+      if (args.filter && !Array.isArray(args.filter)) {
+        args.filter = ['id', args.filter];
+      }
+      if (args.sort && !Array.isArray(args.sort)) {
+        args.sort = [args.sort];
+      }
+      if (args.sort) {
+        if (!args.sort.some(s => s.replace('-', '') === 'createdat')) {
+          args.sort.push('-createdat');
+        }
+        if (!args.sort.some(s => s.replace('-', '') === 'id')) {
+          args.sort.push('id');
+        }
+      }
+
       if (extra) {
-        parsedArgs.filter = parsedArgs.filter
-          ? ['and', parsedArgs.filter, extra.filter]
+        args.filter = args.filter
+          ? ['and', args.filter, extra.filter]
           : extra.filter;
       }
-      parsedArgs.filter = mapFilterUserId(parsedArgs.filter, user && user.id);
-      parsedArgs.fields = Array.from(
+      args.filter = mapFilterUserId(args.filter, user && user.id);
+      args.fields = Array.from(
         new Set([
           'id',
           ...info.fieldNodes[0].selectionSet!.selections
@@ -119,13 +132,13 @@ export default async function buildServer(
               fieldName =>
                 !fieldIs.foreignRelation(typeFields[field.type][fieldName]),
             ),
-          ...(parsedArgs.sort || []).map(s => s.replace('-', '')),
+          ...(args.sort || []).map(s => s.replace('-', '')),
           ...(extra ? extra.fields : []),
         ]),
       );
 
       if (internal || !options.auth) {
-        return await typeConnectors[field.type].query(parsedArgs);
+        return await typeConnectors[field.type].query(args);
       }
 
       const limits = await options.auth.limitQuery(
@@ -146,19 +159,19 @@ export default async function buildServer(
           : undefined;
         return {
           filter:
-            parsedArgs.filter && limitsMap[key].length > 0
-              ? ['and', parsedArgs.filter, ['or', ...limitsMap[key]]]
-              : parsedArgs.filter || ['or', ...limitsMap[key]],
+            args.filter && limitsMap[key].length > 0
+              ? ['and', args.filter, ['or', ...limitsMap[key]]]
+              : args.filter || ['or', ...limitsMap[key]],
           fields:
-            parsedArgs.fields && fields
-              ? parsedArgs.fields.filter(f => fields.includes(f))
-              : parsedArgs.fields || fields,
+            args.fields && fields
+              ? args.fields.filter(f => fields.includes(f))
+              : args.fields || fields,
         };
       });
 
       if (groupedLimits.length === 1) {
         return await typeConnectors[field.type].query({
-          ...parsedArgs,
+          ...args,
           ...groupedLimits[0],
         });
       }
@@ -171,8 +184,8 @@ export default async function buildServer(
       }
       return Object.keys(data)
         .map(id => data[id])
-        .sort(createCompare((record, key) => record[key], parsedArgs.sort))
-        .slice(parsedArgs.start, parsedArgs.end);
+        .sort(createCompare((record, key) => record[key], args.sort))
+        .slice(args.start, args.end);
     };
 
     const queryTypes = keysToObject(
@@ -229,6 +242,9 @@ export default async function buildServer(
                       ? 'id'
                       : field.foreign;
 
+                    if (fieldIs.foreignRelation(field)) {
+                      args.sort = args.sort || [];
+                    }
                     const records = await getRecords(
                       field,
                       { ...args, start: undefined, end: undefined },
@@ -317,6 +333,7 @@ export default async function buildServer(
             conext: { user: Obj | null; internal?: boolean },
             info: GraphQLResolveInfo,
           ) {
+            args.sort = args.sort || [];
             return await getRecords({ type, isList: true }, args, conext, info);
           },
         })),
@@ -352,13 +369,44 @@ export default async function buildServer(
       }),
     });
 
-    const runQuery = async (query: string) =>
-      (await execute(graphQLSchema, parse(query), null, {
-        user,
-        rootQuery: query,
-        mutationsInfo: { mutations: {}, newIds: {} },
-        internal: true,
-      })).data as Obj;
+    const printQuery = (
+      { name, alias, fields, ...args }: Query,
+      field: ForeignRelationField | RelationField,
+    ) => {
+      const base = `${alias ? `${alias}:` : ''}${name}`;
+      const printedArgs =
+        fieldIs.foreignRelation(field) || field.isList ? printArgs(args) : '';
+      return `${base}${printedArgs} {
+        ${fields
+          .map(
+            f =>
+              typeof f === 'string'
+                ? fieldIs.scalar(schema[field.type][f]) ? f : `${f} {\nid\n}`
+                : printQuery(f, schema[field.type][f.name] as
+                    | ForeignRelationField
+                    | RelationField),
+          )
+          .join('\n')}
+      }`;
+    };
+    const runQuery = async (query: Query | Query[]) =>
+      (await execute(
+        graphQLSchema,
+        parse(`{
+          ${Array.isArray(query)
+            ? query
+            : [query]
+                .map(q => printQuery(q, { type: q.name, isList: true }))
+                .join('\n')}
+        }`),
+        null,
+        {
+          user,
+          rootQuery: query,
+          mutationsInfo: { mutations: {}, newIds: {} },
+          internal: true,
+        },
+      )).data as Obj;
 
     const queries = Array.isArray(request) ? request : [request];
 

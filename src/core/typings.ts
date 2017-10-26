@@ -13,16 +13,22 @@ export type ScalarName =
 
 export type Data = Obj<Obj<Obj | null>>;
 
-export interface Args {
-  filter?: any[];
-  sort?: string[];
+export interface Args<T = undefined> {
+  filter?: T | any[];
+  sort?: T | string[];
   start?: number;
   end?: number;
 }
-export interface FullArgs extends Args {
+export interface FullArgs<T = undefined> extends Args<T> {
   offset?: number;
   trace?: { start: number; end?: number };
   fields?: string[];
+}
+
+export interface Query extends Args<string> {
+  name: string;
+  alias?: string;
+  fields: (string | Query)[];
 }
 
 export interface ScalarField {

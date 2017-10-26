@@ -5,7 +5,7 @@ afterEach(clearClient);
 
 const simpleQuery = {
   name: 'people',
-  sort: ['firstname'],
+  sort: 'firstname',
   start: 1,
   end: 3,
   fields: [
@@ -19,7 +19,7 @@ const simpleQuery = {
 
 const relationQuery = {
   name: 'people',
-  sort: ['firstname'],
+  sort: 'firstname',
   start: 1,
   end: 3,
   fields: [
@@ -33,14 +33,14 @@ const relationQuery = {
 
 const sortedRelationQuery = {
   name: 'people',
-  sort: ['firstname'],
+  sort: 'firstname',
   start: 1,
   end: 3,
   fields: [
     'firstname',
     {
       name: 'places',
-      sort: ['city'],
+      sort: 'city',
       fields: ['city'],
     },
   ],

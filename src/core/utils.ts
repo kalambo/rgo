@@ -1,4 +1,6 @@
-import { Obj } from './typings';
+import * as stringify from 'stringify-object';
+
+import { FullArgs, Obj } from './typings';
 
 export const noUndef = (v: any, replacer: any = null) =>
   v === undefined ? replacer : v;
@@ -101,7 +103,7 @@ export const runFilter = (
   if (!record) return false;
   if (!filter) return true;
 
-  if (Array.isArray(filter[1] || [])) {
+  if (['and', 'or'].includes(filter[0].toLowerCase())) {
     if (filter[0].toLowerCase() === 'and') {
       return filter.slice(1).every(b => runFilter(b, id, record));
     } else if (filter[0].toLowerCase() === 'or') {
@@ -109,9 +111,10 @@ export const runFilter = (
     }
   }
 
-  const [key, op, value] = filter;
+  const op = filter.length === 3 ? filter[1] : '=';
+  const value = filter[filter.length - 1];
 
-  const v = key === 'id' ? id : noUndef(record[key]);
+  const v = filter[0] === 'id' ? id : noUndef(record[filter[0]]);
   if (op === '=') return v === value;
   if (op === '!=') return v !== value;
   if (op === '<') return v < value;
@@ -122,3 +125,10 @@ export const runFilter = (
 
   return false;
 };
+
+export const printArgs = (args: FullArgs<string>) =>
+  `(${stringify(args, {
+    singleQuotes: false,
+    filter: (obj, prop) => obj[prop] !== undefined,
+    inlineCharacterLimit: 1000,
+  }).slice(1, -1)})`;

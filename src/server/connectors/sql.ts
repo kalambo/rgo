@@ -26,20 +26,28 @@ export function applyFilter(
   filter: any[],
   isOr?: boolean,
 ) {
-  if (Array.isArray(filter[1] || [])) {
+  if (['and', 'or'].includes(filter[0].toLowerCase())) {
     return knex.where(function(this: knex.QueryBuilder) {
       filter
         .slice(1)
         .forEach(f => applyFilter(this, f, filter[0].toLowerCase() === 'or'));
     });
   }
-  if (filter[2] === null && ['=', '!='].includes(filter[1])) {
+  const op = filter.length === 3 ? filter[1] : '=';
+  const value = filter[filter.length - 1];
+  if (value === null && ['=', '!='].includes(op)) {
     return knex[
-      `${isOr ? 'orWhere' : 'where'}${filter[1] === '=' ? 'Null' : 'NotNull'}`
+      `${isOr ? 'orWhere' : 'where'}${op === '=' ? 'Null' : 'NotNull'}`
     ](filter[0]);
   }
-  return knex[isOr ? 'orWhere' : 'where'](filter[0], filter[1], filter[2]);
+  return knex[isOr ? 'orWhere' : 'where'](filter[0], op, value);
 }
+
+// return {
+//   [fieldDbKeys[filter[0]] || filter[0]]: {
+//     [ops[filter.length === 3 ? filter[1] : '=']]: filter[filter.length - 1],
+//   },
+// };
 
 export default async function sql(
   knex: knex,

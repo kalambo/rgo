@@ -106,16 +106,16 @@ export default function mongoConnector(
     in: '$in',
   };
   const mongoFilter = (filter: any[]) => {
-    if (Array.isArray(filter[1] || [])) {
+    if (['and', 'or'].includes(filter[0].toLowerCase())) {
       return {
         [filter[0].toLowerCase() === 'and' ? '$and' : '$or']: filter
           .slice(1)
           .map(mongoFilter),
       };
     }
-    return {
-      [fieldDbKeys[filter[0]] || filter[0]]: { [ops[filter[1]]]: filter[2] },
-    };
+    const op = filter.length === 3 ? filter[1] : '=';
+    const value = filter[filter.length - 1];
+    return { [fieldDbKeys[filter[0]] || filter[0]]: { [ops[op]]: value } };
   };
 
   return {

@@ -65,7 +65,7 @@ describe('change: root', () => {
     client.query(
       {
         name: 'people',
-        sort: ['firstname'],
+        sort: 'firstname',
         start: 1,
         end: 3,
         fields: ['firstname', 'lastname'],

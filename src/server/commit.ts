@@ -1,11 +1,11 @@
-import { Field, fieldIs, keysToObject, Obj } from '../core';
+import { Field, fieldIs, keysToObject, Obj, Query } from '../core';
 
 import { AuthConfig, Connector, Mutation } from './typings';
 
 export default async function mutate(
   fields: Obj<Obj<Field>>,
   connectors: Obj<Connector>,
-  runQuery: (query: string) => Promise<Obj>,
+  runQuery: (query: Query | Query[]) => Promise<Obj>,
   args,
   {
     user,
@@ -58,11 +58,7 @@ export default async function mutate(
         delete data[auth.usernameField];
         if (!prev || prev[auth.usernameField] !== username) {
           const existingUser = await connectors[type].query({
-            filter: [
-              'and',
-              [auth.usernameField, '=', username],
-              ['id', '!=', mId],
-            ],
+            filter: ['and', [auth.usernameField, username], ['id', '!=', mId]],
             end: 1,
             fields: ['id'],
           });

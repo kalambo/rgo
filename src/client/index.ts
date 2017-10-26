@@ -1,5 +1,5 @@
-export { Client, Query } from './typings';
-export { ScalarName } from '../core';
+export { Client } from './typings';
+export { Query, ScalarName } from '../core';
 
 import * as _ from 'lodash';
 import {
@@ -13,13 +13,14 @@ import {
 
 import {
   Data,
-  Field,
   fieldIs,
   keysToObject,
   mapArray,
   noUndef,
   Obj,
+  printArgs,
   promisifyEmitter,
+  Query,
   QueryRequest,
   QueryResponse,
   scalars,
@@ -29,7 +30,7 @@ import {
 import ClientState from './ClientState';
 import queryLayers from './queryLayers';
 import readLayer from './readLayer';
-import { AuthState, Client, DataChanges, Query, QueryLayer } from './typings';
+import { AuthState, Client, DataChanges, QueryLayer } from './typings';
 
 const ops = { $ne: '!=', $lte: '<=', $gte: '>=', $eq: '=', $lt: '<', $gt: '>' };
 const printFilter = filter => {
@@ -48,7 +49,6 @@ export function buildClient(
   ) => Promise<{ token: string; refresh: string } | null>,
   log?: boolean,
 ): Client {
-  let schema: Obj<Obj<Field>>;
   const auth: {
     refresh: (
       refreshToken: string,
@@ -104,7 +104,7 @@ export function buildClient(
     return await response.json();
   };
   const run = _.throttle(async () => {
-    if (schema) {
+    if (client.schema) {
       const runIndex = ++currentRun;
       const requests: QueryRequest[] = [];
 
@@ -130,7 +130,7 @@ export function buildClient(
       const commitIndices: number[] = [];
       for (const { values } of commits) {
         const data = values.reduce((res, { key, value }) => {
-          const field = schema[key[0]][key[2]];
+          const field = client.schema[key[0]][key[2]];
           const encode = fieldIs.scalar(field) && scalars[field.scalar].encode;
           return _.set(
             res,
@@ -164,7 +164,9 @@ export function buildClient(
                         )
                           .map(
                             f =>
-                              fieldIs.scalar(schema[t][f]) ? f : `${f} { id }`,
+                              fieldIs.scalar(client.schema[t][f])
+                                ? f
+                                : `${f} { id }`,
                           )
                           .join('\n')}
                       }`,
@@ -196,7 +198,7 @@ export function buildClient(
           if (auth && !refreshed) setAuth(null);
           responses = await doFetch(requests);
         }
-        state.setServer(responses[0].data, schema, queryIndices);
+        state.setServer(responses[0].data, client.schema, queryIndices);
         for (const i of queryIndices) {
           queries[i].firstIds = responses[firstIndicies[i]].firstIds!;
         }
@@ -224,7 +226,7 @@ export function buildClient(
           keysToObject(Object.keys(state.server), type =>
             keysToObject(Object.keys(state.server[type]), () => null),
           ),
-          schema,
+          client.schema,
           [],
         );
         Object.keys(queries).forEach(k => (queries[k] = {}));
@@ -233,42 +235,8 @@ export function buildClient(
     }
   };
 
-  (async () => {
-    const schemaFields = buildClientSchema(
-      (await (await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: introspectionQuery }),
-      })).json()).data,
-    )
-      .getQueryType()
-      .getFields();
-    schema = keysToObject(Object.keys(schemaFields), type => {
-      const fields = (schemaFields[type].type as GraphQLList<
-        GraphQLNonNull<GraphQLObjectType>
-      >).ofType.ofType.getFields();
-      return keysToObject(Object.keys(fields), field =>
-        JSON.parse(fields[field].description),
-      );
-    });
-    if (auth) {
-      for (const type of Object.keys(schema)) {
-        for (const field of Object.keys(schema[type])) {
-          if ((schema[type][field] as any).scalar === 'auth') {
-            auth.field = { type, field };
-            (schema[type][field] as any).scalar = 'string';
-            schema[type].password = { scalar: 'string' };
-          }
-        }
-      }
-    }
-    run();
-  })();
-
-  return {
-    schema() {
-      return schema;
-    },
+  const client = {
+    schema: null as any,
     newId(type) {
       newIds[type] = newIds[type] || 0;
       return `$${newIds[type]++}`;
@@ -298,7 +266,7 @@ export function buildClient(
         let data = {};
 
         const checkRun = () => {
-          layers = layers || queryLayers(schema, query);
+          layers = layers || queryLayers(client.schema, query);
           queries[queryIndex].next = {
             ids: {},
             slice: {},
@@ -324,7 +292,14 @@ export function buildClient(
             );
             const base = `${root.alias ? `${root.alias}:` : ''}${root.field}`;
             const inner = `{
-              ${fields.join('\n')}
+              ${fields
+                .map(
+                  f =>
+                    fieldIs.scalar(client.schema[field.type][f])
+                      ? f
+                      : `${f} {\nid\n}`,
+                )
+                .join('\n')}
               ${relations.map(processLayer).join('\n')}
             }`;
             if (fieldIs.foreignRelation(field) || field.isList) {
@@ -353,27 +328,18 @@ export function buildClient(
               ) {
                 alreadyFetched = false;
               }
-              const fullArgs = {
+              const printedArgs = printArgs({
                 ...args,
                 start: (args.start || 0) - extra.start,
                 end: undefOr(args.end, args.end! + extra.end),
                 offset: extra.start,
                 trace: prev.slice[path],
-              };
-              const printedArgs = Object.keys(fullArgs)
-                .filter(k => fullArgs[k] !== undefined)
-                .map(
-                  k =>
-                    `${k}: ${JSON.stringify(fullArgs[k]).replace(
-                      /\"([^(\")"]+)\":/g,
-                      '$1:',
-                    )}`,
-                );
+              });
               queries[queryIndex].next!.slice[path] = {
                 start: (args.start || 0) - extra.start,
                 end: undefOr(args.end, args.end! + extra.end),
               };
-              return `${base}(${printedArgs}) ${inner}`;
+              return `${base}${printedArgs} ${inner}`;
             }
             return `${base} ${inner}`;
           };
@@ -438,7 +404,7 @@ export function buildClient(
           }
         };
         watchers.push(watcher);
-        if (schema) checkRun();
+        if (client.schema) checkRun();
 
         return () => {
           delete queries[queryIndex];
@@ -522,4 +488,38 @@ export function buildClient(
       });
     },
   };
+
+  (async () => {
+    const schemaFields = buildClientSchema(
+      (await (await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: introspectionQuery }),
+      })).json()).data,
+    )
+      .getQueryType()
+      .getFields();
+    client.schema = keysToObject(Object.keys(schemaFields), type => {
+      const fields = (schemaFields[type].type as GraphQLList<
+        GraphQLNonNull<GraphQLObjectType>
+      >).ofType.ofType.getFields();
+      return keysToObject(Object.keys(fields), field =>
+        JSON.parse(fields[field].description),
+      );
+    });
+    if (auth) {
+      for (const type of Object.keys(client.schema)) {
+        for (const field of Object.keys(client.schema[type])) {
+          if ((client.schema[type][field] as any).scalar === 'auth') {
+            auth.field = { type, field };
+            (client.schema[type][field] as any).scalar = 'string';
+            client.schema[type].password = { scalar: 'string' };
+          }
+        }
+      }
+    }
+    run();
+  })();
+
+  return client;
 }

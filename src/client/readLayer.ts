@@ -16,10 +16,12 @@ const isOrIncludes = <T>(value: T | T[], elem: T) =>
 
 const mapFilterUserId = (filter: any[] | undefined, userId: string | null) => {
   if (!filter) return filter;
-  if (Array.isArray(filter[1] || [])) {
+  if (['and', 'or'].includes(filter[0].toLowerCase())) {
     return [filter[0], ...filter.slice(1).map(f => mapFilterUserId(f, userId))];
   }
-  if (filter[2] === '$user') return [filter[0], filter[1], userId || ''];
+  const op = filter.length === 3 ? filter[1] : '=';
+  const value = filter[filter.length - 1];
+  if (value === '$user') return [filter[0], op, userId || ''];
   return filter;
 };
 
