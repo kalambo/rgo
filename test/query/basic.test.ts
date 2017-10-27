@@ -184,4 +184,25 @@ describe('query: basic', () => {
       b: [{ firstname: 'Delphia', c: { city: 'Tobyhaven' } }],
     });
   });
+
+  test('relation ids', async () => {
+    client.set([{ key: ['people', 'F', 'firstname'], value: 'Brent' }]);
+    expect(
+      await client.query([
+        {
+          name: 'people',
+          sort: 'firstname',
+          fields: ['firstname', 'address', 'places'],
+        },
+      ]),
+    ).toEqual({
+      people: [
+        { firstname: 'Delphia', address: 'B', places: ['B', 'C', null] },
+        { firstname: 'Ena', address: 'C', places: [null, 'C', 'D'] },
+        { firstname: 'Esperanza', address: 'A', places: ['A', 'B', 'C'] },
+        { firstname: 'Griffin', address: 'D', places: ['D'] },
+        { firstname: null, address: null, places: [] },
+      ],
+    });
+  });
 });

@@ -381,8 +381,10 @@ export default async function buildServer(
           .map(
             f =>
               typeof f === 'string'
-                ? fieldIs.scalar(schema[field.type][f]) ? f : `${f} {\nid\n}`
-                : printQuery(f, schema[field.type][f.name] as
+                ? fieldIs.scalar(typeFields[field.type][f])
+                  ? f
+                  : `${f} {\nid\n}`
+                : printQuery(f, typeFields[field.type][f.name] as
                     | ForeignRelationField
                     | RelationField),
           )

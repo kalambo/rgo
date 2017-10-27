@@ -293,6 +293,7 @@ export function buildClient(
             const base = `${root.alias ? `${root.alias}:` : ''}${root.field}`;
             const inner = `{
               ${fields
+                .filter(f => f !== 'password')
                 .map(
                   f =>
                     fieldIs.scalar(client.schema[field.type][f])

@@ -5,11 +5,12 @@ import {
   ForeignRelationField,
   keysToObject,
   Obj,
+  Query,
   RelationField,
   runFilter,
 } from '../core';
 
-import { ClientState, Query, QueryLayer } from './typings';
+import { ClientState, QueryLayer } from './typings';
 
 export const getFilterFields = (filter: any[]): string[] => {
   if (['and', 'or'].includes(filter[0].toLowerCase())) {

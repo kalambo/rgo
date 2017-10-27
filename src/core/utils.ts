@@ -126,9 +126,13 @@ export const runFilter = (
   return false;
 };
 
-export const printArgs = (args: FullArgs<string>) =>
-  `(${stringify(args, {
+export const printArgs = (args: FullArgs<string>) => {
+  const result = stringify(args, {
     singleQuotes: false,
     filter: (obj, prop) => obj[prop] !== undefined,
     inlineCharacterLimit: 1000,
-  }).slice(1, -1)})`;
+  })
+    .slice(1, -1)
+    .trim();
+  return result ? `(${result})` : '';
+};
