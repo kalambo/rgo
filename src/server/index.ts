@@ -1,7 +1,6 @@
 import * as baseConnectors from './connectors';
 export { baseConnectors as connectors };
-import * as basePlugins from './plugins';
-export { basePlugins as serverPlugins };
+export { ServerPlugin } from './typings';
 
 import {
   execute,
@@ -40,7 +39,7 @@ import batch from './batch';
 import commit from './commit';
 import getRecords from './getRecords';
 import normalizeResult from './normalize';
-import { Connector, Info, Plugin } from './typings';
+import { Connector, Info, ServerPlugin } from './typings';
 
 const parseLiteral = ast => {
   switch (ast.kind) {
@@ -130,7 +129,7 @@ const printQuery = (
 
 export default async function buildServer(
   schema: Obj<{ fields: Obj<Field>; connector: Connector }>,
-  ...plugins: Plugin[]
+  ...plugins: ServerPlugin[]
 ) {
   async function api(
     request: QueryRequest,

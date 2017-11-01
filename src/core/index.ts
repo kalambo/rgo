@@ -24,7 +24,6 @@ export {
   locationOf,
   mapArray,
   mapFilter,
-  mapFilterUser,
   noUndef,
   printArgs,
   promisifyEmitter,

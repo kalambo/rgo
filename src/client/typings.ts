@@ -28,10 +28,31 @@ export interface QueryInfo {
   };
 }
 
+export type FetchPlugin = (
+  body: QueryRequest[],
+  headers: Obj,
+  next: (body: QueryRequest[], headers: Obj) => Promise<QueryResponse[]>,
+  reset: () => void,
+) => Promise<QueryResponse[]>;
+
+export type ChangePlugin = (
+  state: { server: Data; client: Data; combined: Data; diff: DataDiff },
+  changes: DataChanges,
+) => void;
+
+export type FilterPlugin = (filter?: any[]) => any[];
+
+export interface ClientPlugin {
+  onFetch?: FetchPlugin;
+  onChange?: ChangePlugin;
+  onFilter?: FilterPlugin;
+}
+
 export interface Client {
   schema: Obj<Obj<Field>>;
   newId(type: string): string;
 
+  query(): Promise<void>;
   query(query: Query<string> | Query<string>[]): Promise<Obj>;
   query(
     query: Query<string> | Query<string>[],
@@ -48,24 +69,4 @@ export interface Client {
   commit(
     keys: [string, string, string][],
   ): Promise<{ values: any[]; newIds: Obj } | null>;
-}
-
-export type FetchPlugin = (
-  body: QueryRequest[],
-  headers: Obj,
-  next: (body: QueryRequest[], headers: Obj) => Promise<QueryResponse[]>,
-  reset: () => void,
-) => Promise<QueryResponse[]>;
-
-export type ChangePlugin = (
-  state: { server: Data; client: Data; combined: Data; diff: DataDiff },
-  changes: DataChanges,
-) => void;
-
-export type FilterPlugin = (filter?: any[]) => any[];
-
-export interface Plugin {
-  onFetch?: FetchPlugin;
-  onChange?: ChangePlugin;
-  onFilter?: FilterPlugin;
 }

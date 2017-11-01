@@ -1,6 +1,4 @@
-import * as basePlugins from './plugins';
-export { basePlugins as clientPlugins };
-export { Client } from './typings';
+export { Client, ClientPlugin } from './typings';
 
 import * as _ from 'lodash';
 import {
@@ -29,9 +27,12 @@ import {
 import ClientState from './ClientState';
 import getRequests from './getRequests';
 import readLayer from './readLayer';
-import { Client, Plugin, QueryInfo } from './typings';
+import { Client, ClientPlugin, QueryInfo } from './typings';
 
-export default function buildClient(url: string, ...plugins: Plugin[]): Client {
+export default function buildClient(
+  url: string,
+  ...plugins: ClientPlugin[]
+): Client {
   const baseFetch = async (
     body: QueryRequest[],
     headers: Obj,
@@ -155,6 +156,8 @@ export default function buildClient(url: string, ...plugins: Plugin[]): Client {
     },
 
     query(...args) {
+      if (args.length === 0) return schemaPromise;
+
       const baseQueries: Query<string>[] = Array.isArray(args[0])
         ? args[0]
         : [args[0]];

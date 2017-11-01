@@ -202,20 +202,6 @@ export const mapFilter = (
   ];
 };
 
-export const mapFilterUser = (
-  filter: any[] | undefined,
-  userId: string | null,
-) => {
-  if (!filter || !userId) return filter;
-  if (['AND', 'OR'].includes(filter[0])) {
-    return [filter[0], ...filter.slice(1).map(f => mapFilterUser(f, userId))];
-  }
-  const op = filter.length === 3 ? filter[1] : '=';
-  const value = filter[filter.length - 1];
-  if (value === '$user') return [filter[0], op, userId];
-  return filter;
-};
-
 const printValue = (value: any, first = false) => {
   if (Array.isArray(value)) {
     return `[${value.map(v => printValue(v)).join(', ')}]`;

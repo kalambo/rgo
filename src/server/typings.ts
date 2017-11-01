@@ -41,9 +41,9 @@ export type QueryPlugin = ((
 export type CommitPlugin = ((
   mutation: { type: string } & Mutation,
   info: Info,
-) => Obj | null | void | Promise<Obj | null | void>);
+) => Obj | void | Promise<Obj | void>);
 
-export interface Plugin {
+export interface ServerPlugin {
   onRequest?: RequestPlugin;
   onFilter?: FilterPlugin;
   onQuery?: QueryPlugin;
