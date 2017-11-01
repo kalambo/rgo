@@ -2,19 +2,19 @@ import * as _ from 'lodash';
 
 import {
   Data,
+  decodeDate,
   Field,
   fieldIs,
   keysToObject,
   mapArray,
   noUndef,
   Obj,
-  scalars,
 } from '../core';
 
-import { DataChanges, DataDiff, FullChanges } from './typings';
+import { ChangePlugin, DataChanges, DataDiff, FullChanges } from './typings';
 
 export default class ClientState {
-  private log: boolean;
+  private plugins: ChangePlugin[];
 
   public server: Data = {};
   public client: Data = {};
@@ -23,8 +23,8 @@ export default class ClientState {
 
   private listeners: ((value: FullChanges) => void)[] = [];
 
-  public constructor(log: boolean = false) {
-    this.log = log;
+  constructor(plugins: ChangePlugin[]) {
+    this.plugins = plugins;
   }
 
   public listen(listener: (value: FullChanges) => void) {
@@ -35,16 +35,17 @@ export default class ClientState {
   }
 
   private emitChanges(changes: DataChanges) {
-    if (this.log) {
-      console.log(
-        _.cloneDeep({
+    this.plugins.forEach(p =>
+      p(
+        {
           server: this.server,
           client: this.client,
           combined: this.combined,
           diff: this.diff,
-        }),
-      );
-    }
+        },
+        changes,
+      ),
+    );
     const changedTypes = Object.keys(changes);
     if (changedTypes.length > 0) {
       const changedData = keysToObject(Object.keys(changes), type =>
@@ -71,8 +72,10 @@ export default class ClientState {
         for (const id of Object.keys(this.client[type] || {})) {
           for (const field of Object.keys(_.get(this.client, type, id) || {})) {
             if (
-              noUndef(_.get(this.combined, [type, id, field])) !==
-              noUndef(_.get(this.server, [type, id, field]))
+              !_.isEqual(
+                noUndef(_.get(this.combined, [type, id, field])),
+                noUndef(_.get(this.server, [type, id, field])),
+              )
             ) {
               setChanged(type, id, field);
             }
@@ -95,8 +98,10 @@ export default class ClientState {
               _.get(this.client, type, id) || {},
             )) {
               if (
-                noUndef(_.get(this.combined, [type, id, field])) !==
-                noUndef(_.get(this.server, [type, id, field]))
+                !_.isEqual(
+                  noUndef(_.get(this.combined, [type, id, field])),
+                  noUndef(_.get(this.server, [type, id, field])),
+                )
               ) {
                 setChanged(type, id, field);
               }
@@ -121,8 +126,10 @@ export default class ClientState {
             } else {
               for (const field of Object.keys(this.combined[type][id] || {})) {
                 if (
-                  noUndef(_.get(this.combined, [type, id, field])) !==
-                  noUndef(_.get(this.client, [type, id, field]))
+                  !_.isEqual(
+                    noUndef(_.get(this.combined, [type, id, field])),
+                    noUndef(_.get(this.client, [type, id, field])),
+                  )
                 ) {
                   setChanged(type, id, field);
                 }
@@ -158,11 +165,11 @@ export default class ClientState {
                 }
               } else {
                 const f = schema![type][field];
-                const decode = fieldIs.scalar(f) && scalars[f.scalar].decode;
+                const isDate = fieldIs.scalar(f) && f.scalar === 'date';
                 const fieldValue =
-                  data[type][id]![field] === null || !decode
+                  data[type][id]![field] === null || !isDate
                     ? data[type][id]![field]
-                    : mapArray(data[type][id]![field], decode);
+                    : mapArray(data[type][id]![field], decodeDate);
                 if (
                   fieldIs.relation(f) &&
                   f.isList &&
@@ -178,7 +185,12 @@ export default class ClientState {
                 }
                 this.server[type][id]![field] = fieldValue;
               }
-              if (noUndef(_.get(this.combined, [type, id, field])) !== prev) {
+              if (
+                !_.isEqual(
+                  noUndef(_.get(this.combined, [type, id, field])),
+                  prev,
+                )
+              ) {
                 setChanged(type, id, field);
               }
             }

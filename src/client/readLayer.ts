@@ -1,3 +1,5 @@
+import * as _ from 'lodash';
+
 import {
   createCompare,
   Field,
@@ -14,23 +16,9 @@ import {
   undefOr,
 } from '../core';
 
-import { ClientState, DataChanges } from './typings';
+import { ClientState, DataChanges, FilterPlugin } from './typings';
 
 (x: Field | Query) => x;
-
-const isOrIncludes = <T>(value: T | T[], elem: T) =>
-  Array.isArray(value) ? value.includes(elem) : value === elem;
-
-const mapFilterUserId = (filter: any[] | undefined, userId: string | null) => {
-  if (!filter) return filter;
-  if (['AND', 'OR'].includes(filter[0])) {
-    return [filter[0], ...filter.slice(1).map(f => mapFilterUserId(f, userId))];
-  }
-  const op = filter.length === 3 ? filter[1] : '=';
-  const value = filter[filter.length - 1];
-  if (value === '$user') return [filter[0], op, userId || ''];
-  return filter;
-};
 
 export default queryWalker(
   (
@@ -39,12 +27,12 @@ export default queryWalker(
       records,
       state,
       firstIds,
-      userId,
+      plugins,
     }: {
       records: Obj<Obj<Obj>>;
       state: ClientState;
       firstIds: Obj<Obj<string>>;
-      userId: string | null;
+      plugins: FilterPlugin[];
     },
     walkRelations: () => ((changes: DataChanges, update: boolean) => number)[],
   ) => {
@@ -55,7 +43,7 @@ export default queryWalker(
       ]),
     );
 
-    const mappedFilter = mapFilterUserId(args.filter, userId);
+    const mappedFilter = plugins.reduce((res, p) => p(res), args.filter);
     const filter = (id: string) =>
       runFilter(mappedFilter, id, state.combined[field.type][id]);
     const compare = createCompare(
@@ -90,7 +78,7 @@ export default queryWalker(
         '',
         rootRecordIds[rootId],
         createCompare(
-          (id: string, key) =>
+          (id: string | null, key) =>
             key === 'id'
               ? id || record.id
               : id ? state.combined[field.type][id]![key] : record[key],
@@ -123,14 +111,13 @@ export default queryWalker(
               value && filteredIds.includes(value) ? [value as string] : [];
           }
         } else {
-          rootRecordIds[rootId] = filteredIds.filter(
-            id =>
+          rootRecordIds[rootId] = filteredIds.filter(id => {
+            const v = state.combined[field.type!][id]![field.foreign];
+            return (
               (value || []).includes(id) ||
-              isOrIncludes(
-                state.combined[field.type!][id]![field.foreign],
-                rootId,
-              ),
-          );
+              (Array.isArray(v) ? v.includes(rootId) : v === rootId)
+            );
+          });
         }
       }
 
@@ -240,7 +227,7 @@ export default queryWalker(
               const value = noUndef(
                 ((state.combined[field.type] || {})[id] || {})[f],
               );
-              if (value !== prev) {
+              if (!_.isEqual(value, prev)) {
                 hasUpdated = true;
                 if (update) records[pathKey][id][f] = value;
               }

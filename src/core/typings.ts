@@ -8,7 +8,6 @@ export type ScalarName =
   | 'float'
   | 'string'
   | 'date'
-  | 'file'
   | 'json';
 
 export type Data = Obj<Obj<Obj | null>>;

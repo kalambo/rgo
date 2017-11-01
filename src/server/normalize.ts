@@ -21,7 +21,7 @@ import {
 const toArray = (x: any) => (Array.isArray(x) ? x : [x]);
 
 export default function normalize(
-  typeFields: Obj<Obj<Field>>,
+  schema: Obj<Obj<Field>>,
   data: Data,
   queryDoc: DocumentNode,
   argTypes: Obj<{ type: GraphQLInputType }>,
@@ -133,7 +133,7 @@ export default function normalize(
           type: field.type,
           field: node.name.value,
         },
-        typeFields[field.type][node.name.value] as
+        schema[field.type][node.name.value] as
           | ForeignRelationField
           | RelationField,
         node,

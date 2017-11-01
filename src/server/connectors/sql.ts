@@ -41,12 +41,6 @@ export function applyFilter(
   return knex[isOr ? 'orWhere' : 'where'](filter[0], op, value);
 }
 
-// return {
-//   [fieldDbKeys[filter[0]] || filter[0]]: {
-//     [ops[filter.length === 3 ? filter[1] : '=']]: filter[filter.length - 1],
-//   },
-// };
-
 export default async function sql(
   knex: knex,
   type: string,

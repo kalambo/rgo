@@ -40,7 +40,6 @@ const layerRequests = queryWalker<
         ...(args.sort ? args.sort.map(s => s.replace('-', '')) : []),
       ]),
     )
-      .filter(f => f !== 'password')
       .map(
         f =>
           fieldIs.scalar(context.schema[field.type][f]) ? f : `${f} {\nid\n}`,

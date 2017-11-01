@@ -1,12 +1,6 @@
 export { default as ClientState } from './ClientState';
 
-import { Data, Field, Obj, Query } from '../core';
-
-export interface AuthState {
-  id: string;
-  token: string;
-  refresh?: string;
-}
+import { Data, Field, Obj, Query, QueryRequest, QueryResponse } from '../core';
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 
@@ -37,7 +31,6 @@ export interface QueryInfo {
 export interface Client {
   schema: Obj<Obj<Field>>;
   newId(type: string): string;
-  auth(authState?: AuthState): string | null;
 
   query(query: Query<string> | Query<string>[]): Promise<Obj>;
   query(
@@ -55,4 +48,24 @@ export interface Client {
   commit(
     keys: [string, string, string][],
   ): Promise<{ values: any[]; newIds: Obj } | null>;
+}
+
+export type FetchPlugin = (
+  body: QueryRequest[],
+  headers: Obj,
+  next: (body: QueryRequest[], headers: Obj) => Promise<QueryResponse[]>,
+  reset: () => void,
+) => Promise<QueryResponse[]>;
+
+export type ChangePlugin = (
+  state: { server: Data; client: Data; combined: Data; diff: DataDiff },
+  changes: DataChanges,
+) => void;
+
+export type FilterPlugin = (filter?: any[]) => any[];
+
+export interface Plugin {
+  onFetch?: FetchPlugin;
+  onChange?: ChangePlugin;
+  onFilter?: FilterPlugin;
 }

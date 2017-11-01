@@ -1,4 +1,5 @@
-import scalars from './scalars';
+import * as _ from 'lodash';
+
 import {
   Field,
   fieldIs,
@@ -79,7 +80,7 @@ export const promisifyEmitter = <T>(
 };
 
 const compareValues = (a, b) => {
-  if (a === b) return 0;
+  if (_.isEqual(a, b)) return 0;
   if (typeof a === 'string' && typeof b === 'string') {
     return a.toLowerCase().localeCompare(b.toLowerCase()) as 0 | 1 | -1;
   }
@@ -123,8 +124,8 @@ export const runFilter = (
   const value = filter[filter.length - 1];
 
   const v = filter[0] === 'id' ? id : noUndef(record[filter[0]]);
-  if (op === '=') return v === value;
-  if (op === '!=') return v !== value;
+  if (op === '=') return _.isEqual(v, value);
+  if (op === '!=') return !_.isEqual(v, value);
   if (op === '<') return v < value;
   if (op === '<=') return v <= value;
   if (op === '>') return v > value;
@@ -178,6 +179,8 @@ export const getFilterFields = (filter: any[]): string[] => {
   return [filter[0]];
 };
 
+export const encodeDate = (v: Date | null) => v && v.getTime();
+export const decodeDate = (v: number | null) => v && new Date(v);
 export const mapFilter = (
   map: 'encode' | 'decode',
   filter: string | any[],
@@ -188,11 +191,29 @@ export const mapFilter = (
     return [filter[0], ...filter.slice(1).map(f => mapFilter(map, f, fields))];
   }
   const field = fields[filter[0]];
-  const scalar = scalars[fieldIs.scalar(field) ? field.scalar : 'string'];
-  if (!scalar[map]) return filter;
+  const isDate = fieldIs.scalar(field) && field.scalar === 'date';
+  if (!isDate) return filter;
   const op = filter.length === 3 ? filter[1] : '=';
   const value = filter[filter.length - 1];
-  return [filter[0], op, scalar[map]!(value)];
+  return [
+    filter[0],
+    op,
+    map === 'encode' ? encodeDate(value) : decodeDate(value),
+  ];
+};
+
+export const mapFilterUser = (
+  filter: any[] | undefined,
+  userId: string | null,
+) => {
+  if (!filter || !userId) return filter;
+  if (['AND', 'OR'].includes(filter[0])) {
+    return [filter[0], ...filter.slice(1).map(f => mapFilterUser(f, userId))];
+  }
+  const op = filter.length === 3 ? filter[1] : '=';
+  const value = filter[filter.length - 1];
+  if (value === '$user') return [filter[0], op, userId];
+  return filter;
 };
 
 const printValue = (value: any, first = false) => {

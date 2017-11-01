@@ -1,167 +1,97 @@
-import { Field, fieldIs, keysToObject, Obj, Query } from '../core';
+import {
+  fieldIs,
+  keysToObject,
+  noUndef,
+  Obj,
+  RelationField,
+  ScalarField,
+} from '../core';
 
-import { AuthConfig, Connector, Mutation } from './typings';
+import { CommitPlugin, Connector, Info, Mutation } from './typings';
 
 export default async function mutate(
-  fields: Obj<Obj<Field>>,
+  info: Info,
   connectors: Obj<Connector>,
-  runQuery: (query: Query | Query[]) => Promise<Obj>,
   args,
-  {
-    user,
-    mutationsInfo,
-  }: {
-    user: Obj | null;
-    mutationsInfo: { mutations: Obj<Mutation[]>; newIds: Obj<Obj<string>> };
-  },
-  auth?: AuthConfig,
+  { newIds }: { newIds: Obj<Obj<string>> },
+  plugins: CommitPlugin[],
 ) {
   const typeNames = Object.keys(args);
-  const newIds: Obj<Obj<string>> = {};
+  const tempNewIds: Obj<Obj<string>> = {};
+  const time = new Date();
 
   for (const type of typeNames) {
-    newIds[type] = newIds[type] || {};
+    tempNewIds[type] = tempNewIds[type] || {};
     args[type]
       .map(m => m.id)
       .filter(id => id.startsWith('LOCAL__RECORD__'))
       .forEach(id => {
-        newIds[type][id] = connectors[type].newId();
+        tempNewIds[type][id] = connectors[type].newId();
       });
   }
   const getId = (type: string, id: string) =>
-    ({
-      ...(newIds[type] || {}),
-      $user: (user && user.id) || '',
-    }[id] || id);
+    (tempNewIds[type] || {})[id] || id;
 
-  const mutations = keysToObject(typeNames, () => [] as Mutation[]);
+  const mutations = keysToObject<Mutation[]>(typeNames, []);
   for (const type of typeNames) {
-    for (const { id, ...mutation } of args[type]) {
-      const mId = getId(type, id);
-
-      for (const f of Object.keys(fields[type])) {
-        const field = fields[type][f];
-        if (fieldIs.relation(field) && mutation[f]) {
-          mutation[f] = field.isList
-            ? mutation[f].map(v => getId(field.type, v))
-            : getId(field.type, mutation[f]);
-        }
-      }
+    for (const { id: tempId, ...mutation } of args[type]) {
+      const id = getId(type, tempId);
 
       const data: Obj | null = Object.keys(mutation).length ? mutation : null;
       const prev: Obj | null =
-        (id === mId && (await connectors[type].findById(mId))) || null;
+        (id === tempId && (await connectors[type].findById(id))) || null;
       if (prev) delete prev.id;
 
-      if (auth && type === auth.type && data && data[auth.usernameField]) {
-        const { username, password } = JSON.parse(data[auth.usernameField]);
-        delete data[auth.usernameField];
-        if (!prev || prev[auth.usernameField] !== username) {
-          const existingUser = await connectors[type].query({
-            filter: ['AND', [auth.usernameField, username], ['id', '!=', mId]],
-            end: 1,
-            fields: ['id'],
-          });
-          if (existingUser.length > 0) {
-            const error = new Error('Username already exists') as any;
-            error.status = 400;
-            return error;
-          }
-        }
-        if (username) data[auth.usernameField] = username;
-        if (password && (!prev || !prev[auth.authIdField])) {
-          data[auth.authIdField] = password;
-        }
-      }
-
-      const combinedData = { ...prev, ...data };
-      if (
-        auth &&
-        !await auth.allowMutation(
-          fields,
-          runQuery,
-          user,
-          type,
-          mId,
-          data && combinedData,
-          prev,
-        )
-      ) {
-        const error = new Error('Not authorized') as any;
-        error.status = 401;
-        return error;
-      }
-
       if (data) {
-        for (const f of Object.keys(combinedData)) {
-          const field = fields[type][f];
-          if (!fieldIs.foreignRelation(field)) {
-            if (field.isList && data && data[f] && data[f].length === 0) {
-              data[f] = null;
+        for (const f of Object.keys(data)) {
+          if (data[f]) {
+            const field = info.schema[type][f] as RelationField | ScalarField;
+            if (field.isList && data[f].length === 0) data[f] = null;
+            if (fieldIs.relation(field)) {
+              data[f] = field.isList
+                ? data[f].map(v => getId(field.type, v))
+                : getId(field.type, data[f]);
             }
           }
         }
+        if (!prev && !data.createdat) data.createdat = time;
+        if (!data.modifiedat) data.modifiedat = time;
       }
-      mutations[type].push({ id: mId, data, prev });
+
+      mutations[type].push({ id, data, prev });
     }
   }
 
-  const results = keysToObject(typeNames, () => [] as Obj[]);
+  try {
+    for (const p of plugins) {
+      await Promise.all(
+        typeNames.map(async type => {
+          mutations[type] = await Promise.all(
+            mutations[type].map(async m => ({
+              ...m,
+              data: noUndef(await p({ ...m, type }, info), m.data),
+            })),
+          );
+        }),
+      );
+    }
+  } catch (error) {
+    return error;
+  }
+
+  const results = keysToObject<Obj[]>(typeNames, []);
   for (const type of typeNames) {
-    mutationsInfo.mutations[type] = mutationsInfo.mutations[type] || [];
-    mutationsInfo.newIds[type] = {
-      ...mutationsInfo.newIds[type],
-      ...newIds[type],
-    };
+    newIds[type] = { ...newIds[type], ...tempNewIds[type] };
     for (const { id, data, prev } of mutations[type]) {
       if (data) {
-        const time = new Date();
-        const fullData = {
-          ...!prev ? { createdat: time } : {},
-          modifiedat: time,
-          ...data,
-        };
-
-        if (auth && type === auth.type && fullData[auth.authIdField]) {
-          const username = fullData[auth.usernameField];
-          const password = fullData[auth.authIdField];
-          fullData[auth.authIdField] = await auth.createAuth(
-            username,
-            password,
-            id,
-            auth.metaFields &&
-              keysToObject(
-                auth.metaFields.filter(
-                  f => fullData[f] !== undefined && fullData[f] !== null,
-                ),
-                f => fullData[f],
-              ),
-          );
-          mutationsInfo.newIds['$user'] = { username, password };
-        }
-
         if (prev) {
-          console.log(
-            `kalambo-mutate-update, ${type}:${id}, ` +
-              `old: ${JSON.stringify(prev)}, new: ${JSON.stringify(fullData)}`,
-          );
-          await connectors[type].update(id, fullData);
+          await connectors[type].update(id, data);
         } else {
-          console.log(
-            `kalambo-mutate-insert, ${type}:${id}, new: ${JSON.stringify(
-              fullData,
-            )}`,
-          );
-          await connectors[type].insert(id, fullData);
+          await connectors[type].insert(id, data);
         }
-        mutationsInfo.mutations[type].push({ id, data: fullData, prev });
-        results[type].push({ id, ...prev, ...fullData });
+        results[type].push({ id, ...prev, ...data });
       } else {
-        console.log(
-          `kalambo-mutate-delete, ${type}:${id}, old: ${JSON.stringify(prev)}`,
-        );
         await connectors[type].delete(id);
-        mutationsInfo.mutations[type].push({ id, data, prev });
         results[type].push({ id });
       }
     }

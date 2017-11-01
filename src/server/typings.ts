@@ -1,4 +1,4 @@
-import { Field, FullArgs, Obj, Query } from '../core';
+import { Field, FullArgs, Obj, Query, QueryRequest } from '../core';
 
 export interface Methods {}
 
@@ -19,34 +19,33 @@ export interface Mutation {
   prev: Obj | null;
 }
 
-export type QueryLimit = { filter?: any[]; fields?: string[] };
+export interface Info {
+  schema: Obj<Obj<Field>>;
+  runQuery: (query: Query<string> | Query<string>[]) => Promise<Obj>;
+  context: Obj;
+}
 
-export interface AuthConfig {
-  type: string;
-  usernameField: string;
-  authIdField: string;
-  metaFields?: string[];
-  createAuth(
-    username: string,
-    password: string,
-    userId: string,
-    metadata?: Obj,
-  ): Promise<string>;
-  getUserId(authToken: string): Promise<string | null>;
-  limitQuery: (
-    schema: Obj<Obj<Field>>,
-    runQuery: (query: Query | Query[]) => Promise<Obj>,
-    user: Obj | null,
-    type: string,
-  ) => QueryLimit[] | Promise<QueryLimit[]>;
-  allowMutation: (
-    schema: Obj<Obj<Field>>,
-    runQuery: (query: Query | Query[]) => Promise<Obj>,
-    user: Obj | null,
-    type: string,
-    id: string,
-    data: Obj | null,
-    prev: Obj | null,
-  ) => boolean | Promise<boolean>;
-  allowAlter: (user: Obj | null) => boolean | Promise<boolean>;
+export type RequestPlugin = ((
+  request: { request: QueryRequest | QueryRequest[]; headers: Obj },
+  info: Info,
+) => Obj | void | Promise<Obj | void>);
+
+export type FilterPlugin = (filter: any[] | undefined, info: Info) => any[];
+
+export type QueryLimit = { filter?: any[]; fields?: string[] };
+export type QueryPlugin = ((
+  type: string,
+  info: Info,
+) => QueryLimit[] | void | Promise<QueryLimit[] | void>);
+
+export type CommitPlugin = ((
+  mutation: { type: string } & Mutation,
+  info: Info,
+) => Obj | null | void | Promise<Obj | null | void>);
+
+export interface Plugin {
+  onRequest?: RequestPlugin;
+  onFilter?: FilterPlugin;
+  onQuery?: QueryPlugin;
+  onCommit?: CommitPlugin;
 }

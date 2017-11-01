@@ -1,3 +1,5 @@
+import * as basePlugins from './plugins';
+export { basePlugins as clientPlugins };
 export { Client } from './typings';
 
 import * as _ from 'lodash';
@@ -11,6 +13,7 @@ import {
 
 import {
   Data,
+  encodeDate,
   keysToObject,
   fieldIs,
   mapArray,
@@ -20,72 +23,41 @@ import {
   Query,
   QueryRequest,
   QueryResponse,
-  scalars,
   standardiseQuery,
 } from '../core';
 
 import ClientState from './ClientState';
 import getRequests from './getRequests';
 import readLayer from './readLayer';
-import { AuthState, Client, QueryInfo } from './typings';
+import { Client, Plugin, QueryInfo } from './typings';
 
-export default function buildClient(
-  url: string,
-  authRefresh?: (
-    refreshToken: string,
-  ) => Promise<{ token: string; refresh: string } | null>,
-  log?: boolean,
-): Client {
-  const auth: {
-    refresh: (
-      refreshToken: string,
-    ) => Promise<{ token: string; refresh: string } | null>;
-    state: AuthState | null;
-    field?: { type: string; field: string };
-  } | null = authRefresh
-    ? {
-        refresh: authRefresh,
-        state: JSON.parse(
-          (typeof localStorage !== 'undefined' &&
-            localStorage.getItem('kalamboAuth')) ||
-            'null',
-        ),
-      }
-    : null;
-  const doFetchBase = async (
+export default function buildClient(url: string, ...plugins: Plugin[]): Client {
+  const baseFetch = async (
     body: QueryRequest[],
+    headers: Obj,
   ): Promise<QueryResponse[]> => {
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
+      headers: new Headers({
         'Content-Type': 'application/json',
-        ...auth && auth.state
-          ? { Authorization: `Bearer ${auth.state.token}` }
-          : {},
-      },
+        ...(headers || {}),
+      }),
       body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error();
     return await response.json();
   };
-  const doFetch = async (body: QueryRequest[]): Promise<QueryResponse[]> => {
-    try {
-      return await doFetchBase(body);
-    } catch {
-      let refreshed = false;
-      if (auth && auth.refresh && auth.state && auth.state.refresh) {
-        const newTokens = await auth.refresh(auth.state.refresh);
-        if (newTokens) {
-          setAuth({ ...auth.state, ...newTokens });
-          refreshed = true;
-        }
-      }
-      if (auth && !refreshed) setAuth(null);
-      return await doFetch(body);
-    }
-  };
+  const doFetch = plugins
+    .filter(p => p.onFetch)
+    .reduce(
+      (res, p) => (body: QueryRequest[], headers: Obj) =>
+        p.onFetch!(body, headers, res, reset),
+      baseFetch,
+    );
 
-  const state = new ClientState(log);
+  const state = new ClientState(
+    plugins.filter(p => p.onChange).map(p => p.onChange!),
+  );
   const newIds: Obj<number> = {};
   let schemaResolve;
   const schemaPromise = new Promise(resolve => (schemaResolve = resolve));
@@ -132,7 +104,7 @@ export default function buildClient(
     commits = [];
 
     if (requests.length > 0) {
-      const responses = await doFetch(requests);
+      const responses = await doFetch(requests, {});
       if (currentRun > resetRun) {
         state.setServer(responses[0].data, client.schema);
         for (const i of queryIndices) {
@@ -175,27 +147,11 @@ export default function buildClient(
     run();
   };
 
-  const setAuth = (authState: AuthState | null) => {
-    if (auth) {
-      const doReset =
-        (auth.state && auth.state.id) !== (authState && authState.id);
-      if (!authState) localStorage.removeItem('kalamboAuth');
-      else localStorage.setItem('kalamboAuth', JSON.stringify(authState));
-      auth.state = authState;
-      if (doReset) reset();
-    }
-  };
-
   const client = {
     schema: null as any,
     newId(type) {
       newIds[type] = newIds[type] || 0;
       return `LOCAL__RECORD__${newIds[type]++}`;
-    },
-    auth(authState?: AuthState) {
-      const token = auth && auth.state && auth.state.token;
-      setAuth(authState || null);
-      return token;
     },
 
     query(...args) {
@@ -227,7 +183,9 @@ export default function buildClient(
                     records: { '': { '': data } },
                     state,
                     firstIds: activeQueries[queryIndex].firstIds,
-                    userId: auth && auth.state && auth.state.id,
+                    plugins: plugins
+                      .filter(p => p.onFilter)
+                      .map(p => p.onFilter!),
                   }),
                 );
                 innerListener(data);
@@ -289,48 +247,14 @@ export default function buildClient(
       await schemaPromise;
       if (keys.length === 0) return { values: [], newIds: {} };
 
-      let values = keys.map(key => ({
-        key,
-        value: noUndef(_.get(state.combined, key)),
-      }));
-      if (auth && auth.field) {
-        const indices = { username: -1, password: -1 };
-        values.forEach(({ key: [type, _, field] }, i) => {
-          if (type === auth.field!.type) {
-            if (field === auth.field!.field) indices.username = i;
-            if (field === 'password') indices.password = i;
-          }
-        });
-        if (indices.username !== -1 || indices.password !== -1) {
-          values = [
-            ...values.filter(
-              (_, i) => i !== indices.username && i !== indices.password,
-            ),
-            {
-              key: [
-                auth.field!.type,
-                values[indices.username].key[1] ||
-                  values[indices.password].key[1],
-                auth.field!.field,
-              ],
-              value: JSON.stringify(
-                keysToObject(
-                  ['username', 'password'].filter(k => indices[k] !== -1),
-                  k => values[indices[k]].value,
-                ),
-              ),
-            },
-          ];
-        }
-      }
-
-      const data = values.reduce((res, { key, value }) => {
+      const data = keys.reduce((res, key) => {
         const field = this.schema![key[0]][key[2]];
-        const encode = fieldIs.scalar(field) && scalars[field.scalar].encode;
+        const isDate = fieldIs.scalar(field) && field.scalar === 'date';
+        const value = noUndef(_.get(state.combined, key));
         return _.set(
           res,
           key,
-          value === null || !encode ? value : mapArray(value, encode),
+          value === null || !isDate ? value : mapArray(value, encodeDate),
         );
       }, {});
       const types = Object.keys(data);
@@ -380,7 +304,6 @@ export default function buildClient(
       });
 
       if (errors) return null;
-      if (auth && newIds!['$user']) delete newIds!['$user'];
       state.setClient(keys.map(key => ({ key, value: undefined })));
       return {
         values: keys.map(([type, id, field]) =>
@@ -401,7 +324,7 @@ export default function buildClient(
     const schemaFields = buildClientSchema(
       (await (await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: new Headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ query: introspectionQuery }),
       })).json()).data,
     )
@@ -415,17 +338,6 @@ export default function buildClient(
         JSON.parse(fields[field].description),
       );
     });
-    if (auth) {
-      for (const type of Object.keys(client.schema)) {
-        for (const field of Object.keys(client.schema[type])) {
-          if ((client.schema[type][field] as any).scalar === 'auth') {
-            auth.field = { type, field };
-            (client.schema[type][field] as any).scalar = 'string';
-            client.schema[type].password = { scalar: 'string' };
-          }
-        }
-      }
-    }
     schemaResolve();
   })();
 

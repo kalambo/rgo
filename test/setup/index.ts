@@ -1,3 +1,6 @@
+import { Headers } from 'node-fetch';
+(global as any).Headers = Headers;
+
 import * as fetchMock from 'fetch-mock';
 import * as uuid from 'uuid/v1';
 
@@ -36,7 +39,7 @@ export const setupClient = async () => {
   });
   fetchMock.post(domain, async (_, opts) => {
     const queries = JSON.parse(opts.body);
-    const result = await server(queries);
+    const result = await server(queries, {});
     // const introspection = JSON.stringify(queries).includes('Introspection');
     // if (!introspection) {
     //   console.log(JSON.stringify(queries, null, 2));

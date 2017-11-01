@@ -7,7 +7,7 @@ const baseSchema = require('./setup/schema.json');
 
 describe('client: set', () => {
   test('basic', () => {
-    const state = new ClientState();
+    const state = new ClientState([]);
     const resultsList: any[] = [];
     const changesList: any[] = [];
     const expected = _.cloneDeep({
@@ -45,7 +45,7 @@ describe('client: set', () => {
         ),
       ),
     );
-    state.setServer(baseData, baseSchema, []);
+    state.setServer(baseData, baseSchema);
 
     delete expected.server.addresses.A;
     expected.server.addresses.F = { city: 'Troyville' };
@@ -60,11 +60,8 @@ describe('client: set', () => {
       },
     });
     state.setServer(
-      {
-        addresses: { A: null, F: { city: 'Troyville' } },
-      },
+      { addresses: { A: null, F: { city: 'Troyville' } } },
       baseSchema,
-      [],
     );
 
     expected.client = {

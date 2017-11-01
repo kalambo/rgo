@@ -1,4 +1,3 @@
-export { default as scalars } from './scalars';
 export {
   Args,
   Data,
@@ -17,12 +16,15 @@ export {
 } from './typings';
 export {
   createCompare,
+  decodeDate,
+  encodeDate,
   getFilterFields,
   isObject,
   keysToObject,
   locationOf,
   mapArray,
   mapFilter,
+  mapFilterUser,
   noUndef,
   printArgs,
   promisifyEmitter,
