@@ -1,16 +1,6 @@
 export { default as ClientState } from './ClientState';
 
-import {
-  Data,
-  Field,
-  ForeignRelationField,
-  FullArgs,
-  Obj,
-  Query,
-  RelationField,
-} from '../core';
-
-import ClientState from './ClientState';
+import { Data, Field, Obj, Query } from '../core';
 
 export interface AuthState {
   id: string;
@@ -25,22 +15,22 @@ export type DataChanges = Obj<Obj<Obj<true>>>;
 export interface FullChanges {
   changes: DataChanges;
   changedData: Data;
-  indices?: number[];
 }
 
-export interface QueryLayer {
-  root: { type?: string; field: string; alias?: string };
-  field: ForeignRelationField | RelationField;
-  args: FullArgs;
-  structuralFields: string[];
-  scalarFields: Obj<true>;
-  relations: QueryLayer[];
-  path: string;
-  getArgsState: (
-    state: ClientState,
-  ) => {
-    extra: { start: number; end: number };
+export interface QueryInfo {
+  watcher: () => void;
+  fetched: Obj<{
+    slice: { start: number; end?: number };
     ids: string[];
+  }>;
+  firstIds: Obj<Obj<string>>;
+  hasFetched: boolean;
+  pending?: {
+    requests: string[];
+    next: Obj<{
+      slice: { start: number; end?: number };
+      ids: string[];
+    }>;
   };
 }
 
@@ -49,9 +39,9 @@ export interface Client {
   newId(type: string): string;
   auth(authState?: AuthState): string | null;
 
-  query(query: Query | Query[]): Promise<Obj>;
+  query(query: Query<string> | Query<string>[]): Promise<Obj>;
   query(
-    query: Query | Query[],
+    query: Query<string> | Query<string>[],
     onLoad: (data: Obj | null) => void,
     onChange?: ((changes: Data) => void),
   ): () => void;

@@ -5,12 +5,14 @@
   "author": "Jon Whitehead",
   "license": "MIT",
   "main": "lib/index.js",
-  "module": "lib/client/index.js",
+  "module": "lib/clientIndex.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "prettier": "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
+    "prettier":
+      "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
     "clean": "rimraf lib/*",
-    "build": "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
+    "build":
+      "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
     "test": "jest",
     "prepare": "yarn run test && yarn run build"
   },
@@ -19,15 +21,11 @@
       ".(ts|tsx)": "<rootDir>/node_modules/ts-jest/preprocessor.js"
     },
     "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js"
-    ]
+    "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/jest": "^21.1.4",
-    "@types/lodash": "^4.14.78",
+    "@types/jest": "^21.1.5",
+    "@types/lodash": "^4.14.80",
     "@types/uuid": "^3.4.3",
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.1",
@@ -35,21 +33,20 @@
     "jest": "^21.2.1",
     "prettier": "^1.7.4",
     "rimraf": "^2.6.2",
-    "ts-jest": "^21.1.3",
+    "ts-jest": "^21.1.4",
     "typescript": "^2.5.3",
     "uuid": "^3.1.0"
   },
   "dependencies": {
     "@types/flat": "^0.0.28",
     "@types/graphql": "^0.11.5",
-    "@types/knex": "^0.0.63",
-    "@types/mongodb": "^2.2.14",
+    "@types/knex": "^0.0.64",
+    "@types/mongodb": "^2.2.15",
     "@types/pegjs": "^0.10.0",
     "flat": "^4.0.0",
     "graphql": "^0.11.7",
     "knex": "^0.13.0",
     "lodash": "^4.17.4",
-    "pegjs": "^0.10.0",
-    "stringify-object": "^3.2.1"
+    "pegjs": "^0.10.0"
   }
 }

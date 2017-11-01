@@ -19,16 +19,25 @@ export interface Args<T = undefined> {
   start?: number;
   end?: number;
 }
+
 export interface FullArgs<T = undefined> extends Args<T> {
   offset?: number;
   trace?: { start: number; end?: number };
   fields?: string[];
 }
 
-export interface Query extends Args<string> {
+export interface Query<T = undefined> extends Args<T> {
   name: string;
   alias?: string;
-  fields: (string | Query)[];
+  fields: (string | Query<T>)[];
+}
+
+export interface QueryLayer {
+  root: { type?: string; field: string; alias?: string };
+  field: ForeignRelationField | RelationField;
+  args: Args;
+  fields: string[];
+  path: string[];
 }
 
 export interface ScalarField {

@@ -23,7 +23,7 @@ export default async function mutate(
     newIds[type] = newIds[type] || {};
     args[type]
       .map(m => m.id)
-      .filter(id => id[0] === '$')
+      .filter(id => id.startsWith('LOCAL__RECORD__'))
       .forEach(id => {
         newIds[type][id] = connectors[type].newId();
       });
@@ -58,7 +58,7 @@ export default async function mutate(
         delete data[auth.usernameField];
         if (!prev || prev[auth.usernameField] !== username) {
           const existingUser = await connectors[type].query({
-            filter: ['and', [auth.usernameField, username], ['id', '!=', mId]],
+            filter: ['AND', [auth.usernameField, username], ['id', '!=', mId]],
             end: 1,
             fields: ['id'],
           });

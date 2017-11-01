@@ -79,11 +79,11 @@ const memoize = (func: (value: any) => any) => {
 };
 
 export default {
-  boolean: { type: GraphQLBoolean },
-  int: { type: GraphQLInt },
-  float: { type: GraphQLFloat },
-  string: { type: GraphQLString },
-  ...buildScalarTypes({
+  boolean: { type: GraphQLBoolean } as Scalar,
+  int: { type: GraphQLInt } as Scalar,
+  float: { type: GraphQLFloat } as Scalar,
+  string: { type: GraphQLString } as Scalar,
+  ...(buildScalarTypes({
     date: {
       encode: value => (value ? new Date(value).getTime() : null),
       decode: memoize(value => new Date(value)),
@@ -93,5 +93,5 @@ export default {
       kinds: [Kind.STRING],
     },
     json: {},
-  }),
-} as Obj<Scalar>;
+  }) as { date: Scalar; file: Scalar; json: Scalar }),
+};

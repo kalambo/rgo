@@ -22,6 +22,7 @@ import {
   fieldIs,
   ForeignRelationField,
   keysToObject,
+  mapFilter,
   Obj,
   printArgs,
   Query,
@@ -55,7 +56,7 @@ const argTypes = {
 
 const mapFilterUserId = (filter: any[] | undefined, userId: string | null) => {
   if (!filter) return filter;
-  if (['and', 'or'].includes(filter[0].toLowerCase())) {
+  if (['AND', 'OR'].includes(filter[0])) {
     return [filter[0], ...filter.slice(1).map(f => mapFilterUserId(f, userId))];
   }
   const op = filter.length === 3 ? filter[1] : '=';
@@ -105,6 +106,9 @@ export default async function buildServer(
       if (args.filter && !Array.isArray(args.filter)) {
         args.filter = ['id', args.filter];
       }
+      if (args.filter) {
+        args.filter = mapFilter('decode', args.filter, typeFields[field.type]);
+      }
       if (args.sort && !Array.isArray(args.sort)) {
         args.sort = [args.sort];
       }
@@ -119,7 +123,7 @@ export default async function buildServer(
 
       if (extra) {
         args.filter = args.filter
-          ? ['and', args.filter, extra.filter]
+          ? ['AND', args.filter, extra.filter]
           : extra.filter;
       }
       args.filter = mapFilterUserId(args.filter, user && user.id);
@@ -160,8 +164,8 @@ export default async function buildServer(
         return {
           filter:
             args.filter && limitsMap[key].length > 0
-              ? ['and', args.filter, ['or', ...limitsMap[key]]]
-              : args.filter || ['or', ...limitsMap[key]],
+              ? ['AND', args.filter, ['OR', ...limitsMap[key]]]
+              : args.filter || ['OR', ...limitsMap[key]],
           fields:
             args.fields && fields
               ? args.fields.filter(f => fields.includes(f))
@@ -375,7 +379,9 @@ export default async function buildServer(
     ) => {
       const base = `${alias ? `${alias}:` : ''}${name}`;
       const printedArgs =
-        fieldIs.foreignRelation(field) || field.isList ? printArgs(args) : '';
+        fieldIs.foreignRelation(field) || field.isList
+          ? printArgs(args, typeFields[field.type])
+          : '';
       return `${base}${printedArgs} {
         ${fields
           .map(

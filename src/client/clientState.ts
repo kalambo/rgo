@@ -29,10 +29,12 @@ export default class ClientState {
 
   public listen(listener: (value: FullChanges) => void) {
     this.listeners.push(listener);
-    return () => this.listeners.splice(this.listeners.indexOf(listener), 1);
+    return () => {
+      this.listeners.splice(this.listeners.indexOf(listener), 1);
+    };
   }
 
-  private emitChanges(changes: DataChanges, indices?: number[]) {
+  private emitChanges(changes: DataChanges) {
     if (this.log) {
       console.log(
         _.cloneDeep({
@@ -52,7 +54,7 @@ export default class ClientState {
           ),
         ),
       );
-      this.listeners.forEach(l => l({ changes, changedData, indices }));
+      this.listeners.forEach(l => l({ changes, changedData }));
     }
   }
 
@@ -217,7 +219,7 @@ export default class ClientState {
     );
   }
 
-  public setServer(data: Data, schema: Obj<Obj<Field>>, indices: number[]) {
-    this.emitChanges(this.set('server', data, schema), indices);
+  public setServer(data: Data, schema: Obj<Obj<Field>>) {
+    this.emitChanges(this.set('server', data, schema));
   }
 }

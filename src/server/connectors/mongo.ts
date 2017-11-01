@@ -106,9 +106,9 @@ export default function mongoConnector(
     in: '$in',
   };
   const mongoFilter = (filter: any[]) => {
-    if (['and', 'or'].includes(filter[0].toLowerCase())) {
+    if (['AND', 'OR'].includes(filter[0])) {
       return {
-        [filter[0].toLowerCase() === 'and' ? '$and' : '$or']: filter
+        [filter[0] === 'AND' ? '$and' : '$or']: filter
           .slice(1)
           .map(mongoFilter),
       };

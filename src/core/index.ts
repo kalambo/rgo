@@ -8,6 +8,7 @@ export {
   FullArgs,
   Obj,
   Query,
+  QueryLayer,
   QueryRequest,
   QueryResponse,
   RelationField,
@@ -16,13 +17,17 @@ export {
 } from './typings';
 export {
   createCompare,
+  getFilterFields,
   isObject,
   keysToObject,
   locationOf,
   mapArray,
+  mapFilter,
   noUndef,
   printArgs,
   promisifyEmitter,
+  queryWalker,
   runFilter,
+  standardiseQuery,
   undefOr,
 } from './utils';

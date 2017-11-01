@@ -1,6 +1,14 @@
-import * as stringify from 'stringify-object';
-
-import { FullArgs, Obj } from './typings';
+import scalars from './scalars';
+import {
+  Field,
+  fieldIs,
+  ForeignRelationField,
+  FullArgs,
+  Obj,
+  Query,
+  QueryLayer,
+  RelationField,
+} from './typings';
 
 export const noUndef = (v: any, replacer: any = null) =>
   v === undefined ? replacer : v;
@@ -103,10 +111,10 @@ export const runFilter = (
   if (!record) return false;
   if (!filter) return true;
 
-  if (['and', 'or'].includes(filter[0].toLowerCase())) {
-    if (filter[0].toLowerCase() === 'and') {
+  if (['AND', 'OR'].includes(filter[0])) {
+    if (filter[0] === 'AND') {
       return filter.slice(1).every(b => runFilter(b, id, record));
-    } else if (filter[0].toLowerCase() === 'or') {
+    } else if (filter[0] === 'OR') {
       return filter.slice(1).some(b => runFilter(b, id, record));
     }
   }
@@ -126,13 +134,133 @@ export const runFilter = (
   return false;
 };
 
-export const printArgs = (args: FullArgs<string>) => {
-  const result = stringify(args, {
-    singleQuotes: false,
-    filter: (obj, prop) => obj[prop] !== undefined,
-    inlineCharacterLimit: 1000,
-  })
-    .slice(1, -1)
-    .trim();
-  return result ? `(${result})` : '';
+export const standardiseQuery = (
+  { filter, sort, fields, ...query }: Query<string>,
+  schema: Obj<Obj<Field>>,
+  field?: ForeignRelationField | RelationField,
+) => {
+  const result: Query = {
+    ...query,
+    filter:
+      filter && !Array.isArray(filter)
+        ? ['id', filter]
+        : filter as any[] | undefined,
+    sort: sort && !Array.isArray(sort) ? [sort] : sort as string[] | undefined,
+    fields: fields.map(
+      f =>
+        typeof f === 'string'
+          ? f
+          : standardiseQuery(f, schema, schema[field ? field.type : query.name][
+              f.name
+            ] as ForeignRelationField | RelationField),
+    ),
+  };
+  if (!field || fieldIs.foreignRelation(field)) {
+    result.sort = result.sort || [];
+  }
+  if (result.sort) {
+    if (!result.sort.some(s => s.replace('-', '') === 'createdat')) {
+      result.sort.push('-createdat');
+    }
+    if (!result.sort.some(s => s.replace('-', '') === 'id')) {
+      result.sort.push('id');
+    }
+  }
+  return result;
 };
+
+export const getFilterFields = (filter: any[]): string[] => {
+  if (['AND', 'OR'].includes(filter[0])) {
+    return filter
+      .slice(1)
+      .reduce((res, f) => [...res, ...getFilterFields(f)], []);
+  }
+  return [filter[0]];
+};
+
+export const mapFilter = (
+  map: 'encode' | 'decode',
+  filter: string | any[],
+  fields: Obj<Field>,
+) => {
+  if (typeof filter === 'string') return filter;
+  if (['AND', 'OR'].includes(filter[0])) {
+    return [filter[0], ...filter.slice(1).map(f => mapFilter(map, f, fields))];
+  }
+  const field = fields[filter[0]];
+  const scalar = scalars[fieldIs.scalar(field) ? field.scalar : 'string'];
+  if (!scalar[map]) return filter;
+  const op = filter.length === 3 ? filter[1] : '=';
+  const value = filter[filter.length - 1];
+  return [filter[0], op, scalar[map]!(value)];
+};
+
+const printValue = (value: any, first = false) => {
+  if (Array.isArray(value)) {
+    return `[${value.map(v => printValue(v)).join(', ')}]`;
+  } else if (typeof value === 'object') {
+    const result = Object.keys(value)
+      .filter(k => value[k] !== undefined)
+      .map(k => `${k}: ${printValue(value[k])}`)
+      .join(', ');
+    return first ? `(${result})` : `{ ${result} }`;
+  } else if (typeof value === 'string') {
+    return `"${value}"`;
+  }
+  return `${value}`;
+};
+export const printArgs = (args: FullArgs<string>, fields: Obj<Field>) => {
+  return printValue(
+    args.filter
+      ? { ...args, filter: mapFilter('encode', args.filter, fields) }
+      : args,
+    true,
+  );
+};
+
+const walkQueryLayer = <T, U>(
+  layer: QueryLayer,
+  relations: Query[],
+  schema: Obj<Obj<Field>>,
+  context: U,
+  func: (layer: QueryLayer, context: U, walkRelations: () => T[]) => T,
+): T =>
+  func(layer, context, () =>
+    relations.map(({ name, alias, fields, ...args }: Query) =>
+      walkQueryLayer(
+        {
+          root: { type: layer.field.type, field: name, alias },
+          field: schema[layer.field.type][name] as
+            | ForeignRelationField
+            | RelationField,
+          args,
+          fields: fields.filter(f => typeof f === 'string') as string[],
+          path: [...layer.path, alias || name],
+        },
+        fields.filter(f => typeof f !== 'string') as Query[],
+        schema,
+        context,
+        func,
+      ),
+    ),
+  );
+export const queryWalker = <T, U>(
+  func: (layer: QueryLayer, context: U, walkRelations: () => T[]) => T,
+) => (
+  { name, alias, fields, ...args }: Query,
+  schema: Obj<Obj<Field>>,
+  context: U,
+) =>
+  walkQueryLayer(
+    {
+      root: { field: name, alias },
+      field: { type: name, isList: true },
+      args,
+      fields: fields.filter(f => typeof f === 'string') as string[],
+      path: [alias || name],
+    },
+    fields.filter(f => typeof f !== 'string') as Query[],
+    schema,
+    context,
+    func,
+  );

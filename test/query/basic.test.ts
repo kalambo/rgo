@@ -186,7 +186,6 @@ describe('query: basic', () => {
   });
 
   test('relation ids', async () => {
-    client.set([{ key: ['people', 'F', 'firstname'], value: 'Brent' }]);
     expect(
       await client.query([
         {

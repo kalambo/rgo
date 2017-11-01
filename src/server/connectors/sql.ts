@@ -26,11 +26,9 @@ export function applyFilter(
   filter: any[],
   isOr?: boolean,
 ) {
-  if (['and', 'or'].includes(filter[0].toLowerCase())) {
+  if (['AND', 'OR'].includes(filter[0])) {
     return knex.where(function(this: knex.QueryBuilder) {
-      filter
-        .slice(1)
-        .forEach(f => applyFilter(this, f, filter[0].toLowerCase() === 'or'));
+      filter.slice(1).forEach(f => applyFilter(this, f, filter[0] === 'OR'));
     });
   }
   const op = filter.length === 3 ? filter[1] : '=';
