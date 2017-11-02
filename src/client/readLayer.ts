@@ -34,7 +34,7 @@ export default queryWalker(
       firstIds: Obj<Obj<string>>;
       plugins: FilterPlugin[];
     },
-    walkRelations: () => ((changes: DataChanges, update: boolean) => number)[],
+    walkRelations: () => ((changes: DataChanges) => number)[],
   ) => {
     const structuralFields = Array.from(
       new Set<string>([
@@ -131,47 +131,53 @@ export default queryWalker(
           rootId
         ].map(getRecord);
       } else if (fieldIs.foreignRelation(field) || field.isList) {
-        const queryFirst = {
-          id: firstIds[pathKey][rootId],
-          ...state.server[field.type][firstIds[pathKey][rootId]]!,
-        };
-        const queryStart = findRecordIndex(rootId, queryFirst);
-        sliceStarts[rootId] = queryStart;
-        for (const id of Object.keys(state.diff[field.type] || {})) {
-          if (state.diff[field.type][id] === 1) {
-            const localIndex = rootRecordIds[rootId].indexOf(id);
-            if (localIndex !== -1 && localIndex < queryStart) {
-              sliceStarts[rootId] -= 1;
+        if (firstIds[pathKey] && firstIds[pathKey][rootId]) {
+          const queryFirst = {
+            id: firstIds[pathKey][rootId],
+            ...state.server[field.type][firstIds[pathKey][rootId]]!,
+          };
+          const queryStart = findRecordIndex(rootId, queryFirst);
+          sliceStarts[rootId] = queryStart;
+          for (const id of Object.keys(state.diff[field.type] || {})) {
+            if (state.diff[field.type][id] === 1) {
+              const localIndex = rootRecordIds[rootId].indexOf(id);
+              if (localIndex !== -1 && localIndex < queryStart) {
+                sliceStarts[rootId] -= 1;
+              }
             }
-          }
-          if (state.diff[field.type][id] === 0) {
-            if (
-              state.server[field.type][id] &&
-              runFilter(mappedFilter, id, state.server[field.type][id]) &&
-              compareRecords(state.server[field.type][id]!, queryFirst) === -1
-            ) {
-              sliceStarts[rootId] += 1;
-            }
-            const localIndex = rootRecordIds[rootId].indexOf(id);
-            if (localIndex !== -1 && localIndex < queryStart) {
-              sliceStarts[rootId] -= 1;
-            }
-          }
-          if (state.diff[field.type][id] === -1) {
-            const serverRecord = (state.server[field.type] || {})[id];
-            if (
-              serverRecord &&
-              (!root.type ||
-                fieldIs.foreignRelation(field) ||
-                ((state.combined[root.type][rootId]![root.field] ||
-                  []) as string[]).includes(id)) &&
-              runFilter(mappedFilter, id, serverRecord)
-            ) {
-              if (compareRecords({ id, ...serverRecord }, queryFirst) === -1) {
+            if (state.diff[field.type][id] === 0) {
+              if (
+                state.server[field.type][id] &&
+                runFilter(mappedFilter, id, state.server[field.type][id]) &&
+                compareRecords(state.server[field.type][id]!, queryFirst) === -1
+              ) {
                 sliceStarts[rootId] += 1;
+              }
+              const localIndex = rootRecordIds[rootId].indexOf(id);
+              if (localIndex !== -1 && localIndex < queryStart) {
+                sliceStarts[rootId] -= 1;
+              }
+            }
+            if (state.diff[field.type][id] === -1) {
+              const serverRecord = (state.server[field.type] || {})[id];
+              if (
+                serverRecord &&
+                (!root.type ||
+                  fieldIs.foreignRelation(field) ||
+                  ((state.combined[root.type][rootId]![root.field] ||
+                    []) as string[]).includes(id)) &&
+                runFilter(mappedFilter, id, serverRecord)
+              ) {
+                if (
+                  compareRecords({ id, ...serverRecord }, queryFirst) === -1
+                ) {
+                  sliceStarts[rootId] += 1;
+                }
               }
             }
           }
+        } else {
+          sliceStarts[rootId] = args.start || 0;
         }
         records[rootKey][rootId][root.alias || root.field] = rootRecordIds[
           rootId
@@ -194,9 +200,9 @@ export default queryWalker(
 
     const relations = walkRelations();
 
-    return (changes: DataChanges, update: boolean) => {
+    return (changes: DataChanges) => {
       const relationsChange = Math.max(
-        ...relations.map(updater => updater(changes, update)),
+        ...relations.map(updater => updater(changes)),
         0,
       );
       if (relationsChange === 2) return 2;
@@ -232,7 +238,7 @@ export default queryWalker(
               );
               if (!_.isEqual(value, prev)) {
                 hasUpdated = true;
-                if (update) records[pathKey][id][f] = value;
+                records[pathKey][id][f] = value;
               }
             }
           }

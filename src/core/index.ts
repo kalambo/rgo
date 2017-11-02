@@ -20,7 +20,6 @@ export {
   decodeDate,
   encodeDate,
   getFilterFields,
-  isObject,
   keysToObject,
   locationOf,
   mapArray,

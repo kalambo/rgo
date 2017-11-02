@@ -1,8 +1,21 @@
-export { default as ClientState } from './clientState';
-
-import { Data, Field, Obj, Query, QueryRequest, QueryResponse } from '../core';
+import {
+  Data,
+  Field,
+  FieldValue,
+  Obj,
+  Query,
+  QueryRequest,
+  QueryResponse,
+} from '../core';
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
+
+export interface ClientState {
+  server: Obj<Obj<Obj<FieldValue>>>;
+  client: Obj<Obj<Obj<FieldValue | null> | null>>;
+  combined: Obj<Obj<Obj<FieldValue>>>;
+  diff: DataDiff;
+}
 
 export type DataChanges = Obj<Obj<Obj<true>>>;
 
@@ -16,16 +29,21 @@ export interface FetchInfo {
   ids: string[];
 }
 
+export interface QueryInfo {
+  onChange: (changes: DataChanges) => void;
+  pending?: { requests: string[]; next: Obj<FetchInfo> };
+  latestRun?: number;
+  fetched?: Obj<FetchInfo>;
+  firstIds?: Obj<Obj<string>>;
+}
+
 export type FetchPlugin = (
   body: QueryRequest[],
   headers: Obj,
   next: (body: QueryRequest[], headers: Obj) => Promise<QueryResponse[]>,
 ) => Promise<QueryResponse[]>;
 
-export type ChangePlugin = (
-  state: { server: Data; client: Data; combined: Data; diff: DataDiff },
-  changes: DataChanges,
-) => void;
+export type ChangePlugin = (state: ClientState, changes: DataChanges) => void;
 
 export type FilterPlugin = (filter?: any[]) => any[];
 
@@ -37,15 +55,15 @@ export interface ClientPlugin {
 
 export interface Client {
   schema: Obj<Obj<Field>>;
-  newId(type: string): string;
   reset(): void;
+
+  create(type: string): string;
 
   query(): Promise<void>;
   query(query: Query<string> | Query<string>[]): Promise<Obj>;
   query(
     query: Query<string> | Query<string>[],
     onLoad: (data: Obj | null) => void,
-    onChange?: ((changes: Data) => void),
   ): () => void;
 
   set(

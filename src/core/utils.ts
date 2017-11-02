@@ -17,9 +17,6 @@ export const noUndef = (v: any, replacer: any = null) =>
 export const undefOr = (v: any, replacer: any = null) =>
   v === undefined ? undefined : replacer;
 
-export const isObject = v =>
-  Object.prototype.toString.call(v) === '[object Object]';
-
 export const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
 
@@ -210,7 +207,7 @@ const printValue = (value: any, first = false) => {
       .filter(k => value[k] !== undefined)
       .map(k => `${k}: ${printValue(value[k])}`)
       .join(', ');
-    return first ? `(${result})` : `{ ${result} }`;
+    return first ? (result ? `(${result})` : '') : `{ ${result} }`;
   } else if (typeof value === 'string') {
     return `"${value}"`;
   }

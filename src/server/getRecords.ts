@@ -85,7 +85,7 @@ export default async function getRecords(
     return {
       filter:
         args.filter && limitsMap[key].length > 0
-          ? ['AND', [args.filter, ['OR', limitsMap[key]]]]
+          ? ['AND', args.filter, ['OR', ...limitsMap[key]]]
           : args.filter || limitsMap[key],
       fields:
         args.fields && fields

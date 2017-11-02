@@ -133,13 +133,16 @@ export default async function buildServer(
 ) {
   async function api(
     request: QueryRequest,
-    headers: Obj,
+    headers?: Obj,
   ): Promise<QueryResponse>;
   async function api(
     request: QueryRequest[],
-    headers: Obj,
+    headers?: Obj,
   ): Promise<QueryResponse[]>;
-  async function api(request: QueryRequest | QueryRequest[], headers: Obj) {
+  async function api(
+    request: QueryRequest | QueryRequest[],
+    headers: Obj = {},
+  ) {
     const typeNames = Object.keys(schema);
     const connectors = keysToObject<Connector>(
       typeNames,
