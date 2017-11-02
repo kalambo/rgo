@@ -1,6 +1,7 @@
 import {
   fieldIs,
   keysToObject,
+  localPrefix,
   noUndef,
   Obj,
   RelationField,
@@ -24,7 +25,7 @@ export default async function mutate(
     tempNewIds[type] = tempNewIds[type] || {};
     args[type]
       .map(m => m.id)
-      .filter(id => id.startsWith('LOCAL__RECORD__'))
+      .filter(id => id.startsWith(localPrefix))
       .forEach(id => {
         tempNewIds[type][id] = connectors[type].newId();
       });

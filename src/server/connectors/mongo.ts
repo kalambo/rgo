@@ -61,7 +61,7 @@ export default function mongoConnector(
       Object.keys(fieldMaps),
       k => (fieldMaps[k] && fieldMaps[k]!.toDb) || true,
     ),
-    ignoreValues: keysToObject<true>(Object.keys(fieldMaps), () => true),
+    ignoreValues: keysToObject<true>(Object.keys(fieldMaps), true),
   };
   const toDb = (
     obj,
@@ -124,7 +124,7 @@ export default function mongoConnector(
       if (start === end) return [];
       const result = collection.find(
         filter && toDb(mongoFilter(filter), { flat: true }),
-        toDb(keysToObject(fields || [], () => true), {
+        toDb(keysToObject(fields || [], true), {
           flat: true,
           ignoreValues: true,
         }),

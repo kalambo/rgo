@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
 
-import ClientState from '../ClientState';
+import ClientState from '../clientState';
 
 const baseData = require('./setup/data.json');
 const baseSchema = require('./setup/schema.json');
@@ -71,7 +71,7 @@ describe('client: set', () => {
     expected.combined.addresses.A = { city: 'Torpchester' };
     expected.combined.addresses.B.city = 'Homenickstad';
     delete expected.combined.people.A;
-    expected.diff = { addresses: { A: 1, B: 0 }, people: { A: -1 } };
+    expected.diff = { addresses: { A: 0, B: 0 }, people: { A: -1 } };
 
     resultsList.push(_.cloneDeep(expected));
     changesList.push({

@@ -198,7 +198,7 @@ export const mapFilter = (
   return [
     filter[0],
     op,
-    map === 'encode' ? encodeDate(value) : decodeDate(value),
+    mapArray(value, map === 'encode' ? encodeDate : decodeDate),
   ];
 };
 

@@ -10,21 +10,15 @@ import {
   undefOr,
 } from '../core';
 
-import { ClientState } from './typings';
+import { ClientState, FetchInfo } from './typings';
 
 const layerRequests = queryWalker<
   string,
   {
     schema: Obj<Obj<Field>>;
     state: ClientState;
-    fetched: Obj<{
-      slice: { start: number; end?: number };
-      ids: string[];
-    }>;
-    next: Obj<{
-      slice: { start: number; end?: number };
-      ids: string[];
-    }>;
+    fetched: Obj<FetchInfo>;
+    next: Obj<FetchInfo>;
     alreadyFetched: boolean;
     requests: string[];
   }
@@ -142,16 +136,10 @@ export default function getRequests(
   schema: Obj<Obj<Field>>,
   state: ClientState,
   queries: Query[],
-  fetched: Obj<{
-    slice: { start: number; end?: number };
-    ids: string[];
-  }>,
+  fetched: Obj<FetchInfo>,
 ) {
   const requests: string[] = [];
-  const next: Obj<{
-    slice: { start: number; end?: number };
-    ids: string[];
-  }> = {};
+  const next: Obj<FetchInfo> = {};
   const baseQueries = queries
     .map(query => {
       const context = {

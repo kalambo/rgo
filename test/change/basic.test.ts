@@ -16,6 +16,17 @@ describe('change: root', () => {
     });
 
     updates.push({
+      func: () => client.reset(),
+      load: true,
+    });
+    results.push({
+      people: [
+        { firstname: 'Ena', lastname: 'Cartwright' },
+        { firstname: 'Esperanza', lastname: 'Boyle' },
+      ],
+    });
+
+    updates.push({
       func: () =>
         client.set([{ key: ['people', 'C', 'lastname'], value: 'Collier' }]),
     });
@@ -27,9 +38,21 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () =>
-        client.set([{ key: ['people', 'F', 'firstname'], value: 'Brent' }]),
+      func: () => client.reset(),
       load: true,
+    });
+    results.push({
+      people: [
+        { firstname: 'Ena', lastname: 'Collier' },
+        { firstname: 'Esperanza', lastname: 'Boyle' },
+      ],
+    });
+
+    updates.push({
+      func: () =>
+        client.set([
+          { key: ['people', 'LOCAL__RECORD__0', 'firstname'], value: 'Brent' },
+        ]),
     });
     results.push({
       people: [
@@ -40,7 +63,9 @@ describe('change: root', () => {
 
     updates.push({
       func: () =>
-        client.set([{ key: ['people', 'G', 'firstname'], value: 'Elissa' }]),
+        client.set([
+          { key: ['people', 'LOCAL__RECORD__1', 'firstname'], value: 'Elissa' },
+        ]),
     });
     results.push({
       people: [
@@ -51,6 +76,17 @@ describe('change: root', () => {
 
     updates.push({
       func: () => client.set([{ key: ['people', 'B'], value: null }]),
+      load: true,
+    });
+    results.push({
+      people: [
+        { firstname: 'Elissa', lastname: null },
+        { firstname: 'Ena', lastname: 'Collier' },
+      ],
+    });
+
+    updates.push({
+      func: () => client.reset(),
       load: true,
     });
     results.push({

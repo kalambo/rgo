@@ -3,6 +3,7 @@ export {
   Data,
   Field,
   fieldIs,
+  FieldValue,
   ForeignRelationField,
   FullArgs,
   Obj,
@@ -32,3 +33,5 @@ export {
   standardiseQuery,
   undefOr,
 } from './utils';
+
+export const localPrefix = 'LOCAL__RECORD__';

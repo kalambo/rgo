@@ -10,7 +10,8 @@ export type ScalarName =
   | 'date'
   | 'json';
 
-export type Data = Obj<Obj<Obj | null>>;
+export type FieldValue = boolean | number | string | Date | Obj;
+export type Data = Obj<Obj<Obj<FieldValue | FieldValue[] | null> | null>>;
 
 export interface Args<T = undefined> {
   filter?: T | any[];
@@ -18,13 +19,11 @@ export interface Args<T = undefined> {
   start?: number;
   end?: number;
 }
-
 export interface FullArgs<T = undefined> extends Args<T> {
   offset?: number;
   trace?: { start: number; end?: number };
   fields?: string[];
 }
-
 export interface Query<T = undefined> extends Args<T> {
   name: string;
   alias?: string;

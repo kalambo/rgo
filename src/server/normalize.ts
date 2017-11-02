@@ -10,6 +10,7 @@ import {
   Data,
   Field,
   fieldIs,
+  FieldValue,
   ForeignRelationField,
   FullArgs,
   keysToObject,
@@ -98,7 +99,9 @@ export default function normalize(
     Object.keys(queryResults).forEach(rootId => {
       if (root.type && fieldIs.relation(field) && field.isList && !args.sort) {
         if (data[root.type][rootId]![root.field]) {
-          data[root.type][rootId]![root.field].unshift(args.start || 0);
+          (data[root.type][rootId]![root.field] as FieldValue[]).unshift(
+            args.start || 0,
+          );
         }
       }
       queryResults[rootId].forEach(

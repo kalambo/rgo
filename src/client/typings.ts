@@ -1,4 +1,4 @@
-export { default as ClientState } from './ClientState';
+export { default as ClientState } from './clientState';
 
 import { Data, Field, Obj, Query, QueryRequest, QueryResponse } from '../core';
 
@@ -11,28 +11,15 @@ export interface FullChanges {
   changedData: Data;
 }
 
-export interface QueryInfo {
-  watcher: () => void;
-  fetched: Obj<{
-    slice: { start: number; end?: number };
-    ids: string[];
-  }>;
-  firstIds: Obj<Obj<string>>;
-  hasFetched: boolean;
-  pending?: {
-    requests: string[];
-    next: Obj<{
-      slice: { start: number; end?: number };
-      ids: string[];
-    }>;
-  };
+export interface FetchInfo {
+  slice: { start: number; end?: number };
+  ids: string[];
 }
 
 export type FetchPlugin = (
   body: QueryRequest[],
   headers: Obj,
   next: (body: QueryRequest[], headers: Obj) => Promise<QueryResponse[]>,
-  reset: () => void,
 ) => Promise<QueryResponse[]>;
 
 export type ChangePlugin = (
@@ -51,6 +38,7 @@ export interface ClientPlugin {
 export interface Client {
   schema: Obj<Obj<Field>>;
   newId(type: string): string;
+  reset(): void;
 
   query(): Promise<void>;
   query(query: Query<string> | Query<string>[]): Promise<Obj>;

@@ -48,7 +48,7 @@ export default queryWalker(
       runFilter(mappedFilter, id, state.combined[field.type][id]);
     const compare = createCompare(
       (id: string, key) =>
-        key === 'id' ? id : state.combined[field.type][id]![key],
+        key === 'id' ? id : noUndef(state.combined[field.type][id]![key]),
       args.sort,
     );
     const compareRecords = createCompare(
@@ -81,7 +81,9 @@ export default queryWalker(
           (id: string | null, key) =>
             key === 'id'
               ? id || record.id
-              : id ? state.combined[field.type][id]![key] : record[key],
+              : noUndef(
+                  id ? state.combined[field.type][id]![key] : record[key],
+                ),
           args.sort,
         ),
       );
@@ -94,7 +96,7 @@ export default queryWalker(
       if (!root.type) {
         rootRecordIds[rootId] = filteredIds;
       } else {
-        const value = state.combined[root.type][rootId]![root.field];
+        const value = noUndef(state.combined[root.type][rootId]![root.field]);
         if (fieldIs.relation(field)) {
           if (field.isList) {
             if (!args.sort) {
@@ -103,7 +105,7 @@ export default queryWalker(
               );
             } else {
               rootRecordIds[rootId] = filteredIds.filter(id =>
-                (value || []).includes(id),
+                ((value || []) as string[]).includes(id),
               );
             }
           } else {
@@ -112,7 +114,7 @@ export default queryWalker(
           }
         } else {
           rootRecordIds[rootId] = filteredIds.filter(id => {
-            const v = state.combined[field.type!][id]![field.foreign];
+            const v = noUndef(state.combined[field.type!][id]![field.foreign]);
             return (
               (value || []).includes(id) ||
               (Array.isArray(v) ? v.includes(rootId) : v === rootId)
@@ -161,7 +163,8 @@ export default queryWalker(
               serverRecord &&
               (!root.type ||
                 fieldIs.foreignRelation(field) ||
-                state.combined[root.type][rootId]![root.field].includes(id)) &&
+                ((state.combined[root.type][rootId]![root.field] ||
+                  []) as string[]).includes(id)) &&
               runFilter(mappedFilter, id, serverRecord)
             ) {
               if (compareRecords({ id, ...serverRecord }, queryFirst) === -1) {

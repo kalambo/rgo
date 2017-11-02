@@ -2,7 +2,6 @@ import { Headers } from 'node-fetch';
 (global as any).Headers = Headers;
 
 import * as fetchMock from 'fetch-mock';
-import * as uuid from 'uuid/v1';
 
 import { buildClient, buildServer, Client, connectors } from '../../src';
 
@@ -19,7 +18,7 @@ export const setupClient = async () => {
     addresses: {
       fields: baseSchema.addresses,
       connector: connectors.memory(
-        uuid,
+        () => '',
         Object.keys(baseData.addresses).map(id => ({
           id,
           ...baseData.addresses[id],
@@ -29,7 +28,7 @@ export const setupClient = async () => {
     people: {
       fields: baseSchema.people,
       connector: connectors.memory(
-        uuid,
+        () => '',
         Object.keys(baseData.people).map(id => ({
           id,
           ...baseData.people[id],

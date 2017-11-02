@@ -29,11 +29,8 @@
       "places": ["D"]
     },
     "E": {
-      "firstname": null,
       "lastname": "Hansen",
-      "email": "Misael12@gmail.com",
-      "address": null,
-      "places": null
+      "email": "Misael12@gmail.com"
     }
   },
   "addresses": {
