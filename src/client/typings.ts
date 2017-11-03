@@ -11,7 +11,7 @@ import {
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
 
 export interface ClientState {
-  server: Obj<Obj<Obj<FieldValue>>>;
+  server: Obj<Obj<Obj<FieldValue | null>>>;
   client: Obj<Obj<Obj<FieldValue | null> | null>>;
   combined: Obj<Obj<Obj<FieldValue>>>;
   diff: DataDiff;
@@ -24,17 +24,13 @@ export interface FullChanges {
   changedData: Data;
 }
 
-export interface FetchInfo {
+export type FetchLayers = Obj<{
   slice: { start: number; end?: number };
   ids: string[];
-}
-
-export interface QueryInfo {
-  onChange: (changes: DataChanges) => void;
-  pending?: { requests: string[]; next: Obj<FetchInfo> };
-  latestRun?: number;
-  fetched?: Obj<FetchInfo>;
-  firstIds?: Obj<Obj<string>>;
+}>;
+export interface FetchInfo {
+  fields: string[];
+  layers: FetchLayers;
 }
 
 export type FetchPlugin = (

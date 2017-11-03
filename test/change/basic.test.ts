@@ -53,6 +53,7 @@ describe('change: root', () => {
         client.set([
           { key: ['people', 'LOCAL__RECORD__0', 'firstname'], value: 'Brent' },
         ]),
+      load: true,
     });
     results.push({
       people: [

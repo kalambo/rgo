@@ -172,13 +172,6 @@ export default async function buildServer(
       },
       context: {},
     };
-    for (const p of plugins) {
-      if (p.onRequest) {
-        info.context = {
-          ...((await p.onRequest({ request, headers }, info)) || {}),
-        };
-      }
-    }
 
     const queryTypes = keysToObject(
       typeNames,
@@ -363,6 +356,13 @@ export default async function buildServer(
       }),
     });
 
+    for (const p of plugins) {
+      if (p.onRequest) {
+        info.context = {
+          ...((await p.onRequest({ request, headers }, info)) || {}),
+        };
+      }
+    }
     const queries = Array.isArray(request) ? request : [request];
 
     const data: Data = {};

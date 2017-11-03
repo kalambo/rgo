@@ -1,7 +1,11 @@
+import * as _ from 'lodash';
+
 import {
   Field,
   fieldIs,
   getFilterFields,
+  localPrefix,
+  noUndef,
   Obj,
   printArgs,
   Query,
@@ -10,29 +14,27 @@ import {
   undefOr,
 } from '../core';
 
-import { ClientState, FetchInfo } from './typings';
+import { ClientState, FetchInfo, FetchLayers } from './typings';
 
 const layerRequests = queryWalker<
   string,
   {
     schema: Obj<Obj<Field>>;
     state: ClientState;
-    fetched: Obj<FetchInfo>;
-    next: Obj<FetchInfo>;
+    fetched: FetchLayers;
+    next: FetchLayers;
+    relIndex: number;
     alreadyFetched: boolean;
     requests: string[];
   }
 >(({ root, field, args, fields, path }, context, walkRelations) => {
-  const base = `${root.alias ? `${root.alias}:` : ''}${root.field}`;
+  const alias = root.type ? `rel${context.relIndex++}` : root.alias;
+  const base = `${alias ? `${alias}:` : ''}${root.field}`;
   const filterFields = args.filter ? getFilterFields(args.filter) : [];
+  const sortFields = args.sort ? args.sort.map(s => s.replace('-', '')) : [];
   const inner = `{
     ${Array.from(
-      new Set<string>([
-        'id',
-        ...fields,
-        ...filterFields,
-        ...(args.sort ? args.sort.map(s => s.replace('-', '')) : []),
-      ]),
+      new Set<string>(['id', ...fields, ...filterFields, ...sortFields]),
     )
       .map(
         f =>
@@ -45,44 +47,51 @@ const layerRequests = queryWalker<
     const slice = { start: 0, end: 0 };
     const ids: string[] = [];
     for (const id of Object.keys(context.state.diff[field.type] || {})) {
-      if (
-        context.state.diff[field.type][id] === 1 ||
-        context.state.diff[field.type][id] === 0
-      ) {
-        if (
-          filterFields.some(
-            f => context.state.combined[field.type][id]![f] === undefined,
-          ) ||
-          runFilter(args.filter, id, context.state.combined[field.type][id])
-        ) {
-          slice.start += 1;
-          if (context.state.diff[field.type][id] === 0) {
-            slice.end += 1;
-            ids.push(id);
-          }
+      const server =
+        context.state.server[field.type] &&
+        context.state.server[field.type][id];
+      const serverStatus =
+        server && filterFields.every(f => server[f] !== undefined)
+          ? runFilter(args.filter, id, server)
+          : null;
+
+      const combined =
+        context.state.combined[field.type] &&
+        context.state.combined[field.type][id];
+      const combinedStatus =
+        id.startsWith(localPrefix) ||
+        (combined && filterFields.every(f => combined[f] !== undefined))
+          ? runFilter(args.filter, id, combined)
+          : null;
+
+      const diff = context.state.diff[field.type][id];
+      if (diff === -1 || (diff === 0 && combinedStatus === false)) {
+        if (serverStatus !== false) {
+          slice.end += 1;
+          if (serverStatus === null) ids.push(id);
         }
       }
-      if (context.state.diff[field.type][id] === -1) {
+      if (diff === 0) {
         if (
-          !(
-            context.state.server[field.type] &&
-            context.state.server[field.type][id]
-          ) ||
-          filterFields.some(
-            f => context.state.server[field.type][id]![f] === undefined,
+          serverStatus === null ||
+          combinedStatus === null ||
+          sortFields.some(
+            f =>
+              f !== 'id' &&
+              (server[f] === undefined ||
+                (combined[f] || server[f]) === undefined ||
+                !_.isEqual(noUndef(server[f]), noUndef(combined[f]))),
           )
         ) {
+          slice.start += 1;
           slice.end += 1;
           ids.push(id);
-        } else if (
-          runFilter(
-            args.filter,
-            id,
-            context.state.server[field.type] &&
-              context.state.server[field.type][id],
-          )
-        ) {
-          slice.end += 1;
+        }
+      }
+      if (diff === 1 || (diff === 0 && serverStatus === false)) {
+        if (combinedStatus !== false) {
+          slice.start += 1;
+          if (diff === 0) ids.push(id);
         }
       }
     }
@@ -135,29 +144,25 @@ const layerRequests = queryWalker<
 export default function getRequests(
   schema: Obj<Obj<Field>>,
   state: ClientState,
-  queries: Query[],
-  fetched: Obj<FetchInfo>,
+  query: Query,
+  fetched?: FetchInfo,
 ) {
   const requests: string[] = [];
-  const next: Obj<FetchInfo> = {};
-  const baseQueries = queries
-    .map(query => {
-      const context = {
-        schema,
-        state,
-        fetched,
-        next,
-        alreadyFetched: true,
-        requests,
-      };
-      const result = layerRequests(query, schema, context);
-      return context.alreadyFetched ? '' : result;
-    })
-    .filter(r => r);
-  if (baseQueries.length > 0) {
-    requests.unshift(`{
-      ${baseQueries.join('\n')}
-    }`);
-  }
-  return { requests, next };
+  const fieldKeys = query.fields.map(f => JSON.stringify(f));
+  const next: FetchLayers = {};
+  const context = {
+    schema,
+    state,
+    fetched:
+      fetched && fieldKeys.every(f => fetched.fields.includes(f))
+        ? fetched.layers
+        : {},
+    next,
+    relIndex: 0,
+    alreadyFetched: true,
+    requests,
+  };
+  const baseQuery = layerRequests(query, schema, context);
+  if (!context.alreadyFetched) requests.unshift(`{\n  ${baseQuery}\n}`);
+  return { requests, next: { fields: fieldKeys, layers: next } };
 }

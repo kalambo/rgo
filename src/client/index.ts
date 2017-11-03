@@ -29,13 +29,19 @@ import {
 import getRequests from './getRequests';
 import readLayer from './readLayer';
 import setState from './setState';
-import { Client, ClientPlugin, ClientState, QueryInfo } from './typings';
+import {
+  Client,
+  ClientPlugin,
+  ClientState,
+  DataChanges,
+  FetchInfo,
+} from './typings';
 
 export default function buildClient(
   url: string,
   ...plugins: ClientPlugin[]
 ): Client {
-  const doFetch = plugins.filter(p => p.onFetch).reduce(
+  const baseFetch = plugins.filter(p => p.onFetch).reduce(
     (res, p) => (body: QueryRequest[], headers: Obj) =>
       p.onFetch!(body, headers, res),
     async (body: QueryRequest[], headers: Obj): Promise<QueryResponse[]> => {
@@ -52,12 +58,22 @@ export default function buildClient(
     },
   );
 
-  const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
   let schemaResolve;
   const schemaPromise = new Promise(resolve => (schemaResolve = resolve));
+  const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
   const localCounters: Obj<number> = {};
 
-  const queries: QueryInfo[] = [];
+  const queries: Obj<{
+    active: Obj<number>;
+    latestFetch?: number;
+    pending?: {
+      requests: string[];
+      next: FetchInfo;
+    };
+    fetched?: FetchInfo;
+    firstIds?: Obj<Obj<string>>;
+  }> = {};
+  const listeners: ((changes: DataChanges, clearKeys: string[]) => void)[] = [];
   let commits: {
     request: string;
     variables: Obj<any[]>;
@@ -66,35 +82,62 @@ export default function buildClient(
     ) => void;
   }[] = [];
 
+  const runQueries = (changes: DataChanges = {}) => {
+    const fetchKeys: string[] = [];
+    Object.keys(queries).forEach(key => {
+      const fields = Object.keys(queries[key].active).map(f => JSON.parse(f));
+      const query: Query = { ...JSON.parse(key), fields };
+      const { requests, next } = getRequests(
+        client.schema,
+        state,
+        query,
+        queries[key].fetched,
+      );
+      if (requests.length === 0) {
+        queries[key].fetched = next;
+      } else {
+        queries[key].pending = { requests, next };
+        fetchKeys.push(key);
+      }
+    });
+    listeners.forEach(l => l(changes, fetchKeys));
+    if (fetchKeys.length > 0) run();
+  };
+
   const set = (
     data: Obj<Obj<Obj<FieldValue | null | undefined> | null | undefined>>,
     schema?: Obj<Obj<Field>>,
   ) => {
-    const changes = setState(state, data, schema);
+    const { changes, diffChanged } = setState(state, data, schema);
     plugins.forEach(p => {
       if (p.onChange) p.onChange(state, changes);
     });
-    queries.forEach(q => q.onChange(changes));
+    if (diffChanged || schema) runQueries(changes);
+    else listeners.forEach(l => l(changes, []));
   };
 
-  let runCounter: number = 0;
-  let resetRun: number = 0;
+  let fetchCounter: number = 0;
+  let resetFetch: number = 0;
   const run = _.throttle(async () => {
-    const runIndex = ++runCounter;
+    const fetchIndex = ++fetchCounter;
     const requests: QueryRequest[] = [];
 
-    const runQueries = queries.filter(q => q.pending);
     const firstIndicies: Obj<number> = {};
-    runQueries.forEach((q, i) => {
-      firstIndicies[i] = requests.length;
+    const runQueries = Object.keys(queries).filter(key => queries[key].pending);
+    runQueries.forEach(key => {
+      firstIndicies[key] = requests.length;
+      queries[key].latestFetch = fetchCounter;
       requests.push(
-        ...q.pending!.requests.map(r => ({ query: r, normalize: true })),
+        ...queries[key].pending!.requests.map(query => ({
+          query,
+          normalize: true,
+        })),
       );
-      q.latestRun = runIndex;
-      q.fetched = q.pending!.next;
-      delete q.pending;
-      delete q.firstIds;
+      queries[key].fetched = queries[key].pending!.next;
+      delete queries[key].pending;
+      delete queries[key].firstIds;
     });
+
     const commitIndices: number[] = [];
     for (const { request, variables } of commits) {
       commitIndices.push(requests.length);
@@ -103,24 +146,23 @@ export default function buildClient(
     const commitResolves = commits.map(c => c.resolve);
     commits = [];
 
-    const responses = await doFetch(requests, {});
-    runQueries.forEach((q, i) => {
-      if (q.latestRun === runIndex) {
-        q.firstIds = responses[firstIndicies[i]].firstIds!;
+    const responses = await baseFetch(requests, {});
+    runQueries.forEach(key => {
+      if (queries[key].latestFetch === fetchIndex) {
+        queries[key].firstIds = responses[firstIndicies[key]].firstIds!;
       }
     });
     commitResolves.forEach((watcher, i) => {
       const { newIds, errors } = responses[commitIndices[i]];
       watcher({ newIds, errors: errors && errors.map(e => e.message) });
     });
-    set(runIndex > resetRun ? responses[0].data : {}, client.schema);
+    set(fetchIndex > resetFetch ? responses[0].data : {}, client.schema);
   }, 100);
 
   const reset = () => {
-    resetRun = runCounter;
-    queries.forEach(q => {
-      q.fetched = {};
-      delete q.pending;
+    resetFetch = fetchCounter;
+    Object.keys(queries).forEach(key => {
+      queries[key] = { active: queries[key].active };
     });
     set(
       keysToObject(Object.keys(state.server), type =>
@@ -152,7 +194,8 @@ export default function buildClient(
         | undefined;
 
       return promisifyEmitter(innerListener => {
-        let queryInfo: QueryInfo;
+        let queryInfo: ({ key: string; fields: string[] } | null)[] = [];
+        let listener: (changes: DataChanges, clearKeys: string[]) => void;
         schemaPromise.then(() => {
           if (baseQueries.length === 0) {
             innerListener({});
@@ -160,64 +203,73 @@ export default function buildClient(
             const allQueries = baseQueries.map(q =>
               standardiseQuery(q, client.schema),
             );
-            const serverQueries = allQueries.filter(
-              q =>
-                !(
-                  q.filter &&
-                  q.filter[0] === 'id' &&
-                  q.filter[q.filter.length - 1].startsWith(localPrefix)
-                ),
-            );
+            queryInfo = allQueries.map(({ alias: _, fields, ...query }) => {
+              if (
+                query.filter &&
+                query.filter[0] === 'id' &&
+                query.filter[query.filter.length - 1].startsWith(localPrefix)
+              ) {
+                return null;
+              }
+              const key = JSON.stringify(query);
+              queries[key] = queries[key] || { active: {} };
+              const fieldKeys = fields.map(f => JSON.stringify(f));
+              fieldKeys.forEach(f => {
+                queries[key].active[f] = (queries[key].active[f] || 0) + 1;
+              });
+              return { key, fields: fieldKeys };
+            });
 
             let data: Obj;
             let updaters: ((changes: Obj<Obj<Obj<true>>>) => number)[] | null;
-            const buildQuery = () => {
-              const pending = getRequests(
-                client.schema,
-                state,
-                serverQueries,
-                queryInfo.fetched || {},
-              );
-              if (pending.requests.length === 0) {
-                queryInfo.fetched = pending.next;
-                data = {};
-                updaters = allQueries.map(q =>
-                  readLayer(q, client.schema, {
-                    records: { '': { '': data } },
-                    state,
-                    firstIds: queryInfo.firstIds!,
-                    plugins: plugins
-                      .filter(p => p.onFilter)
-                      .map(p => p.onFilter!),
-                  }),
-                );
-                innerListener(data);
-              } else {
-                queryInfo.pending = pending;
+            listener = (changes, clearKeys) => {
+              if (
+                queryInfo.some(info => !!info && clearKeys.includes(info.key))
+              ) {
                 updaters = null;
                 innerListener(null);
-                run();
+              } else {
+                const updateType = updaters
+                  ? Math.max(...updaters.map(u => u(changes)))
+                  : 2;
+                if (updateType === 2) {
+                  data = {};
+                  updaters = allQueries.map((q, i) =>
+                    readLayer(q, client.schema, {
+                      records: { '': { '': data } },
+                      state,
+                      firstIds:
+                        (queryInfo[i] && queries[queryInfo[i]!.key].firstIds) ||
+                        {},
+                      plugins: plugins
+                        .filter(p => p.onFilter)
+                        .map(p => p.onFilter!),
+                    }),
+                  );
+                }
+                if (updateType) innerListener(data);
               }
             };
-            queryInfo = {
-              onChange: changes => {
-                if (queryInfo.firstIds) {
-                  const updateType = updaters
-                    ? Math.max(...updaters.map(u => u(changes)))
-                    : 2;
-                  if (updateType === 2) buildQuery();
-                  else if (updateType === 1) innerListener(data);
-                }
-              },
-              firstIds: {},
-            };
-            queries.push(queryInfo);
-            buildQuery();
+            listeners.push(listener);
+            runQueries();
           }
         });
         return () => {
-          const index = queries.indexOf(queryInfo);
-          if (index !== -1) queries.splice(index, 1);
+          queryInfo.forEach(info => {
+            if (info) {
+              info.fields.forEach(f => {
+                queries[info.key].active[f]--;
+                if (queries[info.key].active[f] === 0) {
+                  delete queries[info.key].active[f];
+                }
+              });
+              if (Object.keys(queries[info.key].active).length === 0) {
+                delete queries[info.key];
+              }
+            }
+          });
+          const index = listeners.indexOf(listener);
+          if (index !== -1) listeners.splice(index, 1);
         };
       }, onLoad) as any;
     },
