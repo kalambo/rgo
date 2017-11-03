@@ -102,7 +102,7 @@ describe('query: basic', () => {
     });
   });
 
-  test('relation with sort', async () => {
+  test('relation with args', async () => {
     expect(
       await client.query({
         name: 'people',
@@ -114,6 +114,7 @@ describe('query: basic', () => {
           {
             name: 'places',
             sort: 'city',
+            start: 1,
             fields: ['city'],
           },
         ],
@@ -122,15 +123,11 @@ describe('query: basic', () => {
       people: [
         {
           firstname: 'Ena',
-          places: [{ city: 'Jeannebury' }, { city: 'Princeview' }],
+          places: [{ city: 'Princeview' }],
         },
         {
           firstname: 'Esperanza',
-          places: [
-            { city: 'Lynchfurt' },
-            { city: 'Princeview' },
-            { city: 'Tobyhaven' },
-          ],
+          places: [{ city: 'Princeview' }, { city: 'Tobyhaven' }],
         },
       ],
     });

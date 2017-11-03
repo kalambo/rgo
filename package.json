@@ -1,7 +1,7 @@
 {
-  "name": "kalambo",
-  "version": "0.4.4",
-  "description": "Kalambo data system",
+  "name": "rgo",
+  "version": "0.1.0",
+  "description": "Realtime graph orchestrator",
   "author": "Jon Whitehead",
   "license": "MIT",
   "main": "lib/index.js",

@@ -65,6 +65,7 @@ export default function buildClient(
 
   const queries: Obj<{
     active: Obj<number>;
+    relationIndices: Obj<number>;
     latestFetch?: number;
     pending?: {
       requests: string[];
@@ -85,12 +86,17 @@ export default function buildClient(
   const runQueries = (changes: DataChanges = {}) => {
     const fetchKeys: string[] = [];
     Object.keys(queries).forEach(key => {
-      const fields = Object.keys(queries[key].active).map(f => JSON.parse(f));
-      const query: Query = { ...JSON.parse(key), fields };
       const { requests, next } = getRequests(
         client.schema,
         state,
-        query,
+        {
+          ...JSON.parse(key),
+          fields: Object.keys(queries[key].active).map(k => {
+            const f = JSON.parse(k) as string | Query;
+            if (typeof f === 'string') return f;
+            return { ...f, alias: `r${queries[key].relationIndices[k]}` };
+          }),
+        },
         queries[key].fetched,
       );
       if (requests.length === 0) {
@@ -162,7 +168,10 @@ export default function buildClient(
   const reset = () => {
     resetFetch = fetchCounter;
     Object.keys(queries).forEach(key => {
-      queries[key] = { active: queries[key].active };
+      queries[key] = {
+        active: queries[key].active,
+        relationIndices: queries[key].relationIndices,
+      };
     });
     set(
       keysToObject(Object.keys(state.server), type =>
@@ -194,7 +203,7 @@ export default function buildClient(
         | undefined;
 
       return promisifyEmitter(innerListener => {
-        let queryInfo: ({ key: string; fields: string[] } | null)[] = [];
+        let queryInfo: ({ key: string; fieldKeys: string[] } | null)[] = [];
         let listener: (changes: DataChanges, clearKeys: string[]) => void;
         schemaPromise.then(() => {
           if (baseQueries.length === 0) {
@@ -212,12 +221,24 @@ export default function buildClient(
                 return null;
               }
               const key = JSON.stringify(query);
-              queries[key] = queries[key] || { active: {} };
+              queries[key] = queries[key] || {
+                active: {},
+                relationIndices: {},
+              };
               const fieldKeys = fields.map(f => JSON.stringify(f));
               fieldKeys.forEach(f => {
                 queries[key].active[f] = (queries[key].active[f] || 0) + 1;
+                if (f[0] === '{' && !queries[key].relationIndices[f]) {
+                  queries[key].relationIndices[f] =
+                    Math.max(
+                      0,
+                      ...Object.keys(queries[key].relationIndices).map(
+                        k => queries[key].relationIndices[k],
+                      ),
+                    ) + 1;
+                }
               });
-              return { key, fields: fieldKeys };
+              return { key, fieldKeys };
             });
 
             let data: Obj;
@@ -234,18 +255,34 @@ export default function buildClient(
                   : 2;
                 if (updateType === 2) {
                   data = {};
-                  updaters = allQueries.map((q, i) =>
-                    readLayer(q, client.schema, {
+                  updaters = allQueries.map((query, i) => {
+                    const { relationIndices, firstIds = {} } = queries[
+                      queryInfo[i]!.key
+                    ];
+                    return readLayer(query, client.schema, {
                       records: { '': { '': data } },
                       state,
-                      firstIds:
-                        (queryInfo[i] && queries[queryInfo[i]!.key].firstIds) ||
-                        {},
+                      firstIds: keysToObject(
+                        Object.keys(firstIds),
+                        pathString => firstIds[pathString],
+                        pathString => {
+                          const path = pathString.split('_');
+                          if (path.length > 1) {
+                            const index = parseInt(path[1].slice(1));
+                            const fieldKey = queryInfo[i]!.fieldKeys.find(
+                              k => relationIndices[k] === index,
+                            )!;
+                            const f = JSON.parse(fieldKey) as Query;
+                            path[1] = f.alias || f.name;
+                          }
+                          return path.join('_');
+                        },
+                      ),
                       plugins: plugins
                         .filter(p => p.onFilter)
                         .map(p => p.onFilter!),
-                    }),
-                  );
+                    });
+                  });
                 }
                 if (updateType) innerListener(data);
               }
@@ -257,10 +294,11 @@ export default function buildClient(
         return () => {
           queryInfo.forEach(info => {
             if (info) {
-              info.fields.forEach(f => {
+              info.fieldKeys.forEach(f => {
                 queries[info.key].active[f]--;
                 if (queries[info.key].active[f] === 0) {
                   delete queries[info.key].active[f];
+                  delete queries[info.key].relationIndices[f];
                 }
               });
               if (Object.keys(queries[info.key].active).length === 0) {

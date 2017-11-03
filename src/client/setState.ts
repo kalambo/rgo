@@ -137,6 +137,9 @@ export default function setState(
             if (store === 'client') {
               if (data[type][id]![field] === undefined) {
                 delete state.client[type][id]![field];
+                if (Object.keys(state.client[type][id]!).length === 0) {
+                  delete state.client[type][id];
+                }
                 if (noUndef(_.get(state.server, [type, id, field])) !== null) {
                   state.combined[type][id][field] = state.server[type][id][
                     field

@@ -8,8 +8,6 @@ import { buildClient, buildServer, Client, connectors } from '../../src';
 const baseData = require('./data.json');
 const baseSchema = require('./schema.json');
 
-const domain = 'https://api.kalambo.org';
-
 export let client: Client;
 
 export const setupClient = async () => {
@@ -36,7 +34,7 @@ export const setupClient = async () => {
       ),
     },
   });
-  fetchMock.post(domain, async (_, opts) => {
+  fetchMock.post('https://www.example.com', async (_, opts) => {
     const queries = JSON.parse(opts.body);
     const result = await server(queries, {});
     // const introspection = JSON.stringify(queries).includes('Introspection');
@@ -46,7 +44,7 @@ export const setupClient = async () => {
     // }
     return result;
   });
-  client = buildClient(domain);
+  client = buildClient('https://www.example.com');
 };
 
 export const clearClient = () => {

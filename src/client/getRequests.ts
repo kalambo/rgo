@@ -23,15 +23,17 @@ const layerRequests = queryWalker<
     state: ClientState;
     fetched: FetchLayers;
     next: FetchLayers;
-    relIndex: number;
     alreadyFetched: boolean;
     requests: string[];
   }
 >(({ root, field, args, fields, path }, context, walkRelations) => {
-  const alias = root.type ? `rel${context.relIndex++}` : root.alias;
-  const base = `${alias ? `${alias}:` : ''}${root.field}`;
-  const filterFields = args.filter ? getFilterFields(args.filter) : [];
-  const sortFields = args.sort ? args.sort.map(s => s.replace('-', '')) : [];
+  const base = `${root.alias ? `${root.alias}:` : ''}${root.field}`;
+  const filterFields = args.filter
+    ? getFilterFields(args.filter).filter(f => f !== 'id')
+    : [];
+  const sortFields = args.sort
+    ? args.sort.map(s => s.replace('-', '')).filter(f => f !== 'id')
+    : [];
   const inner = `{
     ${Array.from(
       new Set<string>(['id', ...fields, ...filterFields, ...sortFields]),
@@ -77,10 +79,9 @@ const layerRequests = queryWalker<
           combinedStatus === null ||
           sortFields.some(
             f =>
-              f !== 'id' &&
-              (server[f] === undefined ||
-                (combined[f] || server[f]) === undefined ||
-                !_.isEqual(noUndef(server[f]), noUndef(combined[f]))),
+              server[f] === undefined ||
+              (combined[f] || server[f]) === undefined ||
+              !_.isEqual(noUndef(server[f]), noUndef(combined[f])),
           )
         ) {
           slice.start += 1;
@@ -158,7 +159,6 @@ export default function getRequests(
         ? fetched.layers
         : {},
     next,
-    relIndex: 0,
     alreadyFetched: true,
     requests,
   };

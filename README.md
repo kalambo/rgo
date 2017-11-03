@@ -1,7 +1,7 @@
-# Kalambo
+# RGO
 
-### Kalambo data system.
+### Realtime graph orchestrator.
 
 ```
-npm install --save kalambo
+yarn add rgo
 ```
