@@ -22,27 +22,11 @@ export default function setState(
   data: Obj<Obj<Obj<FieldValue | null | undefined> | null | undefined>>,
   schema?: Obj<Obj<Field>>,
 ) {
-  const result: { changes: DataChanges; diffChanged: boolean } = {
-    changes: {},
-    diffChanged: false,
-  };
+  const changes: DataChanges = {};
   const setChanged = (type: string, id: string, field: string) => {
-    result.changes[type] = result.changes[type] || {};
-    result.changes[type][id] = result.changes[type][id] || {};
-    result.changes[type][id][field] = true;
-  };
-  const setDiff = (type: string, id?: string, diff?: -1 | 0 | 1) => {
-    if (id === undefined) {
-      delete state.diff[type];
-    } else {
-      const prev = state.diff[type][id];
-      if (diff === undefined) {
-        delete state.diff[type][id];
-      } else {
-        state.diff[type][id] = diff;
-      }
-      if (state.diff[type][id] !== prev) result.diffChanged = true;
-    }
+    changes[type] = changes[type] || {};
+    changes[type][id] = changes[type][id] || {};
+    changes[type][id][field] = true;
   };
 
   const store = schema ? 'server' : 'client';
@@ -70,7 +54,7 @@ export default function setState(
         } else {
           delete state.combined[type];
         }
-        setDiff(type);
+        delete state.diff[type];
       }
     } else {
       state[store][type] = state[store][type] || {};
@@ -98,7 +82,7 @@ export default function setState(
             } else {
               delete state.combined[type][id];
             }
-            setDiff(type, id);
+            delete state.diff[type][id];
           }
         } else if (data[type][id] === null) {
           if (store === 'client') {
@@ -107,7 +91,7 @@ export default function setState(
             }
             state.client[type][id] = null;
             delete state.combined[type][id];
-            setDiff(type, id, -1);
+            state.diff[type][id] = -1;
           } else {
             for (const field of Object.keys(state.combined[type][id] || {})) {
               if (
@@ -122,7 +106,7 @@ export default function setState(
             delete state.server[type][id];
             if (_.get(state.client, [type, id])) {
               state.combined[type][id] = withoutNulls(state.client[type][id]!);
-              setDiff(type, id, 0);
+              state.diff[type][id] = 0;
             } else {
               delete state.combined[type][id];
             }
@@ -188,9 +172,9 @@ export default function setState(
           }
           if (_.get(state.client, [type, id])) {
             if (Object.keys(_.get(state.client, [type, id])).length === 0) {
-              setDiff(type, id);
+              delete state.diff[type][id];
             } else {
-              setDiff(type, id, id.startsWith(localPrefix) ? 1 : 0);
+              state.diff[type][id] = id.startsWith(localPrefix) ? 1 : 0;
             }
           }
         }
@@ -198,5 +182,5 @@ export default function setState(
     }
   }
 
-  return result;
+  return changes;
 }

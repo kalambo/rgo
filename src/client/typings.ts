@@ -1,11 +1,14 @@
 import {
+  Args,
   Data,
   Field,
   FieldValue,
+  ForeignRelationField,
   Obj,
   Query,
   QueryRequest,
   QueryResponse,
+  RelationField,
 } from '../core';
 
 export type DataDiff = Obj<Obj<1 | -1 | 0>>;
@@ -24,13 +27,24 @@ export interface FullChanges {
   changedData: Data;
 }
 
-export type FetchLayers = Obj<{
+export type FetchLayer = {
+  fields: string[];
   slice: { start: number; end?: number };
   ids: string[];
-}>;
+};
+
 export interface FetchInfo {
-  fields: string[];
-  layers: FetchLayers;
+  name: string;
+  field: ForeignRelationField | RelationField;
+  args: Args;
+  fields: Obj<number>;
+  relations: Obj<FetchInfo>;
+  index?: number;
+  changing?: string[];
+  next?: FetchLayer;
+  fetched?: FetchLayer;
+  latest?: number;
+  firstIds?: Obj<string>;
 }
 
 export type FetchPlugin = (

@@ -13,10 +13,11 @@ import {
   QueryLayer,
   queryWalker,
   runFilter,
+  sortedStringify,
   undefOr,
 } from '../core';
 
-import { ClientState, DataChanges, FilterPlugin } from './typings';
+import { ClientState, DataChanges, FetchInfo, FilterPlugin } from './typings';
 
 (x: Field | Query) => x;
 
@@ -26,12 +27,12 @@ export default queryWalker(
     {
       records,
       state,
-      firstIds,
+      info,
       plugins,
     }: {
       records: Obj<Obj<Obj>>;
       state: ClientState;
-      firstIds: Obj<Obj<string>>;
+      info: Obj<FetchInfo>;
       plugins: FilterPlugin[];
     },
     walkRelations: () => ((changes: DataChanges) => number)[],
@@ -58,6 +59,8 @@ export default queryWalker(
 
     const rootKey = path.slice(0, -1).join('_');
     const pathKey = path.join('_');
+    const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
+    info[pathKey] = info[rootKey].relations[infoKey];
 
     const rootIds = Object.keys(records[rootKey]);
     const rootRecordIds = {} as Obj<(string | null)[]>;
@@ -131,10 +134,10 @@ export default queryWalker(
           rootId
         ].map(getRecord);
       } else if (fieldIs.foreignRelation(field) || field.isList) {
-        if (firstIds[pathKey] && firstIds[pathKey][rootId]) {
+        if (info[pathKey].firstIds && info[pathKey].firstIds![rootId]) {
           const queryFirst = {
-            id: firstIds[pathKey][rootId],
-            ...state.server[field.type][firstIds[pathKey][rootId]]!,
+            id: info[pathKey].firstIds![rootId],
+            ...state.server[field.type][info[pathKey].firstIds![rootId]]!,
           };
           const queryStart = findRecordIndex(rootId, queryFirst);
           sliceStarts[rootId] = queryStart;

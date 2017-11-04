@@ -53,7 +53,6 @@ describe('change: root', () => {
         client.set([
           { key: ['people', 'LOCAL__RECORD__0', 'firstname'], value: 'Brent' },
         ]),
-      load: true,
     });
     results.push({
       people: [
@@ -77,7 +76,6 @@ describe('change: root', () => {
 
     updates.push({
       func: () => client.set([{ key: ['people', 'B'], value: null }]),
-      load: true,
     });
     results.push({
       people: [

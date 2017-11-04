@@ -36,6 +36,13 @@ export const keysToObject = <T, U = any>(
   }, {});
 };
 
+export const sortedStringify = (obj: Obj) =>
+  Object.keys(obj)
+    .filter(k => obj[k] !== undefined)
+    .sort()
+    .map(k => `${k}:${Array.isArray(obj[k]) ? JSON.stringify(obj[k]) : obj[k]}`)
+    .join(',');
+
 const binarySearch = <T>(
   element: T,
   array: T[],

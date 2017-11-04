@@ -23,6 +23,8 @@ import {
   Query,
   QueryRequest,
   QueryResponse,
+  queryWalker,
+  sortedStringify,
   standardiseQuery,
 } from '../core';
 
@@ -36,6 +38,62 @@ import {
   DataChanges,
   FetchInfo,
 } from './typings';
+
+const addQuery = queryWalker<
+  void,
+  { info: Obj<FetchInfo> }
+>(({ root, field, args, fields, path }, { info }, walkRelations) => {
+  const rootKey = path.slice(0, -1).join('_');
+  const pathKey = path.join('_');
+  const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
+  info[rootKey].relations[infoKey] = info[rootKey].relations[infoKey] || {
+    name: root.field,
+    field: field,
+    args: args,
+    fields: {},
+    relations: {},
+  };
+  info[pathKey] = info[rootKey].relations[infoKey];
+  fields.forEach(
+    f => (info[pathKey].fields[f] = (info[pathKey].fields[f] || 0) + 1),
+  );
+  walkRelations();
+});
+
+const removeQuery = queryWalker<
+  void,
+  { info: Obj<FetchInfo> }
+>(({ field, args, fields, path }, { info }, walkRelations) => {
+  const rootKey = path.slice(0, -1).join('_');
+  const pathKey = path.join('_');
+  const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
+  info[pathKey] = info[rootKey].relations[infoKey];
+  walkRelations();
+  fields.forEach(f => {
+    info[pathKey].fields[f]--;
+    if (info[pathKey].fields[f] === 0) delete info[pathKey].fields[f];
+  });
+  if (
+    Object.keys(info[pathKey].fields).length === 0 &&
+    Object.keys(info[pathKey].relations).length === 0
+  ) {
+    delete info[rootKey].relations[infoKey];
+  }
+});
+
+const queryChanging = queryWalker<
+  boolean,
+  { info: Obj<FetchInfo> }
+>(({ field, args, fields, path }, { info }, walkRelations) => {
+  const rootKey = path.slice(0, -1).join('_');
+  const pathKey = path.join('_');
+  const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
+  info[pathKey] = info[rootKey].relations[infoKey];
+  return (
+    fields.some(f => info[pathKey].changing!.includes(f)) ||
+    walkRelations().some(r => r)
+  );
+});
 
 export default function buildClient(
   url: string,
@@ -63,18 +121,15 @@ export default function buildClient(
   const state: ClientState = { server: {}, client: {}, combined: {}, diff: {} };
   const localCounters: Obj<number> = {};
 
-  const queries: Obj<{
-    active: Obj<number>;
-    relationIndices: Obj<number>;
-    latestFetch?: number;
-    pending?: {
-      requests: string[];
-      next: FetchInfo;
-    };
-    fetched?: FetchInfo;
-    firstIds?: Obj<Obj<string>>;
-  }> = {};
-  const listeners: ((changes: DataChanges, clearKeys: string[]) => void)[] = [];
+  const fetchInfo: FetchInfo = {
+    name: '',
+    field: { type: '' },
+    args: {},
+    fields: {},
+    relations: {},
+  };
+  let queries: string[];
+  const listeners: ((changes?: DataChanges) => void)[] = [];
   let commits: {
     request: string;
     variables: Obj<any[]>;
@@ -83,43 +138,42 @@ export default function buildClient(
     ) => void;
   }[] = [];
 
-  const runQueries = (changes: DataChanges = {}) => {
-    const fetchKeys: string[] = [];
-    Object.keys(queries).forEach(key => {
-      const { requests, next } = getRequests(
-        client.schema,
-        state,
-        {
-          ...JSON.parse(key),
-          fields: Object.keys(queries[key].active).map(k => {
-            const f = JSON.parse(k) as string | Query;
-            if (typeof f === 'string') return f;
-            return { ...f, alias: `r${queries[key].relationIndices[k]}` };
-          }),
+  const getQueries = () => {
+    queries = Object.keys(fetchInfo.relations)
+      .reduce(
+        (res, k, i) => {
+          const { idQueries, newFields, trace } = getRequests(
+            client.schema,
+            state,
+            fetchInfo.relations[k],
+            i,
+          );
+          return [
+            ...res,
+            ...idQueries.map((q, i) => `i${res.length + i}:${q}`),
+            newFields,
+            trace,
+          ];
         },
-        queries[key].fetched,
-      );
-      if (requests.length === 0) {
-        queries[key].fetched = next;
-      } else {
-        queries[key].pending = { requests, next };
-        fetchKeys.push(key);
-      }
-    });
-    listeners.forEach(l => l(changes, fetchKeys));
-    if (fetchKeys.length > 0) run();
+        [] as string[],
+      )
+      .filter(s => s);
+    if (queries.length > 0) {
+      listeners.forEach(l => l());
+      run();
+    }
   };
 
   const set = (
     data: Obj<Obj<Obj<FieldValue | null | undefined> | null | undefined>>,
     schema?: Obj<Obj<Field>>,
   ) => {
-    const { changes, diffChanged } = setState(state, data, schema);
+    const changes = setState(state, data, schema);
     plugins.forEach(p => {
       if (p.onChange) p.onChange(state, changes);
     });
-    if (diffChanged || schema) runQueries(changes);
-    else listeners.forEach(l => l(changes, []));
+    getQueries();
+    listeners.forEach(l => l(changes));
   };
 
   let fetchCounter: number = 0;
@@ -128,21 +182,20 @@ export default function buildClient(
     const fetchIndex = ++fetchCounter;
     const requests: QueryRequest[] = [];
 
-    const firstIndicies: Obj<number> = {};
-    const runQueries = Object.keys(queries).filter(key => queries[key].pending);
-    runQueries.forEach(key => {
-      firstIndicies[key] = requests.length;
-      queries[key].latestFetch = fetchCounter;
-      requests.push(
-        ...queries[key].pending!.requests.map(query => ({
-          query,
-          normalize: true,
-        })),
-      );
-      queries[key].fetched = queries[key].pending!.next;
-      delete queries[key].pending;
-      delete queries[key].firstIds;
-    });
+    const hasQueries = queries.length > 0;
+    if (hasQueries) {
+      requests.push({
+        query: `{\n  ${queries.join('\n')}\n}`,
+        normalize: true,
+      });
+      const setFetched = (info: FetchInfo) => {
+        info.fetched = info.next;
+        delete info.next;
+        info.latest = fetchIndex;
+        Object.keys(info.relations).forEach(k => setFetched(info.relations[k]));
+      };
+      setFetched(fetchInfo);
+    }
 
     const commitIndices: number[] = [];
     for (const { request, variables } of commits) {
@@ -153,11 +206,26 @@ export default function buildClient(
     commits = [];
 
     const responses = await baseFetch(requests, {});
-    runQueries.forEach(key => {
-      if (queries[key].latestFetch === fetchIndex) {
-        queries[key].firstIds = responses[firstIndicies[key]].firstIds!;
-      }
-    });
+    if (hasQueries) {
+      const updateInfo = (
+        info: FetchInfo,
+        firstIds: Obj<Obj<string>>,
+        path: string,
+      ) => {
+        delete info.index;
+        if (info.latest === fetchIndex) delete info.changing;
+        info.firstIds = firstIds[path] || info.firstIds;
+        Object.keys(info.relations).forEach(k => {
+          const alias = `b${info.relations[k].index}`;
+          updateInfo(
+            info.relations[k],
+            firstIds,
+            path ? `${path}_${alias}` : alias,
+          );
+        });
+      };
+      updateInfo(fetchInfo, responses[0].firstIds!, '');
+    }
     commitResolves.forEach((watcher, i) => {
       const { newIds, errors } = responses[commitIndices[i]];
       watcher({ newIds, errors: errors && errors.map(e => e.message) });
@@ -167,12 +235,18 @@ export default function buildClient(
 
   const reset = () => {
     resetFetch = fetchCounter;
-    Object.keys(queries).forEach(key => {
-      queries[key] = {
-        active: queries[key].active,
-        relationIndices: queries[key].relationIndices,
-      };
-    });
+    const resetInfo = (info: FetchInfo) => {
+      delete info.index;
+      delete info.changing;
+      delete info.next;
+      delete info.fetched;
+      delete info.latest;
+      delete info.firstIds;
+      Object.keys(info.relations).forEach(k => {
+        resetInfo(info.relations[k]);
+      });
+    };
+    resetInfo(fetchInfo);
     set(
       keysToObject(Object.keys(state.server), type =>
         keysToObject(Object.keys(state.server[type]), null),
@@ -203,8 +277,8 @@ export default function buildClient(
         | undefined;
 
       return promisifyEmitter(innerListener => {
-        let queryInfo: ({ key: string; fieldKeys: string[] } | null)[] = [];
-        let listener: (changes: DataChanges, clearKeys: string[]) => void;
+        let serverQueries: Query[];
+        let listener: (changes?: DataChanges) => void;
         schemaPromise.then(() => {
           if (baseQueries.length === 0) {
             innerListener({});
@@ -212,102 +286,65 @@ export default function buildClient(
             const allQueries = baseQueries.map(q =>
               standardiseQuery(q, client.schema),
             );
-            queryInfo = allQueries.map(({ alias: _, fields, ...query }) => {
-              if (
-                query.filter &&
-                query.filter[0] === 'id' &&
-                query.filter[query.filter.length - 1].startsWith(localPrefix)
-              ) {
-                return null;
-              }
-              const key = JSON.stringify(query);
-              queries[key] = queries[key] || {
-                active: {},
-                relationIndices: {},
-              };
-              const fieldKeys = fields.map(f => JSON.stringify(f));
-              fieldKeys.forEach(f => {
-                queries[key].active[f] = (queries[key].active[f] || 0) + 1;
-                if (f[0] === '{' && !queries[key].relationIndices[f]) {
-                  queries[key].relationIndices[f] =
-                    Math.max(
-                      0,
-                      ...Object.keys(queries[key].relationIndices).map(
-                        k => queries[key].relationIndices[k],
-                      ),
-                    ) + 1;
-                }
-              });
-              return { key, fieldKeys };
-            });
+            serverQueries = allQueries.filter(
+              query =>
+                !(
+                  query.filter &&
+                  query.filter[0] === 'id' &&
+                  query.filter[query.filter.length - 1].startsWith(localPrefix)
+                ),
+            );
+            serverQueries.forEach(query =>
+              addQuery(query, client.schema, { info: { '': fetchInfo } }),
+            );
 
             let data: Obj;
             let updaters: ((changes: Obj<Obj<Obj<true>>>) => number)[] | null;
-            listener = (changes, clearKeys) => {
+            listener = changes => {
               if (
-                queryInfo.some(info => !!info && clearKeys.includes(info.key))
+                serverQueries.some(query =>
+                  queryChanging(query, client.schema, {
+                    info: { '': fetchInfo },
+                  }),
+                )
               ) {
-                updaters = null;
-                innerListener(null);
+                if (!data || updaters) {
+                  updaters = null;
+                  innerListener(null);
+                }
               } else {
-                const updateType = updaters
-                  ? Math.max(...updaters.map(u => u(changes)))
-                  : 2;
+                const updateType =
+                  updaters && changes
+                    ? Math.max(...updaters.map(u => u(changes)))
+                    : 2;
                 if (updateType === 2) {
                   data = {};
-                  updaters = allQueries.map((query, i) => {
-                    const { relationIndices, firstIds = {} } = queries[
-                      queryInfo[i]!.key
-                    ];
-                    return readLayer(query, client.schema, {
+                  updaters = allQueries.map(query =>
+                    readLayer(query, client.schema, {
                       records: { '': { '': data } },
                       state,
-                      firstIds: keysToObject(
-                        Object.keys(firstIds),
-                        pathString => firstIds[pathString],
-                        pathString => {
-                          const path = pathString.split('_');
-                          if (path.length > 1) {
-                            const index = parseInt(path[1].slice(1));
-                            const fieldKey = queryInfo[i]!.fieldKeys.find(
-                              k => relationIndices[k] === index,
-                            )!;
-                            const f = JSON.parse(fieldKey) as Query;
-                            path[1] = f.alias || f.name;
-                          }
-                          return path.join('_');
-                        },
-                      ),
+                      info: { '': fetchInfo },
                       plugins: plugins
                         .filter(p => p.onFilter)
                         .map(p => p.onFilter!),
-                    });
-                  });
+                    }),
+                  );
                 }
                 if (updateType) innerListener(data);
               }
             };
             listeners.push(listener);
-            runQueries();
+            getQueries();
           }
         });
         return () => {
-          queryInfo.forEach(info => {
-            if (info) {
-              info.fieldKeys.forEach(f => {
-                queries[info.key].active[f]--;
-                if (queries[info.key].active[f] === 0) {
-                  delete queries[info.key].active[f];
-                  delete queries[info.key].relationIndices[f];
-                }
-              });
-              if (Object.keys(queries[info.key].active).length === 0) {
-                delete queries[info.key];
-              }
-            }
-          });
           const index = listeners.indexOf(listener);
-          if (index !== -1) listeners.splice(index, 1);
+          if (index !== -1) {
+            listeners.splice(index, 1);
+            serverQueries.forEach(query =>
+              removeQuery(query, client.schema, { info: { '': fetchInfo } }),
+            );
+          }
         };
       }, onLoad) as any;
     },

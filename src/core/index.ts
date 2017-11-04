@@ -29,6 +29,7 @@ export {
   promisifyEmitter,
   queryWalker,
   runFilter,
+  sortedStringify,
   standardiseQuery,
   undefOr,
 } from './utils';
