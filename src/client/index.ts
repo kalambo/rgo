@@ -43,56 +43,54 @@ const addQuery = queryWalker<
   void,
   { info: Obj<FetchInfo> }
 >(({ root, field, args, fields, path }, { info }, walkRelations) => {
-  const rootKey = path.slice(0, -1).join('_');
-  const pathKey = path.join('_');
   const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-  info[rootKey].relations[infoKey] = info[rootKey].relations[infoKey] || {
+  info[root.path].relations[infoKey] = info[root.path].relations[infoKey] || {
     name: root.field,
     field: field,
     args: args,
     fields: {},
     relations: {},
+    complete: {
+      data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
+      firstIds: {},
+    },
+    active: {},
   };
-  info[pathKey] = info[rootKey].relations[infoKey];
-  fields.forEach(
-    f => (info[pathKey].fields[f] = (info[pathKey].fields[f] || 0) + 1),
-  );
+  info[path] = info[root.path].relations[infoKey];
+  fields.forEach(f => (info[path].fields[f] = (info[path].fields[f] || 0) + 1));
   walkRelations();
 });
 
 const removeQuery = queryWalker<
   void,
   { info: Obj<FetchInfo> }
->(({ field, args, fields, path }, { info }, walkRelations) => {
-  const rootKey = path.slice(0, -1).join('_');
-  const pathKey = path.join('_');
+>(({ root, field, args, fields, path }, { info }, walkRelations) => {
   const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-  info[pathKey] = info[rootKey].relations[infoKey];
+  info[path] = info[root.path].relations[infoKey];
   walkRelations();
   fields.forEach(f => {
-    info[pathKey].fields[f]--;
-    if (info[pathKey].fields[f] === 0) delete info[pathKey].fields[f];
+    info[path].fields[f]--;
+    if (info[path].fields[f] === 0) delete info[path].fields[f];
   });
   if (
-    Object.keys(info[pathKey].fields).length === 0 &&
-    Object.keys(info[pathKey].relations).length === 0
+    Object.keys(info[path].fields).length === 0 &&
+    Object.keys(info[path].relations).length === 0
   ) {
-    delete info[rootKey].relations[infoKey];
+    delete info[root.path].relations[infoKey];
   }
 });
 
 const queryChanging = queryWalker<
   boolean,
   { info: Obj<FetchInfo> }
->(({ field, args, fields, path }, { info }, walkRelations) => {
-  const rootKey = path.slice(0, -1).join('_');
-  const pathKey = path.join('_');
+>(({ root, field, args, fields, path }, { info }, walkRelations) => {
   const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-  info[pathKey] = info[rootKey].relations[infoKey];
-  return (
-    fields.some(f => info[pathKey].changing!.includes(f)) ||
-    walkRelations().some(r => r)
+  info[path] = info[root.path].relations[infoKey];
+  const changing = Object.keys(info[path].active || {}).reduce(
+    (res, k) => [...res, ...info[path].active![k].changing],
+    info[path].pending ? info[path].pending!.changing : [],
   );
+  return fields.some(f => changing.includes(f)) || walkRelations().some(r => r);
 });
 
 export default function buildClient(
@@ -127,6 +125,11 @@ export default function buildClient(
     args: {},
     fields: {},
     relations: {},
+    complete: {
+      data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
+      firstIds: {},
+    },
+    active: {},
   };
   let queries: string[];
   const listeners: ((changes?: DataChanges) => void)[] = [];
@@ -141,12 +144,12 @@ export default function buildClient(
   const getQueries = () => {
     queries = Object.keys(fetchInfo.relations)
       .reduce(
-        (res, k, i) => {
+        (res, k, index) => {
           const { idQueries, newFields, trace } = getRequests(
             client.schema,
             state,
             fetchInfo.relations[k],
-            i,
+            index,
           );
           return [
             ...res,
@@ -161,7 +164,9 @@ export default function buildClient(
     if (queries.length > 0) {
       listeners.forEach(l => l());
       run();
+      return true;
     }
+    return false;
   };
 
   const set = (
@@ -178,73 +183,78 @@ export default function buildClient(
 
   let fetchCounter: number = 0;
   let resetFetch: number = 0;
-  const run = _.throttle(async () => {
-    const fetchIndex = ++fetchCounter;
-    const requests: QueryRequest[] = [];
+  const run = _.throttle(
+    async () => {
+      const fetchIndex = ++fetchCounter;
+      const requests: QueryRequest[] = [];
 
-    const hasQueries = queries.length > 0;
-    if (hasQueries) {
-      requests.push({
-        query: `{\n  ${queries.join('\n')}\n}`,
-        normalize: true,
-      });
-      const setFetched = (info: FetchInfo) => {
-        info.fetched = info.next;
-        delete info.next;
-        info.latest = fetchIndex;
-        Object.keys(info.relations).forEach(k => setFetched(info.relations[k]));
-      };
-      setFetched(fetchInfo);
-    }
-
-    const commitIndices: number[] = [];
-    for (const { request, variables } of commits) {
-      commitIndices.push(requests.length);
-      requests.push({ query: request, variables, normalize: true });
-    }
-    const commitResolves = commits.map(c => c.resolve);
-    commits = [];
-
-    const responses = await baseFetch(requests, {});
-    if (hasQueries) {
-      const updateInfo = (
-        info: FetchInfo,
-        firstIds: Obj<Obj<string>>,
-        path: string,
-      ) => {
-        delete info.index;
-        if (info.latest === fetchIndex) delete info.changing;
-        info.firstIds = firstIds[path] || info.firstIds;
-        Object.keys(info.relations).forEach(k => {
-          const alias = `b${info.relations[k].index}`;
-          updateInfo(
-            info.relations[k],
-            firstIds,
-            path ? `${path}_${alias}` : alias,
-          );
+      const hasQueries = queries.length > 0;
+      if (hasQueries) {
+        requests.push({
+          query: `{\n  ${queries.join('\n')}\n}`,
+          normalize: true,
         });
-      };
-      updateInfo(fetchInfo, responses[0].firstIds!, '');
-    }
-    commitResolves.forEach((watcher, i) => {
-      const { newIds, errors } = responses[commitIndices[i]];
-      watcher({ newIds, errors: errors && errors.map(e => e.message) });
-    });
-    set(fetchIndex > resetFetch ? responses[0].data : {}, client.schema);
-  }, 100);
+        const setFetched = (info: FetchInfo, path: string) => {
+          if (info.pending) {
+            info.complete.data = info.pending!.data;
+            info.active[fetchIndex] = {
+              path,
+              changing: info.pending!.changing,
+            };
+            delete info.pending;
+          }
+          Object.keys(info.relations).forEach(k => {
+            if (info.relations[k].pending) {
+              const alias = info.relations[k].pending!.alias;
+              setFetched(info.relations[k], path ? `${path}_${alias}` : alias);
+            }
+          });
+        };
+        setFetched(fetchInfo, '');
+      }
+
+      const commitIndices: number[] = [];
+      for (const { request, variables } of commits) {
+        commitIndices.push(requests.length);
+        requests.push({ query: request, variables, normalize: true });
+      }
+      const commitResolves = commits.map(c => c.resolve);
+      commits = [];
+
+      const responses = await baseFetch(requests, {});
+      if (hasQueries) {
+        const updateInfo = (info: FetchInfo, firstIds: Obj<Obj<string>>) => {
+          if (info.active[fetchIndex]) {
+            info.complete.firstIds =
+              firstIds[info.active[fetchIndex].path] || info.complete.firstIds;
+            delete info.active[fetchIndex];
+          }
+          Object.keys(info.relations).forEach(k =>
+            updateInfo(info.relations[k], firstIds),
+          );
+        };
+        updateInfo(fetchInfo, responses[0].firstIds!);
+      }
+      commitResolves.forEach((watcher, i) => {
+        const { newIds, errors } = responses[commitIndices[i]];
+        watcher({ newIds, errors: errors && errors.map(e => e.message) });
+      });
+      set(fetchIndex > resetFetch ? responses[0].data : {}, client.schema);
+    },
+    50,
+    { leading: false },
+  );
 
   const reset = () => {
     resetFetch = fetchCounter;
     const resetInfo = (info: FetchInfo) => {
-      delete info.index;
-      delete info.changing;
-      delete info.next;
-      delete info.fetched;
-      delete info.latest;
-      delete info.firstIds;
-      Object.keys(info.relations).forEach(k => {
-        resetInfo(info.relations[k]);
-      });
+      info.complete = {
+        data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
+        firstIds: {},
+      };
+      info.active = {};
+      delete info.pending;
+      Object.keys(info.relations).forEach(k => resetInfo(info.relations[k]));
     };
     resetInfo(fetchInfo);
     set(
@@ -334,7 +344,7 @@ export default function buildClient(
               }
             };
             listeners.push(listener);
-            getQueries();
+            if (!getQueries()) listener();
           }
         });
         return () => {

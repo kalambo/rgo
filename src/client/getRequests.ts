@@ -25,7 +25,7 @@ export default function getRequests(
   schema: Obj<Obj<Field>>,
   state: ClientState,
   info: FetchInfo,
-  index,
+  index: number,
 ): {
   idQueries: string[];
   allFields: string;
@@ -49,17 +49,14 @@ export default function getRequests(
     f => (fieldIs.scalar(schema[info.field.type][f]) ? f : `${f} {\nid\n}`),
   );
   const fields = {
-    old: allFields.filter(f => info.fetched && info.fetched.fields.includes(f)),
-    new: allFields.filter(
-      f => !(info.fetched && info.fetched.fields.includes(f)),
-    ),
+    old: allFields.filter(f => info.complete.data.fields.includes(f)),
+    new: allFields.filter(f => !info.complete.data.fields.includes(f)),
   };
   const relationKeys = Object.keys(info.relations);
   const relations = relationKeys.map((k, i) =>
     getRequests(schema, state, info.relations[k], i),
   );
 
-  info.changing = fields.new;
   const idQueries = relations.reduce(
     (res, r) => [...res, ...r.idQueries],
     [] as string[],
@@ -72,7 +69,12 @@ export default function getRequests(
     ...fields.new,
     ...relations.map(r => r.newFields),
   ]);
-  const args = { base: '', trace: '', traceIsFull: !!info.fetched };
+  const args = {
+    base: '',
+    trace: '',
+    traceIsFull:
+      (info.complete.data.slice.start || info.complete.data.slice.end) !== 0,
+  };
   if (fieldIs.foreignRelation(info.field) || info.field.isList) {
     const extra = { start: 0, end: 0 };
     const allIds: string[] = [];
@@ -125,12 +127,8 @@ export default function getRequests(
     extra.start = Math.min(info.args.start || 0, extra.start);
 
     const ids = {
-      old: info.fetched
-        ? allIds.filter(id => info.fetched!.ids.includes(id))
-        : [],
-      new: info.fetched
-        ? allIds.filter(id => !info.fetched!.ids.includes(id))
-        : allIds,
+      old: allIds.filter(id => info.complete.data.ids.includes(id)),
+      new: allIds.filter(id => !info.complete.data.ids.includes(id)),
     };
     const baseArgs: FullArgs<string> = {
       ...info.args,
@@ -140,23 +138,26 @@ export default function getRequests(
     };
     args.base = printArgs(baseArgs, schema[info.field.type]);
     args.trace = printArgs(
-      { ...baseArgs, trace: info.fetched && info.fetched.slice },
+      { ...baseArgs, trace: info.complete.data.slice },
       schema[info.field.type],
     );
     args.traceIsFull =
-      !!info.fetched &&
-      info.fetched.slice.start <= baseArgs.start! &&
-      (info.fetched.slice.end === undefined ||
-        (baseArgs.end !== undefined && info.fetched.slice.end >= baseArgs.end));
+      info.complete.data.slice.start <= baseArgs.start! &&
+      (info.complete.data.slice.end === undefined ||
+        (baseArgs.end !== undefined &&
+          info.complete.data.slice.end >= baseArgs.end));
 
-    info.index = index;
-    info.next = {
-      fields: allFields,
-      slice: {
-        start: baseArgs.start!,
-        end: baseArgs.end,
+    info.pending = {
+      alias: `b${index}`,
+      changing: fields.new,
+      data: {
+        fields: allFields,
+        slice: {
+          start: baseArgs.start!,
+          end: baseArgs.end,
+        },
+        ids: allIds,
       },
-      ids: allIds,
     };
 
     if (ids.new.length > 0) {
@@ -165,7 +166,7 @@ export default function getRequests(
         schema[info.field.type],
       );
       idQueries.push(`${info.name}${printedArgs} {\n  ${innerAll}\n}`);
-      info.changing = allFields;
+      info.pending!.changing = allFields;
     }
     if (innerNew && ids.old.length > 0) {
       const printedArgs = printArgs(
@@ -175,16 +176,28 @@ export default function getRequests(
       idQueries.push(`${info.name}${printedArgs} {\n  ${innerNew}\n}`);
     }
   } else {
-    info.next = { fields: allFields, slice: { start: 0 }, ids: [] };
+    info.pending = {
+      alias: `b${index}`,
+      changing: fields.new,
+      data: {
+        fields: allFields,
+        slice: { start: 0 },
+        ids: [],
+      },
+    };
   }
 
   const innerTrace = printFields([
     ...(args.traceIsFull ? [] : fields.old),
     ...relations.map(r => r.trace),
   ]);
-  if (innerTrace) info.changing = allFields;
+  if (idQueries.length === 0 && !innerNew && !innerTrace) delete info.pending;
+  else if (innerTrace) info.pending.changing = allFields;
   return {
-    idQueries,
+    idQueries: relations.reduce(
+      (res, r) => [...res, ...r.idQueries],
+      idQueries,
+    ),
     allFields: `a${index}:${info.name}${args.base} {\n  ${innerAll}\n}`,
     newFields:
       innerNew && `b${index}:${info.name}${args.base} {\n  ${innerNew}\n}`,

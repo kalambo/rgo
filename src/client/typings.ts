@@ -27,7 +27,7 @@ export interface FullChanges {
   changedData: Data;
 }
 
-export type FetchLayer = {
+export type FetchData = {
   fields: string[];
   slice: { start: number; end?: number };
   ids: string[];
@@ -39,12 +39,19 @@ export interface FetchInfo {
   args: Args;
   fields: Obj<number>;
   relations: Obj<FetchInfo>;
-  index?: number;
-  changing?: string[];
-  next?: FetchLayer;
-  fetched?: FetchLayer;
-  latest?: number;
-  firstIds?: Obj<string>;
+  complete: {
+    data: FetchData;
+    firstIds: Obj<string>;
+  };
+  active: Obj<{
+    path: string;
+    changing: string[];
+  }>;
+  pending?: {
+    alias: string;
+    changing: string[];
+    data: FetchData;
+  };
 }
 
 export type FetchPlugin = (

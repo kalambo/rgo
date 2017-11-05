@@ -240,13 +240,18 @@ const walkQueryLayer = <T, U>(
     relations.map(({ name, alias, fields, ...args }: Query) =>
       walkQueryLayer(
         {
-          root: { type: layer.field.type, field: name, alias },
+          root: {
+            type: layer.field.type,
+            field: name,
+            alias,
+            path: layer.path,
+          },
           field: schema[layer.field.type][name] as
             | ForeignRelationField
             | RelationField,
           args,
           fields: fields.filter(f => typeof f === 'string') as string[],
-          path: [...layer.path, alias || name],
+          path: layer.path ? `${layer.path}_${alias || name}` : alias || name,
         },
         fields.filter(f => typeof f !== 'string') as Query[],
         schema,
@@ -264,11 +269,11 @@ export const queryWalker = <T, U>(
 ) =>
   walkQueryLayer(
     {
-      root: { field: name, alias },
+      root: { field: name, alias, path: '' },
       field: { type: name, isList: true },
       args,
       fields: fields.filter(f => typeof f === 'string') as string[],
-      path: [alias || name],
+      path: alias || name,
     },
     fields.filter(f => typeof f !== 'string') as Query[],
     schema,

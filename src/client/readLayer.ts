@@ -57,20 +57,18 @@ export default queryWalker(
       args.sort,
     );
 
-    const rootKey = path.slice(0, -1).join('_');
-    const pathKey = path.join('_');
     const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-    info[pathKey] = info[rootKey].relations[infoKey];
+    info[path] = info[root.path] && info[root.path].relations[infoKey];
 
-    const rootIds = Object.keys(records[rootKey]);
+    const rootIds = Object.keys(records[root.path]);
     const rootRecordIds = {} as Obj<(string | null)[]>;
     const sliceStarts = {} as Obj<number>;
-    records[pathKey] = {};
+    records[path] = {};
 
     const getRecord = (id: string | null) => {
       if (!id) return null;
-      if (records[pathKey][id]) return records[pathKey][id];
-      return (records[pathKey][id] = keysToObject(
+      if (records[path][id]) return records[path][id];
+      return (records[path][id] = keysToObject(
         fields,
         f => (f === 'id' ? id : noUndef(state.combined[field.type][id]![f])),
       ));
@@ -127,17 +125,17 @@ export default queryWalker(
       }
 
       if (rootRecordIds[rootId].length === 0) {
-        records[rootKey][rootId][root.alias || root.field] =
+        records[root.path][rootId][root.alias || root.field] =
           fieldIs.foreignRelation(field) || field.isList ? [] : null;
       } else if (fieldIs.relation(field) && field.isList && !args.sort) {
-        records[rootKey][rootId][root.alias || root.field] = rootRecordIds[
+        records[root.path][rootId][root.alias || root.field] = rootRecordIds[
           rootId
         ].map(getRecord);
       } else if (fieldIs.foreignRelation(field) || field.isList) {
-        if (info[pathKey].firstIds && info[pathKey].firstIds![rootId]) {
+        if (info[path] && info[path].complete.firstIds[rootId]) {
           const queryFirst = {
-            id: info[pathKey].firstIds![rootId],
-            ...state.server[field.type][info[pathKey].firstIds![rootId]]!,
+            id: info[path].complete.firstIds[rootId],
+            ...state.server[field.type][info[path].complete.firstIds[rootId]]!,
           };
           const queryStart = findRecordIndex(rootId, queryFirst);
           sliceStarts[rootId] = queryStart;
@@ -182,7 +180,7 @@ export default queryWalker(
         } else {
           sliceStarts[rootId] = args.start || 0;
         }
-        records[rootKey][rootId][root.alias || root.field] = rootRecordIds[
+        records[root.path][rootId][root.alias || root.field] = rootRecordIds[
           rootId
         ]
           .slice(
@@ -194,7 +192,7 @@ export default queryWalker(
           )
           .map(getRecord);
       } else {
-        records[rootKey][rootId][root.alias || root.field] = getRecord(
+        records[root.path][rootId][root.alias || root.field] = getRecord(
           rootRecordIds[rootId][0] || null,
         );
       }
@@ -204,6 +202,8 @@ export default queryWalker(
     const relations = walkRelations();
 
     return (changes: DataChanges) => {
+      if (Object.keys(changes).length === 0) return 0;
+
       const relationsChange = Math.max(
         ...relations.map(updater => updater(changes)),
         0,
@@ -224,7 +224,7 @@ export default queryWalker(
 
       if (root.type) {
         for (const id of Object.keys(changes[root.type] || {})) {
-          if (records[rootKey][id]) {
+          if (records[root.path][id]) {
             if ((changes[root.type][id] || {})[root.field]) return 2;
           }
         }
@@ -232,16 +232,16 @@ export default queryWalker(
 
       let hasUpdated = false;
       for (const id of Object.keys(changes[field.type] || {})) {
-        if (records[pathKey][id]) {
+        if (records[path][id]) {
           for (const f of Object.keys(changes[field.type][id] || {})) {
             if (fields.includes(f)) {
-              const prev = records[pathKey][id][f];
+              const prev = records[path][id][f];
               const value = noUndef(
                 ((state.combined[field.type] || {})[id] || {})[f],
               );
               if (!_.isEqual(value, prev)) {
                 hasUpdated = true;
-                records[pathKey][id][f] = value;
+                records[path][id][f] = value;
               }
             }
           }

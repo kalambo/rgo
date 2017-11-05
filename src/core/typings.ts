@@ -31,11 +31,11 @@ export interface Query<T = undefined> extends Args<T> {
 }
 
 export interface QueryLayer {
-  root: { type?: string; field: string; alias?: string };
+  root: { type?: string; field: string; alias?: string; path: string };
   field: ForeignRelationField | RelationField;
   args: Args;
   fields: string[];
-  path: string[];
+  path: string;
 }
 
 export interface ScalarField {

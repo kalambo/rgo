@@ -11,6 +11,7 @@
     "prettier":
       "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
     "clean": "rimraf lib/*",
+    "tsc": "yarn run clean && tsc",
     "build":
       "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
     "test": "jest",
@@ -25,7 +26,7 @@
   },
   "devDependencies": {
     "@types/jest": "^21.1.5",
-    "@types/lodash": "^4.14.80",
+    "@types/lodash": "^4.14.81",
     "@types/node-fetch": "^1.6.7",
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.1",

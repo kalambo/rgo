@@ -119,17 +119,22 @@ export default function setState(
           for (const field of Object.keys(data[type][id]!)) {
             const prev = noUndef(_.get(state.combined, [type, id, field]));
             if (store === 'client') {
+              state[store][type][id] = state[store][type][id] || {};
+              state.combined[type][id] = state.combined[type][id] || {};
               if (data[type][id]![field] === undefined) {
                 delete state.client[type][id]![field];
-                if (Object.keys(state.client[type][id]!).length === 0) {
-                  delete state.client[type][id];
-                }
                 if (noUndef(_.get(state.server, [type, id, field])) !== null) {
                   state.combined[type][id][field] = state.server[type][id][
                     field
                   ]!;
                 } else {
                   delete state.combined[type][id][field];
+                }
+                if (Object.keys(state.client[type][id]!).length === 0) {
+                  delete state.client[type][id];
+                }
+                if (Object.keys(state.combined[type][id]!).length === 0) {
+                  delete state.combined[type][id];
                 }
               } else {
                 state.client[type][id]![field] = data[type][id]![field]!;
@@ -170,12 +175,10 @@ export default function setState(
               setChanged(type, id, field);
             }
           }
-          if (_.get(state.client, [type, id])) {
-            if (Object.keys(_.get(state.client, [type, id])).length === 0) {
-              delete state.diff[type][id];
-            } else {
-              state.diff[type][id] = id.startsWith(localPrefix) ? 1 : 0;
-            }
+          if (_.get(state.client, [type, id]) === undefined) {
+            delete state.diff[type][id];
+          } else if (_.get(state.client, [type, id])) {
+            state.diff[type][id] = id.startsWith(localPrefix) ? 1 : 0;
           }
         }
       }
