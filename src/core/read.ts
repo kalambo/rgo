@@ -4,8 +4,8 @@ import {
   DataChanges,
   Field,
   fieldIs,
+  FullQuery,
   Obj,
-  Query,
   QueryLayer,
   Record,
 } from './typings';
@@ -19,16 +19,18 @@ import {
 } from './utils';
 import walker from './walker';
 
-(x: Field | Query) => x;
+(x: Field | FullQuery) => x;
 
 export default walker(
   (
     layer: QueryLayer,
     {
+      schema,
       data,
       records,
       getStart,
     }: {
+      schema: Obj<Obj<Field>>;
       data: Obj<Obj<Record>>;
       records: Obj<Obj<Obj>>;
       getStart: (
@@ -65,10 +67,16 @@ export default walker(
     const getRecord = (id: string | null) => {
       if (!id) return null;
       if (records[fieldPath][id]) return records[fieldPath][id];
-      return (records[fieldPath][id] = keysToObject(
-        fields,
-        f => (f === 'id' ? id : noUndef(data[field.type][id]![f])),
-      ));
+      return (records[fieldPath][id] = keysToObject(fields, f => {
+        if (f === 'id') return id;
+        const value = noUndef(data[field.type][id]![f]);
+        if (value !== null) return value;
+        const schemaField = schema[field.type][f];
+        if (fieldIs.foreignRelation(schemaField) || schemaField.isList) {
+          return [];
+        }
+        return null;
+      }));
     };
 
     const allIds = Object.keys(data[field.type] || {});
@@ -98,10 +106,7 @@ export default walker(
         } else {
           rootRecordIds[rootId] = filteredIds.filter(id => {
             const v = noUndef(data[field.type!][id]![field.foreign]);
-            return (
-              (value || []).includes(id) ||
-              (Array.isArray(v) ? v.includes(rootId) : v === rootId)
-            );
+            return Array.isArray(v) ? v.includes(rootId) : v === rootId;
           });
         }
       }

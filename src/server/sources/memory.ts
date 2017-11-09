@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 
 import { createCompare, IdRecord, Obj, runFilter, Source } from '../../core';
-import { keysToObject } from '../../core/utils';
+import { keysToObject, noUndef } from '../../core/utils';
 
 export default function memoryConnector(
   newId: () => string,
@@ -22,7 +22,9 @@ export default function memoryConnector(
           .filter(filterFunc)
           .sort(compareFunc)
           .slice(start, end),
-      ).map(record => keysToObject(fields, f => record[f]) as IdRecord);
+      ).map(
+        record => keysToObject(fields, f => noUndef(record[f])) as IdRecord,
+      );
     },
     async findById(id) {
       return _.cloneDeep(records.find(record => record.id === id) || null);

@@ -9,6 +9,7 @@ import {
   keysToObject,
   Field,
   fieldIs,
+  FullQuery,
   localPrefix,
   locationOf,
   mapArray,
@@ -20,7 +21,6 @@ import {
   read,
   Record,
   RecordValue,
-  RequestQuery,
   RgoRequest,
   RgoResponse,
   runFilter,
@@ -43,7 +43,6 @@ const addQueries = walker<void, { fetchInfo: FetchInfo }>(
       relations: {},
       complete: {
         data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
-        offset: 0,
         firstIds: {},
       },
       active: {},
@@ -124,13 +123,12 @@ export default function buildClient(
     relations: {},
     complete: {
       data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
-      offset: 0,
       firstIds: {},
     },
     active: {},
   };
   const listeners: ((changes?: DataChanges) => void)[] = [];
-  let queries: RequestQuery[];
+  let queries: FullQuery[];
   let commits: {
     data: Obj<Obj<Record | null>>;
     resolve: (response: string | Obj<Obj<string>>) => void;
@@ -138,18 +136,17 @@ export default function buildClient(
 
   const getQueries = () => {
     queries = Object.keys(fetchInfo.relations)
-      .reduce<(RequestQuery | null)[]>((res, k) => {
+      .reduce<(FullQuery | null)[]>((res, k) => {
         const { idQueries, newFields, trace } = getRequests(
-          client.schema,
           state,
           fetchInfo.relations[k],
         );
         return [...res, ...idQueries, newFields, trace];
       }, [])
-      .filter(s => s) as RequestQuery[];
+      .filter(s => s) as FullQuery[];
     if (queries.length > 0) {
       listeners.forEach(l => l());
-      run();
+      process();
       return true;
     }
     return false;
@@ -168,8 +165,8 @@ export default function buildClient(
   };
 
   let fetchCounter: number = 0;
-  let resetFetch: number = 0;
-  const run = _.throttle(
+  let flushFetch: number = 0;
+  const process = _.throttle(
     async () => {
       const fetchIndex = ++fetchCounter;
       const request = { queries, commits: commits.map(c => c.data) };
@@ -179,7 +176,6 @@ export default function buildClient(
         const setFetched = (info: FetchInfo) => {
           if (info.pending) {
             info.complete.data = info.pending.data;
-            info.complete.offset = info.pending.offset;
             info.active[fetchIndex] = info.pending.changing;
             delete info.pending;
           }
@@ -204,25 +200,24 @@ export default function buildClient(
         updateInfo(fetchInfo, '');
       }
       commitResolves.forEach((watcher, i) => watcher(response.commits[i]));
-      set(fetchIndex > resetFetch ? response.data : {}, client.schema);
+      set(fetchIndex > flushFetch ? response.data : {}, client.schema);
     },
     50,
     { leading: false },
   );
 
-  const reset = () => {
-    resetFetch = fetchCounter;
-    const resetInfo = (info: FetchInfo) => {
+  const flush = () => {
+    flushFetch = fetchCounter;
+    const flushInfo = (info: FetchInfo) => {
       info.complete = {
         data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
-        offset: 0,
         firstIds: {},
       };
       info.active = {};
       delete info.pending;
-      Object.keys(info.relations).forEach(k => resetInfo(info.relations[k]));
+      Object.keys(info.relations).forEach(k => flushInfo(info.relations[k]));
     };
-    resetInfo(fetchInfo);
+    flushInfo(fetchInfo);
     set(
       keysToObject(Object.keys(state.server), type =>
         keysToObject(Object.keys(state.server[type]), null),
@@ -238,7 +233,7 @@ export default function buildClient(
   ) => {
     const info = [...path, key].reduce((res, k) => res.relations[k], fetchInfo);
     if (!info.complete.firstIds[rootId]) {
-      return (args.start || 0) + info.complete.offset;
+      return args.start || 0;
     }
 
     const compareRecords = createCompare(
@@ -302,12 +297,12 @@ export default function buildClient(
         }
       }
     }
-    return start + info.complete.offset;
+    return start;
   };
 
   const client: Client = {
     schema: null as any,
-    reset,
+    flush,
 
     create(type) {
       localCounters[type] = localCounters[type] || 0;
@@ -367,6 +362,7 @@ export default function buildClient(
                 if (updateType === 2) {
                   data = {};
                   updaters = read(allQueries, client.schema, {
+                    schema: client.schema,
                     records: { '': { '': data } },
                     data: state.combined,
                     getStart,
@@ -414,7 +410,7 @@ export default function buildClient(
           }, {}),
           resolve,
         });
-        run();
+        process();
       });
 
       if (typeof response === 'string') return null;

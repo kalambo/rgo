@@ -36,8 +36,8 @@ export const setupClient = async () => {
   });
   fetchMock.post('https://www.example.com', async (_, opts) => {
     const request = JSON.parse(opts.body);
-    const response = await server(request, {});
     // console.log(JSON.stringify(request, null, 2));
+    const response = await server(request, {});
     // console.log(JSON.stringify(response, null, 2));
     return response;
   });

@@ -26,14 +26,14 @@
   },
   "devDependencies": {
     "@types/jest": "^21.1.5",
-    "@types/lodash": "^4.14.82",
+    "@types/lodash": "^4.14.83",
     "@types/node-fetch": "^1.6.7",
     "babel-cli": "^6.26.0",
     "babel-preset-env": "^1.6.1",
     "fetch-mock": "^5.13.1",
     "jest": "^21.2.1",
     "node-fetch": "^1.7.3",
-    "prettier": "^1.8.1",
+    "prettier": "^1.8.2",
     "rimraf": "^2.6.2",
     "ts-jest": "^21.2.1",
     "typescript": "^2.6.1"

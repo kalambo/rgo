@@ -56,9 +56,9 @@ export default async function sql(
       ),
       f => {
         const field = fieldTypes[f] as RelationField | ScalarField;
-        return `${sqlScalars[
-          fieldIs.scalar(field) ? field.scalar : 'string'
-        ]}${field.isList ? '[]' : ''}`;
+        return `${sqlScalars[fieldIs.scalar(field) ? field.scalar : 'string']}${
+          field.isList ? '[]' : ''
+        }`;
       },
     ),
   };

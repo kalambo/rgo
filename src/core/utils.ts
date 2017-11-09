@@ -1,7 +1,6 @@
 import * as _ from 'lodash';
 
 import {
-  Args,
   Field,
   fieldIs,
   ForeignRelationField,
@@ -34,15 +33,6 @@ export const keysToObject = <T, U = any>(
       : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
   }, {});
 };
-
-const sortedStringify = (obj: Obj) =>
-  Object.keys(obj)
-    .filter(k => obj[k] !== undefined)
-    .sort()
-    .map(k => `${k}:${Array.isArray(obj[k]) ? JSON.stringify(obj[k]) : obj[k]}`)
-    .join(',');
-export const queryKey = (name: string, args: Args) =>
-  `${name}~${sortedStringify(args)}`;
 
 const binarySearch = <T>(
   element: T,
@@ -135,7 +125,11 @@ export const runFilter = (
   if (op === '<=') return v <= value;
   if (op === '>') return v > value;
   if (op === '>=') return v >= value;
-  if (op === 'in') return value.includes(v);
+  if (op === 'in') {
+    return Array.isArray(v)
+      ? v.some(x => value.includes(x))
+      : value.includes(v);
+  }
 
   return false;
 };

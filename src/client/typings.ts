@@ -33,13 +33,11 @@ export interface FetchInfo {
   relations: Obj<FetchInfo>;
   complete: {
     data: FetchData;
-    offset: number;
     firstIds: Obj<string>;
   };
   active: Obj<string[]>;
   pending?: {
     changing: string[];
-    offset: number;
     data: FetchData;
   };
 }
@@ -62,7 +60,7 @@ export interface ClientPlugin {
 
 export interface Client {
   schema: Obj<Obj<Field>>;
-  reset(): void;
+  flush(): void;
 
   create(type: string): string;
 

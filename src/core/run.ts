@@ -1,28 +1,29 @@
 import {
   Field,
   fieldIs,
+  FullQuery,
   IdRecord,
   Obj,
-  Query,
   Record,
   Source,
 } from './typings';
 import walker from './walker';
+import { undefOr } from './utils';
 
-(x: Field | Query) => x;
+(x: Field | FullQuery) => x;
 
 export default walker<
   Promise<void>,
   {
     sources: Obj<Source>;
     data: Obj<Obj<Record>>;
-    records: Obj<IdRecord[]>;
     firstIds: Obj<Obj<string | null>>;
+    records: Obj<IdRecord[]>;
   }
 >(
   async (
-    { root, field, args, fields, relations, path, key },
-    { sources, data, records, firstIds },
+    { root, field, args, fields, offset, relations, path, key },
+    { sources, data, firstIds, records },
     walkRelations,
   ) => {
     const rootPath = path.join('_');
@@ -31,6 +32,7 @@ export default walker<
     if (!root.type || fieldIs.foreignRelation(field)) {
       args.sort = args.sort || [];
     }
+    const queryFields = [...fields, ...relations];
     if (root.type) {
       const rootField = fieldIs.relation(field) ? root.field : 'id';
       const relField = fieldIs.relation(field) ? 'id' : field.foreign;
@@ -43,10 +45,18 @@ export default walker<
         ),
       ];
       args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
+      queryFields.push(relField);
     }
     records[fieldPath] = await sources[field.type].query(
-      { ...args, start: 0, end: undefined },
-      [...fields, ...relations],
+      {
+        ...args,
+        start: 0,
+        end: undefOr(
+          args.end,
+          (args.start || 0) + args.end! * (records[rootPath] || [{}]).length,
+        ),
+      },
+      queryFields,
     );
 
     data[field.type] = data[field.type] || {};
@@ -56,12 +66,14 @@ export default walker<
         : record;
     });
 
-    firstIds[fieldPath] = firstIds[fieldPath] || {};
+    const first = (args.start || 0) + offset;
     if (!root.type) {
-      firstIds[fieldPath][''] = records[fieldPath][args.start || 0]
-        ? records[fieldPath][args.start || 0].id
+      firstIds[fieldPath] = firstIds[fieldPath] || {};
+      firstIds[fieldPath][''] = records[fieldPath][first]
+        ? records[fieldPath][first].id
         : null;
-    } else if (fieldIs.foreignRelation(field) || field.isList) {
+    } else if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
+      firstIds[fieldPath] = firstIds[fieldPath] || {};
       records[rootPath].forEach(rootRecord => {
         if (fieldIs.relation(field)) {
           const value = rootRecord[root.field] as (string | null)[] | null;
@@ -70,12 +82,12 @@ export default walker<
           } else if (args.sort) {
             const firstRecord = records[fieldPath].filter(r =>
               value.includes(r.id),
-            )[args.start || 0] as IdRecord | null | undefined;
+            )[first] as IdRecord | null | undefined;
             firstIds[fieldPath][rootRecord.id] = firstRecord
               ? firstRecord.id
               : null;
           } else {
-            firstIds[fieldPath][rootRecord.id] = value[args.start || 0] || null;
+            firstIds[fieldPath][rootRecord.id] = value[first] || null;
           }
         } else {
           const firstRecord = records[fieldPath].filter(r => {
@@ -83,7 +95,7 @@ export default walker<
             return Array.isArray(value)
               ? value.includes(rootRecord.id)
               : value === rootRecord.id;
-          })[args.start || 0] as IdRecord | undefined;
+          })[first] as IdRecord | undefined;
           firstIds[fieldPath][rootRecord.id] = firstRecord
             ? firstRecord.id
             : null;

@@ -32,9 +32,11 @@ export interface Query<T = undefined> extends Args<T> {
   fields: (string | Query<T>)[];
 }
 
-export interface RequestQuery extends Args<undefined> {
+export interface FullQuery extends Args<undefined> {
   name: string;
-  fields: (string | RequestQuery)[];
+  alias?: string;
+  fields: (string | FullQuery)[];
+  offset?: number;
   trace?: { start: number; end?: number };
 }
 
@@ -43,6 +45,8 @@ export interface QueryLayer {
   field: ForeignRelationField | RelationField;
   args: Args;
   fields: string[];
+  offset: number;
+  trace?: { start: number; end?: number };
   relations: string[];
   path: string[];
   key: string;
@@ -97,7 +101,7 @@ export interface Source {
 export type DataChanges = Obj<Obj<Obj<true>>>;
 
 export interface RgoRequest {
-  queries: RequestQuery[];
+  queries: FullQuery[];
   commits: Obj<Obj<Record | null>>[];
 }
 

@@ -36,7 +36,7 @@ export default async function buildServer(
     const data: Obj<Obj<Record>> = {};
     const firstIds: Obj<Obj<string | null>> = {};
     const q = queries.map(q => standardiseQuery(q, schema));
-    await run(q, schema, { sources, data, firstIds });
+    await run(q, schema, { sources, data, firstIds, records: {} });
 
     const getStart = (
       { args, path, key }: QueryLayer,
@@ -52,7 +52,12 @@ export default async function buildServer(
       );
     };
     const result = {};
-    read(q, schema, { data, records: { '': { '': result } }, getStart });
+    read(q, schema, {
+      schema,
+      data,
+      records: { '': { '': result } },
+      getStart,
+    });
     return result;
   };
 

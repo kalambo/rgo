@@ -8,13 +8,7 @@ const query = {
   sort: 'firstname',
   start: 1,
   end: 3,
-  fields: [
-    'firstname',
-    {
-      name: 'address',
-      fields: ['city'],
-    },
-  ],
+  fields: ['firstname', { name: 'address', fields: ['city'] }],
 };
 
 describe('query: added', () => {

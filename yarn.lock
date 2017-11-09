@@ -27,9 +27,9 @@
     "@types/bluebird" "*"
     "@types/node" "*"
 
-"@types/lodash@^4.14.82":
-  version "4.14.82"
-  resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.82.tgz#18948897f415ef199a93156a66ef7ce1d0d005b9"
+"@types/lodash@^4.14.83":
+  version "4.14.83"
+  resolved "https://registry.yarnpkg.com/@types/lodash/-/lodash-4.14.83.tgz#2f2154797ce8fd8d6ea91a8d304a4e44ee95920c"
 
 "@types/mongodb@^2.2.15":
   version "2.2.15"
@@ -2416,9 +2416,9 @@ preserve@^0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/preserve/-/preserve-0.2.0.tgz#815ed1f6ebc65926f865b310c0713bcb3315ce4b"
 
-prettier@^1.8.1:
-  version "1.8.1"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.8.1.tgz#91064d778c08c85ac1cbe6b23195c34310d039f9"
+prettier@^1.8.2:
+  version "1.8.2"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.8.2.tgz#bff83e7fd573933c607875e5ba3abbdffb96aeb8"
 
 pretty-format@^21.2.1:
   version "21.2.1"

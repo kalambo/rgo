@@ -16,7 +16,7 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () => client.reset(),
+      func: () => client.flush(),
       load: true,
     });
     results.push({
@@ -38,7 +38,7 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () => client.reset(),
+      func: () => client.flush(),
       load: true,
     });
     results.push({
@@ -87,7 +87,7 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () => client.reset(),
+      func: () => client.flush(),
       load: true,
     });
     results.push({

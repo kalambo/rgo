@@ -102,6 +102,39 @@ describe('query: basic', () => {
     });
   });
 
+  test.only('foreign', async () => {
+    expect(
+      await client.query({
+        name: 'addresses',
+        sort: 'city',
+        start: 1,
+        end: 3,
+        fields: [
+          'city',
+          {
+            name: 'people',
+            fields: ['firstname'],
+          },
+        ],
+      }),
+    ).toEqual({
+      addresses: [
+        {
+          city: 'Lynchfurt',
+          people: [{ firstname: 'Esperanza' }],
+        },
+        {
+          city: 'Princeview',
+          people: [
+            { firstname: 'Esperanza' },
+            { firstname: 'Delphia' },
+            { firstname: 'Ena' },
+          ],
+        },
+      ],
+    });
+  });
+
   test('relation with args', async () => {
     expect(
       await client.query({
@@ -180,20 +213,39 @@ describe('query: basic', () => {
     });
   });
 
-  test('relation ids', async () => {
+  test('relation ids mixed', async () => {
     expect(
       await client.query({
         name: 'people',
         sort: 'firstname',
-        fields: ['firstname', 'address', 'places'],
+        start: 1,
+        end: 3,
+        fields: [
+          'firstname',
+          'places',
+          {
+            name: 'places',
+            alias: 'p',
+            fields: ['city'],
+          },
+        ],
       }),
     ).toEqual({
       people: [
-        { firstname: 'Delphia', address: 'B', places: ['B', 'C', null] },
-        { firstname: 'Ena', address: 'C', places: [null, 'C', 'D'] },
-        { firstname: 'Esperanza', address: 'A', places: ['A', 'B', 'C'] },
-        { firstname: 'Griffin', address: 'D', places: ['D'] },
-        { firstname: null, address: null, places: [] },
+        {
+          firstname: 'Ena',
+          places: [null, 'C', 'D'],
+          p: [null, { city: 'Princeview' }, { city: 'Jeannebury' }],
+        },
+        {
+          firstname: 'Esperanza',
+          places: ['A', 'B', 'C'],
+          p: [
+            { city: 'Lynchfurt' },
+            { city: 'Tobyhaven' },
+            { city: 'Princeview' },
+          ],
+        },
       ],
     });
   });

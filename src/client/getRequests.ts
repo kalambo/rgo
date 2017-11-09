@@ -2,35 +2,32 @@ import * as _ from 'lodash';
 
 import {
   Args,
-  Field,
   fieldIs,
+  FullQuery,
   getFilterFields,
   localPrefix,
   noUndef,
-  Obj,
-  RequestQuery,
   runFilter,
   undefOr,
 } from '../core';
 
 import { ClientState, FetchInfo } from './typings';
 
-const getFields = (fields: (string | RequestQuery | null)[]) => {
-  const filtered = fields.filter(s => s) as (string | RequestQuery)[];
+const getFields = (fields: (string | FullQuery | null)[]) => {
+  const filtered = fields.filter(s => s) as (string | FullQuery)[];
   if (filtered.length === 0) return null;
   if (!filtered.includes('id')) filtered.push('id');
   return filtered;
 };
 
 export default function getRequests(
-  schema: Obj<Obj<Field>>,
   state: ClientState,
   info: FetchInfo,
 ): {
-  idQueries: RequestQuery[];
-  allFields: RequestQuery;
-  newFields: RequestQuery | null;
-  trace: RequestQuery | null;
+  idQueries: FullQuery[];
+  allFields: FullQuery;
+  newFields: FullQuery | null;
+  trace: FullQuery | null;
 } {
   const filterFields = info.args.filter
     ? getFilterFields(info.args.filter).filter(f => f !== 'id')
@@ -45,8 +42,6 @@ export default function getRequests(
       ...filterFields,
       ...sortFields,
     ]),
-  ).map(
-    f => (fieldIs.scalar(schema[info.field.type][f]) ? f : `${f} {\nid\n}`),
   );
   const fields = {
     old: allFields.filter(f => info.complete.data.fields.includes(f)),
@@ -54,12 +49,12 @@ export default function getRequests(
   };
   const relationKeys = Object.keys(info.relations);
   const relations = relationKeys.map(k =>
-    getRequests(schema, state, info.relations[k]),
+    getRequests(state, info.relations[k]),
   );
 
   const idQueries = relations.reduce(
     (res, r) => [...res, ...r.idQueries],
-    [] as RequestQuery[],
+    [] as FullQuery[],
   );
   const innerAll = getFields([
     ...allFields,
@@ -70,7 +65,7 @@ export default function getRequests(
     ...relations.map(r => r.newFields),
   ]);
   const args = {
-    base: {} as Args,
+    base: {} as Args & { offset?: number },
     trace: { start: 0 } as { start: number; end?: number },
     traceIsFull:
       (info.complete.data.slice.start || info.complete.data.slice.end) !== 0,
@@ -134,6 +129,7 @@ export default function getRequests(
       ...info.args,
       start: (info.args.start || 0) - extra.start,
       end: undefOr(info.args.end, info.args.end! + extra.end),
+      offset: extra.start,
     };
     args.trace = info.complete.data.slice;
     args.traceIsFull =
@@ -144,7 +140,6 @@ export default function getRequests(
 
     info.pending = {
       changing: fields.new,
-      offset: extra.start,
       data: {
         fields: allFields,
         slice: {
@@ -157,7 +152,7 @@ export default function getRequests(
 
     if (ids.new.length > 0) {
       idQueries.push({
-        name: info.name,
+        name: info.field.type,
         filter: ['id', 'in', ids.new],
         fields: innerAll,
       });
@@ -165,7 +160,7 @@ export default function getRequests(
     }
     if (innerNew && ids.old.length > 0) {
       idQueries.push({
-        name: info.name,
+        name: info.field.type,
         filter: ['id', 'in', ids.old],
         fields: innerNew,
       });
@@ -173,7 +168,6 @@ export default function getRequests(
   } else {
     info.pending = {
       changing: fields.new,
-      offset: 0,
       data: {
         fields: allFields,
         slice: { start: 0 },
@@ -191,7 +185,11 @@ export default function getRequests(
   return {
     idQueries,
     allFields: { name: info.name, ...args.base, fields: innerAll },
-    newFields: innerNew && { name: info.name, ...args.base, fields: innerNew },
+    newFields: innerNew && {
+      name: info.name,
+      ...args.base,
+      fields: innerNew,
+    },
     trace: innerTrace && {
       name: info.name,
       ...args.base,
