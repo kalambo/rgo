@@ -1,25 +1,27 @@
 import * as _ from 'lodash';
 
 import {
+  DataChanges,
   decodeDate,
   Field,
   fieldIs,
-  FieldValue,
   keysToObject,
   localPrefix,
   mapArray,
   noUndef,
   Obj,
+  Record,
+  RecordValue,
 } from '../core';
 
-import { ClientState, DataChanges } from './typings';
+import { ClientState } from './typings';
 
-const withoutNulls = (obj: Obj<FieldValue | null>): Obj<FieldValue> =>
-  keysToObject(Object.keys(obj).filter(k => obj[k] !== null), k => obj[k]!);
+const withoutNulls = (rec: Record): Obj<RecordValue> =>
+  keysToObject(Object.keys(rec).filter(k => rec[k] !== null), k => rec[k]!);
 
 export default function setState(
   state: ClientState,
-  data: Obj<Obj<Obj<FieldValue | null | undefined> | null | undefined>>,
+  data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
   schema?: Obj<Obj<Field>>,
 ) {
   const changes: DataChanges = {};

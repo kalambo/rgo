@@ -135,13 +135,11 @@ describe('query: basic', () => {
 
   test('relation ids', async () => {
     expect(
-      await client.query([
-        {
-          name: 'people',
-          sort: 'firstname',
-          fields: ['firstname', 'address', 'places'],
-        },
-      ]),
+      await client.query({
+        name: 'people',
+        sort: 'firstname',
+        fields: ['firstname', 'address', 'places'],
+      }),
     ).toEqual({
       people: [
         { firstname: 'Delphia', address: 'B', places: ['B', 'C', null] },
@@ -155,7 +153,7 @@ describe('query: basic', () => {
 
   test('alias', async () => {
     expect(
-      await client.query([
+      await client.query(
         {
           name: 'people',
           alias: 'a',
@@ -175,7 +173,7 @@ describe('query: basic', () => {
             },
           ],
         },
-      ]),
+      ),
     ).toEqual({
       a: [{ firstname: 'Esperanza', lastname: 'Boyle' }],
       b: [{ firstname: 'Delphia', c: { city: 'Tobyhaven' } }],
@@ -184,13 +182,11 @@ describe('query: basic', () => {
 
   test('relation ids', async () => {
     expect(
-      await client.query([
-        {
-          name: 'people',
-          sort: 'firstname',
-          fields: ['firstname', 'address', 'places'],
-        },
-      ]),
+      await client.query({
+        name: 'people',
+        sort: 'firstname',
+        fields: ['firstname', 'address', 'places'],
+      }),
     ).toEqual({
       people: [
         { firstname: 'Delphia', address: 'B', places: ['B', 'C', null] },

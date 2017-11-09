@@ -7,9 +7,8 @@ import {
   Obj,
   RelationField,
   ScalarField,
+  Source,
 } from '../../core';
-
-import { Connector } from '../typings';
 
 const sqlScalars = {
   boolean: 'BOOLEAN',
@@ -47,7 +46,7 @@ export default async function sql(
   newId: () => string,
   fieldTypes: Obj<Field>,
   owner?: string,
-): Promise<Connector> {
+): Promise<Source> {
   const dbFields: Obj<string> = {
     createdat: 'TIMESTAMPTZ',
     modifiedat: 'TIMESTAMPTZ',
@@ -88,7 +87,7 @@ export default async function sql(
 
   return {
     newId,
-    async query({ filter, sort, start = 0, end, fields }) {
+    async query({ filter, sort, start = 0, end }, fields) {
       if (start === end) return [];
       const query = filter ? applyFilter(knex(type), filter) : knex(type);
       if (sort) {

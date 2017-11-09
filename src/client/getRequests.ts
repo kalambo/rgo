@@ -1,36 +1,36 @@
 import * as _ from 'lodash';
 
 import {
+  Args,
   Field,
   fieldIs,
-  FullArgs,
   getFilterFields,
   localPrefix,
   noUndef,
   Obj,
-  printArgs,
+  RequestQuery,
   runFilter,
   undefOr,
 } from '../core';
 
 import { ClientState, FetchInfo } from './typings';
 
-const printFields = (fields: string[]) => {
-  const filtered = fields.filter(s => s);
-  if (filtered.length > 0 && !filtered.includes('id')) filtered.push('id');
-  return filtered.join('\n');
+const getFields = (fields: (string | RequestQuery | null)[]) => {
+  const filtered = fields.filter(s => s) as (string | RequestQuery)[];
+  if (filtered.length === 0) return null;
+  if (!filtered.includes('id')) filtered.push('id');
+  return filtered;
 };
 
 export default function getRequests(
   schema: Obj<Obj<Field>>,
   state: ClientState,
   info: FetchInfo,
-  index: number,
 ): {
-  idQueries: string[];
-  allFields: string;
-  newFields: string;
-  trace: string;
+  idQueries: RequestQuery[];
+  allFields: RequestQuery;
+  newFields: RequestQuery | null;
+  trace: RequestQuery | null;
 } {
   const filterFields = info.args.filter
     ? getFilterFields(info.args.filter).filter(f => f !== 'id')
@@ -53,25 +53,25 @@ export default function getRequests(
     new: allFields.filter(f => !info.complete.data.fields.includes(f)),
   };
   const relationKeys = Object.keys(info.relations);
-  const relations = relationKeys.map((k, i) =>
-    getRequests(schema, state, info.relations[k], i),
+  const relations = relationKeys.map(k =>
+    getRequests(schema, state, info.relations[k]),
   );
 
   const idQueries = relations.reduce(
     (res, r) => [...res, ...r.idQueries],
-    [] as string[],
+    [] as RequestQuery[],
   );
-  const innerAll = printFields([
+  const innerAll = getFields([
     ...allFields,
     ...relations.map(r => r.allFields),
-  ]);
-  const innerNew = printFields([
+  ])!;
+  const innerNew = getFields([
     ...fields.new,
     ...relations.map(r => r.newFields),
   ]);
   const args = {
-    base: '',
-    trace: '',
+    base: {} as Args,
+    trace: { start: 0 } as { start: number; end?: number },
     traceIsFull:
       (info.complete.data.slice.start || info.complete.data.slice.end) !== 0,
   };
@@ -130,55 +130,50 @@ export default function getRequests(
       old: allIds.filter(id => info.complete.data.ids.includes(id)),
       new: allIds.filter(id => !info.complete.data.ids.includes(id)),
     };
-    const baseArgs: FullArgs<string> = {
+    args.base = {
       ...info.args,
       start: (info.args.start || 0) - extra.start,
       end: undefOr(info.args.end, info.args.end! + extra.end),
-      offset: extra.start,
     };
-    args.base = printArgs(baseArgs, schema[info.field.type]);
-    args.trace = printArgs(
-      { ...baseArgs, trace: info.complete.data.slice },
-      schema[info.field.type],
-    );
+    args.trace = info.complete.data.slice;
     args.traceIsFull =
-      info.complete.data.slice.start <= baseArgs.start! &&
+      info.complete.data.slice.start <= args.base.start! &&
       (info.complete.data.slice.end === undefined ||
-        (baseArgs.end !== undefined &&
-          info.complete.data.slice.end >= baseArgs.end));
+        (args.base.end !== undefined &&
+          info.complete.data.slice.end >= args.base.end));
 
     info.pending = {
-      alias: `b${index}`,
       changing: fields.new,
+      offset: extra.start,
       data: {
         fields: allFields,
         slice: {
-          start: baseArgs.start!,
-          end: baseArgs.end,
+          start: args.base.start!,
+          end: args.base.end,
         },
         ids: allIds,
       },
     };
 
     if (ids.new.length > 0) {
-      const printedArgs = printArgs(
-        { filter: ['id', 'in', ids.new] },
-        schema[info.field.type],
-      );
-      idQueries.push(`${info.name}${printedArgs} {\n  ${innerAll}\n}`);
+      idQueries.push({
+        name: info.name,
+        filter: ['id', 'in', ids.new],
+        fields: innerAll,
+      });
       info.pending!.changing = allFields;
     }
     if (innerNew && ids.old.length > 0) {
-      const printedArgs = printArgs(
-        { filter: ['id', 'in', ids.old] },
-        schema[info.field.type],
-      );
-      idQueries.push(`${info.name}${printedArgs} {\n  ${innerNew}\n}`);
+      idQueries.push({
+        name: info.name,
+        filter: ['id', 'in', ids.old],
+        fields: innerNew,
+      });
     }
   } else {
     info.pending = {
-      alias: `b${index}`,
       changing: fields.new,
+      offset: 0,
       data: {
         fields: allFields,
         slice: { start: 0 },
@@ -187,24 +182,21 @@ export default function getRequests(
     };
   }
 
-  const innerTrace = printFields([
+  const innerTrace = getFields([
     ...(args.traceIsFull ? [] : fields.old),
     ...relations.map(r => r.trace),
   ]);
   if (idQueries.length === 0 && !innerNew && !innerTrace) delete info.pending;
   else if (innerTrace) info.pending.changing = allFields;
   return {
-    idQueries: relations.reduce(
-      (res, r) => [...res, ...r.idQueries],
-      idQueries,
-    ),
-    allFields: `a${index}:${info.name}${args.base} {\n  ${innerAll}\n}`,
-    newFields:
-      innerNew && `b${index}:${info.name}${args.base} {\n  ${innerNew}\n}`,
-    trace:
-      innerTrace &&
-      `${innerNew
-        ? 'c'
-        : 'b'}${index}:${info.name}${args.trace} {\n  ${innerTrace}\n}`,
+    idQueries,
+    allFields: { name: info.name, ...args.base, fields: innerAll },
+    newFields: innerNew && { name: info.name, ...args.base, fields: innerNew },
+    trace: innerTrace && {
+      name: info.name,
+      ...args.base,
+      trace: args.trace,
+      fields: innerTrace,
+    },
   };
 }

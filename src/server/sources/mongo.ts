@@ -2,9 +2,7 @@ import { Collection } from 'mongodb';
 import * as flatten from 'flat';
 import * as set from 'lodash/fp/set';
 
-import { keysToObject, mapArray, Obj, undefOr } from '../../core';
-
-import { Connector } from '../typings';
+import { keysToObject, mapArray, Obj, Source, undefOr } from '../../core';
 
 const isObject = v =>
   Object.prototype.toString.call(v) === '[object Object]' && !v._bsontype;
@@ -55,7 +53,7 @@ export default function mongoConnector(
     toDb(value: any): any;
     fromDb(value: any): any;
   } | null>,
-): Connector {
+): Source {
   const toDbMaps = {
     base: keysToObject<((value: any) => any) | true>(
       Object.keys(fieldMaps),
@@ -120,7 +118,7 @@ export default function mongoConnector(
 
   return {
     newId,
-    async query({ filter, sort, start = 0, end, fields }) {
+    async query({ filter, sort, start = 0, end }, fields) {
       if (start === end) return [];
       const result = collection.find(
         filter && toDb(mongoFilter(filter), { flat: true }),

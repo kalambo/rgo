@@ -1,13 +1,12 @@
 import * as _ from 'lodash';
 
 import {
+  Args,
   Field,
   fieldIs,
   ForeignRelationField,
-  FullArgs,
   Obj,
   Query,
-  QueryLayer,
   RelationField,
 } from './typings';
 
@@ -29,19 +28,21 @@ export const keysToObject = <T, U = any>(
   return keys.reduce<Obj<T>>((res, k, i) => {
     const newValue = valueFunc
       ? (valueMap as ((k: U, i: number) => T | undefined))(k, i)
-      : valueMap as T;
+      : (valueMap as T);
     return newValue === undefined
       ? res
       : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
   }, {});
 };
 
-export const sortedStringify = (obj: Obj) =>
+const sortedStringify = (obj: Obj) =>
   Object.keys(obj)
     .filter(k => obj[k] !== undefined)
     .sort()
     .map(k => `${k}:${Array.isArray(obj[k]) ? JSON.stringify(obj[k]) : obj[k]}`)
     .join(',');
+export const queryKey = (name: string, args: Args) =>
+  `${name}~${sortedStringify(args)}`;
 
 const binarySearch = <T>(
   element: T,
@@ -103,7 +104,7 @@ export const createCompare = <T>(
     if (v1 === null && v2 !== null) return 1;
     if (v1 !== null && v2 === null) return -1;
     const comp = compareValues(v1, v2);
-    if (comp) return dir === 'asc' ? comp : -comp as 1 | -1;
+    if (comp) return dir === 'asc' ? comp : (-comp as 1 | -1);
   }
   return 0;
 };
@@ -149,8 +150,9 @@ export const standardiseQuery = (
     filter:
       filter && !Array.isArray(filter)
         ? ['id', filter]
-        : filter as any[] | undefined,
-    sort: sort && !Array.isArray(sort) ? [sort] : sort as string[] | undefined,
+        : (filter as any[] | undefined),
+    sort:
+      sort && !Array.isArray(sort) ? [sort] : (sort as string[] | undefined),
     fields: fields.map(
       f =>
         typeof f === 'string'
@@ -187,7 +189,7 @@ export const encodeDate = (v: Date | null) => v && v.getTime();
 export const decodeDate = (v: number | null) => v && new Date(v);
 export const mapFilter = (
   map: 'encode' | 'decode',
-  filter: string | any[],
+  filter: any[],
   fields: Obj<Field>,
 ) => {
   if (typeof filter === 'string') return filter;
@@ -205,78 +207,3 @@ export const mapFilter = (
     mapArray(value, map === 'encode' ? encodeDate : decodeDate),
   ];
 };
-
-const printValue = (value: any, first = false) => {
-  if (Array.isArray(value)) {
-    return `[${value.map(v => printValue(v)).join(', ')}]`;
-  } else if (typeof value === 'object') {
-    const result = Object.keys(value)
-      .filter(k => value[k] !== undefined)
-      .map(k => `${k}: ${printValue(value[k])}`)
-      .join(', ');
-    return first ? (result ? `(${result})` : '') : `{ ${result} }`;
-  } else if (typeof value === 'string') {
-    return `"${value}"`;
-  }
-  return `${value}`;
-};
-export const printArgs = (args: FullArgs<string>, fields: Obj<Field>) => {
-  return printValue(
-    args.filter
-      ? { ...args, filter: mapFilter('encode', args.filter, fields) }
-      : args,
-    true,
-  );
-};
-
-const walkQueryLayer = <T, U>(
-  layer: QueryLayer,
-  relations: Query[],
-  schema: Obj<Obj<Field>>,
-  context: U,
-  func: (layer: QueryLayer, context: U, walkRelations: () => T[]) => T,
-): T =>
-  func(layer, context, () =>
-    relations.map(({ name, alias, fields, ...args }: Query) =>
-      walkQueryLayer(
-        {
-          root: {
-            type: layer.field.type,
-            field: name,
-            alias,
-            path: layer.path,
-          },
-          field: schema[layer.field.type][name] as
-            | ForeignRelationField
-            | RelationField,
-          args,
-          fields: fields.filter(f => typeof f === 'string') as string[],
-          path: layer.path ? `${layer.path}_${alias || name}` : alias || name,
-        },
-        fields.filter(f => typeof f !== 'string') as Query[],
-        schema,
-        context,
-        func,
-      ),
-    ),
-  );
-export const queryWalker = <T, U>(
-  func: (layer: QueryLayer, context: U, walkRelations: () => T[]) => T,
-) => (
-  { name, alias, fields, ...args }: Query,
-  schema: Obj<Obj<Field>>,
-  context: U,
-) =>
-  walkQueryLayer(
-    {
-      root: { field: name, alias, path: '' },
-      field: { type: name, isList: true },
-      args,
-      fields: fields.filter(f => typeof f === 'string') as string[],
-      path: alias || name,
-    },
-    fields.filter(f => typeof f !== 'string') as Query[],
-    schema,
-    context,
-    func,
-  );

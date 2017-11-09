@@ -1,17 +1,23 @@
-import { GraphQLError } from 'graphql';
-
 export type Obj<T = any> = { [key: string]: T };
 
-export type ScalarName =
-  | 'boolean'
-  | 'int'
-  | 'float'
-  | 'string'
-  | 'date'
-  | 'json';
+export type RecordValue =
+  | boolean
+  | number
+  | string
+  | Date
+  | Obj
+  | boolean[]
+  | number[]
+  | string[]
+  | Date[]
+  | Obj[];
 
-export type FieldValue = boolean | number | string | Date | Obj;
-export type Data = Obj<Obj<Obj<FieldValue | FieldValue[] | null> | null>>;
+export type Record = Obj<RecordValue | null>;
+
+export interface IdRecord {
+  id: string;
+  [field: string]: RecordValue | null;
+}
 
 export interface Args<T = undefined> {
   filter?: T | any[];
@@ -19,27 +25,31 @@ export interface Args<T = undefined> {
   start?: number;
   end?: number;
 }
-export interface FullArgs<T = undefined> extends Args<T> {
-  offset?: number;
-  trace?: { start: number; end?: number };
-  fields?: string[];
-}
+
 export interface Query<T = undefined> extends Args<T> {
   name: string;
   alias?: string;
   fields: (string | Query<T>)[];
 }
 
+export interface RequestQuery extends Args<undefined> {
+  name: string;
+  fields: (string | RequestQuery)[];
+  trace?: { start: number; end?: number };
+}
+
 export interface QueryLayer {
-  root: { type?: string; field: string; alias?: string; path: string };
+  root: { type?: string; field: string; alias?: string };
   field: ForeignRelationField | RelationField;
   args: Args;
   fields: string[];
-  path: string;
+  relations: string[];
+  path: string[];
+  key: string;
 }
 
 export interface ScalarField {
-  scalar: ScalarName;
+  scalar: 'boolean' | 'int' | 'float' | 'string' | 'date' | 'json';
   isList?: true;
   meta?: any;
 }
@@ -73,15 +83,26 @@ export const fieldIs = {
   },
 };
 
-export interface QueryRequest {
-  query: string;
-  variables?: any;
-  normalize?: boolean;
+export interface Source {
+  newId(): string;
+  query(args: Args, fields: string[]): Promise<IdRecord[]>;
+  findById(id: string): Promise<IdRecord | null>;
+  insert(id: string, data: any): Promise<void>;
+  update(id: string, data: any): Promise<void>;
+  delete(id: string): Promise<void>;
+  dump(): Promise<IdRecord[]>;
+  restore(data: IdRecord[]): Promise<void>;
 }
 
-export interface QueryResponse {
-  data?: any;
-  errors?: GraphQLError[];
-  firstIds?: Obj<Obj<string>>;
-  newIds?: Obj<Obj<string>>;
+export type DataChanges = Obj<Obj<Obj<true>>>;
+
+export interface RgoRequest {
+  queries: RequestQuery[];
+  commits: Obj<Obj<Record | null>>[];
+}
+
+export interface RgoResponse {
+  data: Obj<Obj<Record>>;
+  firstIds: Obj<Obj<string>>;
+  commits: (string | Obj<Obj<string>>)[];
 }

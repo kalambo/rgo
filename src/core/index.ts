@@ -1,19 +1,23 @@
+export { default as read } from './read';
+export { default as run } from './run';
 export {
   Args,
-  Data,
+  DataChanges,
   Field,
   fieldIs,
-  FieldValue,
   ForeignRelationField,
-  FullArgs,
+  IdRecord,
   Obj,
   Query,
   QueryLayer,
-  QueryRequest,
-  QueryResponse,
+  Record,
+  RecordValue,
   RelationField,
+  RequestQuery,
+  RgoRequest,
+  RgoResponse,
   ScalarField,
-  ScalarName,
+  Source,
 } from './typings';
 export {
   createCompare,
@@ -25,13 +29,11 @@ export {
   mapArray,
   mapFilter,
   noUndef,
-  printArgs,
   promisifyEmitter,
-  queryWalker,
   runFilter,
-  sortedStringify,
   standardiseQuery,
   undefOr,
 } from './utils';
+export { default as walker } from './walker';
 
 export const localPrefix = 'LOCAL__RECORD__';

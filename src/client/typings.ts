@@ -1,30 +1,22 @@
 import {
   Args,
-  Data,
+  DataChanges,
   Field,
-  FieldValue,
   ForeignRelationField,
   Obj,
   Query,
-  QueryRequest,
-  QueryResponse,
+  Record,
+  RecordValue,
   RelationField,
+  RgoRequest,
+  RgoResponse,
 } from '../core';
 
-export type DataDiff = Obj<Obj<1 | -1 | 0>>;
-
 export interface ClientState {
-  server: Obj<Obj<Obj<FieldValue | null>>>;
-  client: Obj<Obj<Obj<FieldValue | null> | null>>;
-  combined: Obj<Obj<Obj<FieldValue>>>;
-  diff: DataDiff;
-}
-
-export type DataChanges = Obj<Obj<Obj<true>>>;
-
-export interface FullChanges {
-  changes: DataChanges;
-  changedData: Data;
+  server: Obj<Obj<Record>>;
+  client: Obj<Obj<Record | null>>;
+  combined: Obj<Obj<Obj<RecordValue>>>;
+  diff: Obj<Obj<1 | -1 | 0>>;
 }
 
 export type FetchData = {
@@ -41,24 +33,22 @@ export interface FetchInfo {
   relations: Obj<FetchInfo>;
   complete: {
     data: FetchData;
+    offset: number;
     firstIds: Obj<string>;
   };
-  active: Obj<{
-    path: string;
-    changing: string[];
-  }>;
+  active: Obj<string[]>;
   pending?: {
-    alias: string;
     changing: string[];
+    offset: number;
     data: FetchData;
   };
 }
 
 export type FetchPlugin = (
-  body: QueryRequest[],
+  body: RgoRequest,
   headers: Obj,
-  next: (body: QueryRequest[], headers: Obj) => Promise<QueryResponse[]>,
-) => Promise<QueryResponse[]>;
+  next: (body: RgoRequest, headers: Obj) => Promise<RgoResponse>,
+) => Promise<RgoResponse>;
 
 export type ChangePlugin = (state: ClientState, changes: DataChanges) => void;
 
@@ -77,19 +67,42 @@ export interface Client {
   create(type: string): string;
 
   query(): Promise<void>;
-  query(query: Query<string> | Query<string>[]): Promise<Obj>;
+  query(...queries: Query<string>[]): Promise<Obj>;
+  query(query: Query<string>, onLoad: (data: Obj | null) => void): () => void;
   query(
-    query: Query<string> | Query<string>[],
+    query1: Query<string>,
+    query2: Query<string>,
+    onLoad: (data: Obj | null) => void,
+  ): () => void;
+  query(
+    query1: Query<string>,
+    query2: Query<string>,
+    query3: Query<string>,
+    onLoad: (data: Obj | null) => void,
+  ): () => void;
+  query(
+    query1: Query<string>,
+    query2: Query<string>,
+    query3: Query<string>,
+    query4: Query<string>,
+    onLoad: (data: Obj | null) => void,
+  ): () => void;
+  query(
+    query1: Query<string>,
+    query2: Query<string>,
+    query3: Query<string>,
+    query4: Query<string>,
+    query5: Query<string>,
     onLoad: (data: Obj | null) => void,
   ): () => void;
 
   set(
-    values: (
+    ...values: (
       | { key: [string, string, string]; value: any }
-      | { key: [string, string]; value?: null })[],
+      | { key: [string, string]; value?: null })[]
   ): void;
 
   commit(
-    keys: [string, string, string][],
+    ...keys: ([string, string] | [string, string, string])[]
   ): Promise<{ values: any[]; newIds: Obj } | null>;
 }

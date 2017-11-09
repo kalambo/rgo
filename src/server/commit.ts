@@ -4,99 +4,107 @@ import {
   localPrefix,
   noUndef,
   Obj,
+  Record,
   RelationField,
   ScalarField,
+  Source,
 } from '../core';
 
-import { CommitPlugin, Connector, Info, Mutation } from './typings';
+import { CommitPlugin, Info, Mutation } from './typings';
 
-export default async function mutate(
+export default async function commit(
   info: Info,
-  connectors: Obj<Connector>,
-  args,
-  { newIds }: { newIds: Obj<Obj<string>> },
+  sources: Obj<Source>,
   plugins: CommitPlugin[],
+  data: Obj<Obj<Record>>,
+  commits: Obj<Obj<Record | null>>[],
 ) {
-  const typeNames = Object.keys(args);
-  const tempNewIds: Obj<Obj<string>> = {};
-  const time = new Date();
+  return await Promise.all(
+    commits.map(async commit => {
+      const types = Object.keys(commit);
+      const newIds: Obj<Obj<string>> = {};
+      const time = new Date();
 
-  for (const type of typeNames) {
-    tempNewIds[type] = tempNewIds[type] || {};
-    args[type]
-      .map(m => m.id)
-      .filter(id => id.startsWith(localPrefix))
-      .forEach(id => {
-        tempNewIds[type][id] = connectors[type].newId();
-      });
-  }
-  const getId = (type: string, id: string) =>
-    (tempNewIds[type] || {})[id] || id;
-
-  const mutations = keysToObject<Mutation[]>(typeNames, []);
-  for (const type of typeNames) {
-    for (const { id: tempId, ...mutation } of args[type]) {
-      const id = getId(type, tempId);
-
-      const data: Obj | null = Object.keys(mutation).length ? mutation : null;
-      const prev: Obj | null =
-        (id === tempId && (await connectors[type].findById(id))) || null;
-      if (prev) delete prev.id;
-
-      if (data) {
-        for (const f of Object.keys(data)) {
-          if (data[f]) {
-            const field = info.schema[type][f] as RelationField | ScalarField;
-            if (field.isList && data[f].length === 0) data[f] = null;
-            if (fieldIs.relation(field)) {
-              data[f] = field.isList
-                ? data[f].map(v => getId(field.type, v))
-                : getId(field.type, data[f]);
-            }
+      for (const type of types) {
+        newIds[type] = newIds[type] || {};
+        for (const id of Object.keys(commit[type])) {
+          if (id.startsWith(localPrefix)) {
+            newIds[type][id] = sources[type].newId();
           }
         }
-        if (!prev && !data.createdat) data.createdat = time;
-        if (!data.modifiedat) data.modifiedat = time;
       }
+      const getId = (type: string, id: string) =>
+        (newIds[type] || {})[id] || id;
 
-      mutations[type].push({ id, data, prev });
-    }
-  }
+      const mutations = keysToObject<Mutation[]>(types, []);
+      for (const type of types) {
+        for (const tempId of Object.keys(commit[type])) {
+          const id = getId(type, tempId);
 
-  try {
-    for (const p of plugins) {
-      await Promise.all(
-        typeNames.map(async type => {
-          mutations[type] = await Promise.all(
-            mutations[type].map(async m => ({
-              ...m,
-              data: noUndef(await p({ ...m, type }, info), m.data),
-            })),
-          );
-        }),
-      );
-    }
-  } catch (error) {
-    return error;
-  }
+          const record = commit[type][id];
+          const prev = id === tempId ? await sources[type].findById(id) : null;
+          if (prev) delete prev.id;
 
-  const results = keysToObject<Obj[]>(typeNames, []);
-  for (const type of typeNames) {
-    newIds[type] = { ...newIds[type], ...tempNewIds[type] };
-    for (const { id, data, prev } of mutations[type]) {
-      if (data) {
-        if (prev) {
-          await connectors[type].update(id, data);
-        } else {
-          await connectors[type].insert(id, data);
+          if (record) {
+            for (const f of Object.keys(record)) {
+              if (record[f]) {
+                const field = info.schema[type][f] as
+                  | RelationField
+                  | ScalarField;
+                if (fieldIs.relation(field)) {
+                  record[f] = field.isList
+                    ? (record[f] as any[]).map(v => getId(field.type, v))
+                    : getId(field.type, record[f] as string);
+                }
+                if (field.isList && (record[f] as any[]).length === 0) {
+                  record[f] = null;
+                }
+              }
+            }
+            if (!prev && !record.createdat) record.createdat = time;
+            if (!record.modifiedat) record.modifiedat = time;
+          }
+
+          mutations[type].push({ id, record, prev });
         }
-        results[type].push({ id, ...prev, ...data });
-      } else {
-        await connectors[type].delete(id);
-        results[type].push({ id });
       }
-    }
-  }
 
-  return results;
+      try {
+        for (const onCommit of plugins) {
+          await Promise.all(
+            types.map(async type => {
+              mutations[type] = await Promise.all(
+                mutations[type].map(async m => ({
+                  ...m,
+                  record: noUndef(
+                    await onCommit({ ...m, type }, info),
+                    m.record,
+                  ),
+                })),
+              );
+            }),
+          );
+        }
+      } catch (error) {
+        return error.message as string;
+      }
+
+      for (const type of types) {
+        for (const { id, record, prev } of mutations[type]) {
+          if (record) {
+            if (prev) {
+              await sources[type].update(id, record);
+            } else {
+              await sources[type].insert(id, record);
+            }
+            data[type] = data[type] || {};
+            data[type][id] = record;
+          } else {
+            await sources[type].delete(id);
+          }
+        }
+      }
+      return newIds;
+    }),
+  );
 }

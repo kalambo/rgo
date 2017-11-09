@@ -25,7 +25,7 @@ describe('query: modified', () => {
       end: 1,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'B', 'firstname'], value: 'Brent' }]);
+    client.set({ key: ['people', 'B', 'firstname'], value: 'Brent' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -40,7 +40,7 @@ describe('query: modified', () => {
       end: 1,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'B', 'firstname'], value: 'Elissa' }]);
+    client.set({ key: ['people', 'B', 'firstname'], value: 'Elissa' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -55,7 +55,7 @@ describe('query: modified', () => {
       end: 1,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'B', 'firstname'], value: 'Ernest' }]);
+    client.set({ key: ['people', 'B', 'firstname'], value: 'Ernest' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ernest', address: { city: 'Tobyhaven' } },
@@ -70,7 +70,7 @@ describe('query: modified', () => {
       end: 1,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'B', 'firstname'], value: 'Faye' }]);
+    client.set({ key: ['people', 'B', 'firstname'], value: 'Faye' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -85,7 +85,7 @@ describe('query: modified', () => {
       end: 1,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'B', 'firstname'], value: 'Richie' }]);
+    client.set({ key: ['people', 'B', 'firstname'], value: 'Richie' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -102,7 +102,7 @@ describe('query: modified', () => {
       end: 2,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'C', 'firstname'], value: 'Brent' }]);
+    client.set({ key: ['people', 'C', 'firstname'], value: 'Brent' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
@@ -118,7 +118,7 @@ describe('query: modified', () => {
       end: 2,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'C', 'firstname'], value: 'Elissa' }]);
+    client.set({ key: ['people', 'C', 'firstname'], value: 'Elissa' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Princeview' } },
@@ -134,7 +134,7 @@ describe('query: modified', () => {
       end: 2,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'C', 'firstname'], value: 'Ernest' }]);
+    client.set({ key: ['people', 'C', 'firstname'], value: 'Ernest' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ernest', address: { city: 'Princeview' } },
@@ -150,7 +150,7 @@ describe('query: modified', () => {
       end: 2,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'C', 'firstname'], value: 'Faye' }]);
+    client.set({ key: ['people', 'C', 'firstname'], value: 'Faye' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -166,7 +166,7 @@ describe('query: modified', () => {
       end: 2,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'C', 'firstname'], value: 'Richie' }]);
+    client.set({ key: ['people', 'C', 'firstname'], value: 'Richie' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -183,7 +183,7 @@ describe('query: modified', () => {
       end: 3,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'A', 'firstname'], value: 'Brent' }]);
+    client.set({ key: ['people', 'A', 'firstname'], value: 'Brent' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
@@ -199,7 +199,7 @@ describe('query: modified', () => {
       end: 3,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'A', 'firstname'], value: 'Elissa' }]);
+    client.set({ key: ['people', 'A', 'firstname'], value: 'Elissa' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Lynchfurt' } },
@@ -215,7 +215,7 @@ describe('query: modified', () => {
       end: 3,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'A', 'firstname'], value: 'Ernest' }]);
+    client.set({ key: ['people', 'A', 'firstname'], value: 'Ernest' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -231,7 +231,7 @@ describe('query: modified', () => {
       end: 3,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'A', 'firstname'], value: 'Faye' }]);
+    client.set({ key: ['people', 'A', 'firstname'], value: 'Faye' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -247,7 +247,7 @@ describe('query: modified', () => {
       end: 3,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'A', 'firstname'], value: 'Richie' }]);
+    client.set({ key: ['people', 'A', 'firstname'], value: 'Richie' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -264,7 +264,7 @@ describe('query: modified', () => {
       end: 4,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'D', 'firstname'], value: 'Brent' }]);
+    client.set({ key: ['people', 'D', 'firstname'], value: 'Brent' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Delphia', address: { city: 'Tobyhaven' } },
@@ -280,7 +280,7 @@ describe('query: modified', () => {
       end: 4,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'D', 'firstname'], value: 'Elissa' }]);
+    client.set({ key: ['people', 'D', 'firstname'], value: 'Elissa' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Jeannebury' } },
@@ -296,7 +296,7 @@ describe('query: modified', () => {
       end: 4,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'D', 'firstname'], value: 'Ernest' }]);
+    client.set({ key: ['people', 'D', 'firstname'], value: 'Ernest' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -312,7 +312,7 @@ describe('query: modified', () => {
       end: 4,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'D', 'firstname'], value: 'Faye' }]);
+    client.set({ key: ['people', 'D', 'firstname'], value: 'Faye' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -328,7 +328,7 @@ describe('query: modified', () => {
       end: 4,
       fields: ['firstname'],
     });
-    client.set([{ key: ['people', 'D', 'firstname'], value: 'Richie' }]);
+    client.set({ key: ['people', 'D', 'firstname'], value: 'Richie' });
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
@@ -344,10 +344,10 @@ describe('query: modified', () => {
       end: 2,
       fields: ['firstname'],
     });
-    client.set([
+    client.set(
       { key: ['people', 'B', 'firstname'], value: 'Faye' },
       { key: ['people', 'C', 'firstname'], value: 'Brent' },
-    ]);
+    );
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -363,10 +363,10 @@ describe('query: modified', () => {
       end: 3,
       fields: ['firstname'],
     });
-    client.set([
+    client.set(
       { key: ['people', 'C', 'firstname'], value: 'Richie' },
       { key: ['people', 'A', 'firstname'], value: 'Elissa' },
-    ]);
+    );
     expect(await client.query(query)).toEqual({
       people: [
         { firstname: 'Elissa', address: { city: 'Lynchfurt' } },

@@ -1,17 +1,16 @@
 import * as _ from 'lodash';
 
-import { createCompare, Obj, runFilter } from '../../core';
-
-import { Connector } from '../typings';
+import { createCompare, IdRecord, Obj, runFilter, Source } from '../../core';
+import { keysToObject } from '../../core/utils';
 
 export default function memoryConnector(
   newId: () => string,
-  initialData: Obj[] = [],
-): Connector {
+  initialData: IdRecord[] = [],
+): Source {
   const records = initialData;
   return {
     newId,
-    async query({ filter, sort, start = 0, end }) {
+    async query({ filter, sort, start = 0, end }, fields) {
       if (start === end) return [];
       const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
       const compareFunc = createCompare(
@@ -23,7 +22,7 @@ export default function memoryConnector(
           .filter(filterFunc)
           .sort(compareFunc)
           .slice(start, end),
-      );
+      ).map(record => keysToObject(fields, f => record[f]) as IdRecord);
     },
     async findById(id) {
       return _.cloneDeep(records.find(record => record.id === id) || null);
@@ -41,7 +40,7 @@ export default function memoryConnector(
       return records;
     },
     async restore(data) {
-      records.splice(0, records.length, data);
+      records.splice(0, records.length, ...data);
     },
   };
 }

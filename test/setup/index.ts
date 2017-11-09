@@ -3,7 +3,7 @@ import { Headers } from 'node-fetch';
 
 import * as fetchMock from 'fetch-mock';
 
-import { buildClient, buildServer, Client, connectors } from '../../src';
+import { buildClient, buildServer, Client, sources } from '../../src';
 
 const baseData = require('./data.json');
 const baseSchema = require('./schema.json');
@@ -14,8 +14,8 @@ export const setupClient = async () => {
   const db: any = {};
   const server = await buildServer({
     addresses: {
-      fields: baseSchema.addresses,
-      connector: connectors.memory(
+      schema: baseSchema.addresses,
+      source: sources.memory(
         () => '',
         Object.keys(baseData.addresses).map(id => ({
           id,
@@ -24,8 +24,8 @@ export const setupClient = async () => {
       ),
     },
     people: {
-      fields: baseSchema.people,
-      connector: connectors.memory(
+      schema: baseSchema.people,
+      source: sources.memory(
         () => '',
         Object.keys(baseData.people).map(id => ({
           id,
@@ -35,16 +35,13 @@ export const setupClient = async () => {
     },
   });
   fetchMock.post('https://www.example.com', async (_, opts) => {
-    const queries = JSON.parse(opts.body);
-    const result = await server(queries, {});
-    // const introspection = JSON.stringify(queries).includes('Introspection');
-    // if (!introspection) {
-    //   console.log(JSON.stringify(queries, null, 2));
-    //   console.log(JSON.stringify(result, null, 2));
-    // }
-    return result;
+    const request = JSON.parse(opts.body);
+    const response = await server(request, {});
+    // console.log(JSON.stringify(request, null, 2));
+    // console.log(JSON.stringify(response, null, 2));
+    return response;
   });
-  client = buildClient('https://www.example.com');
+  client = buildClient(baseSchema, 'https://www.example.com');
 };
 
 export const clearClient = () => {

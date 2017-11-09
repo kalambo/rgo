@@ -1,42 +1,48 @@
 import * as _ from 'lodash';
 
 import {
-  createCompare,
+  DataChanges,
   Field,
   fieldIs,
-  getFilterFields,
-  keysToObject,
-  locationOf,
-  noUndef,
   Obj,
   Query,
   QueryLayer,
-  queryWalker,
+  Record,
+} from './typings';
+import {
+  createCompare,
+  getFilterFields,
+  keysToObject,
+  noUndef,
   runFilter,
-  sortedStringify,
   undefOr,
-} from '../core';
-
-import { ClientState, DataChanges, FetchInfo, FilterPlugin } from './typings';
+} from './utils';
+import walker from './walker';
 
 (x: Field | Query) => x;
 
-export default queryWalker(
+export default walker(
   (
-    { root, field, args, fields, path }: QueryLayer,
+    layer: QueryLayer,
     {
+      data,
       records,
-      state,
-      info,
-      plugins,
+      getStart,
     }: {
+      data: Obj<Obj<Record>>;
       records: Obj<Obj<Obj>>;
-      state: ClientState;
-      info: Obj<FetchInfo>;
-      plugins: FilterPlugin[];
+      getStart: (
+        layer: QueryLayer,
+        rootId: string,
+        recordIds: (string | null)[],
+      ) => number;
     },
     walkRelations: () => ((changes: DataChanges) => number)[],
   ) => {
+    const { root, field, args, fields, path, key } = layer;
+    const rootPath = path.join('_');
+    const fieldPath = [...path, key].join('_');
+
     const structuralFields = Array.from(
       new Set<string>([
         ...(args.filter ? getFilterFields(args.filter) : []),
@@ -44,52 +50,28 @@ export default queryWalker(
       ]),
     );
 
-    const mappedFilter = plugins.reduce((res, p) => p(res), args.filter);
     const filter = (id: string) =>
-      runFilter(mappedFilter, id, state.combined[field.type][id]);
+      runFilter(args.filter, id, data[field.type][id]);
     const compare = createCompare(
       (id: string, key) =>
-        key === 'id' ? id : noUndef(state.combined[field.type][id]![key]),
-      args.sort,
-    );
-    const compareRecords = createCompare(
-      (record: Obj, key) => record[key],
+        key === 'id' ? id : noUndef(data[field.type][id]![key]),
       args.sort,
     );
 
-    const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-    info[path] = info[root.path] && info[root.path].relations[infoKey];
-
-    const rootIds = Object.keys(records[root.path]);
+    const rootIds = Object.keys(records[rootPath]);
     const rootRecordIds = {} as Obj<(string | null)[]>;
-    const sliceStarts = {} as Obj<number>;
-    records[path] = {};
+    records[fieldPath] = {};
 
     const getRecord = (id: string | null) => {
       if (!id) return null;
-      if (records[path][id]) return records[path][id];
-      return (records[path][id] = keysToObject(
+      if (records[fieldPath][id]) return records[fieldPath][id];
+      return (records[fieldPath][id] = keysToObject(
         fields,
-        f => (f === 'id' ? id : noUndef(state.combined[field.type][id]![f])),
+        f => (f === 'id' ? id : noUndef(data[field.type][id]![f])),
       ));
     };
 
-    const findRecordIndex = (rootId: string, record: Obj) =>
-      locationOf(
-        '',
-        rootRecordIds[rootId],
-        createCompare(
-          (id: string | null, key) =>
-            key === 'id'
-              ? id || record.id
-              : noUndef(
-                  id ? state.combined[field.type][id]![key] : record[key],
-                ),
-          args.sort,
-        ),
-      );
-
-    const allIds = Object.keys(state.combined[field.type] || {});
+    const allIds = Object.keys(data[field.type] || {});
     const filteredIdsObj = keysToObject(allIds, filter);
     const filteredIds = allIds.filter(id => filteredIdsObj[id]).sort(compare);
 
@@ -97,7 +79,7 @@ export default queryWalker(
       if (!root.type) {
         rootRecordIds[rootId] = filteredIds;
       } else {
-        const value = noUndef(state.combined[root.type][rootId]![root.field]);
+        const value = noUndef(data[root.type][rootId]![root.field]);
         if (fieldIs.relation(field)) {
           if (field.isList) {
             if (!args.sort) {
@@ -115,7 +97,7 @@ export default queryWalker(
           }
         } else {
           rootRecordIds[rootId] = filteredIds.filter(id => {
-            const v = noUndef(state.combined[field.type!][id]![field.foreign]);
+            const v = noUndef(data[field.type!][id]![field.foreign]);
             return (
               (value || []).includes(id) ||
               (Array.isArray(v) ? v.includes(rootId) : v === rootId)
@@ -125,74 +107,24 @@ export default queryWalker(
       }
 
       if (rootRecordIds[rootId].length === 0) {
-        records[root.path][rootId][root.alias || root.field] =
+        records[rootPath][rootId][root.alias || root.field] =
           fieldIs.foreignRelation(field) || field.isList ? [] : null;
       } else if (fieldIs.relation(field) && field.isList && !args.sort) {
-        records[root.path][rootId][root.alias || root.field] = rootRecordIds[
+        records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
           rootId
         ].map(getRecord);
       } else if (fieldIs.foreignRelation(field) || field.isList) {
-        if (info[path] && info[path].complete.firstIds[rootId]) {
-          const queryFirst = {
-            id: info[path].complete.firstIds[rootId],
-            ...state.server[field.type][info[path].complete.firstIds[rootId]]!,
-          };
-          const queryStart = findRecordIndex(rootId, queryFirst);
-          sliceStarts[rootId] = queryStart;
-          for (const id of Object.keys(state.diff[field.type] || {})) {
-            if (state.diff[field.type][id] === 1) {
-              const localIndex = rootRecordIds[rootId].indexOf(id);
-              if (localIndex !== -1 && localIndex < queryStart) {
-                sliceStarts[rootId] -= 1;
-              }
-            }
-            if (state.diff[field.type][id] === 0) {
-              if (
-                state.server[field.type][id] &&
-                runFilter(mappedFilter, id, state.server[field.type][id]) &&
-                compareRecords(state.server[field.type][id]!, queryFirst) === -1
-              ) {
-                sliceStarts[rootId] += 1;
-              }
-              const localIndex = rootRecordIds[rootId].indexOf(id);
-              if (localIndex !== -1 && localIndex < queryStart) {
-                sliceStarts[rootId] -= 1;
-              }
-            }
-            if (state.diff[field.type][id] === -1) {
-              const serverRecord = (state.server[field.type] || {})[id];
-              if (
-                serverRecord &&
-                (!root.type ||
-                  fieldIs.foreignRelation(field) ||
-                  ((state.combined[root.type][rootId]![root.field] ||
-                    []) as string[]).includes(id)) &&
-                runFilter(mappedFilter, id, serverRecord)
-              ) {
-                if (
-                  compareRecords({ id, ...serverRecord }, queryFirst) === -1
-                ) {
-                  sliceStarts[rootId] += 1;
-                }
-              }
-            }
-          }
-        } else {
-          sliceStarts[rootId] = args.start || 0;
-        }
-        records[root.path][rootId][root.alias || root.field] = rootRecordIds[
+        const start = getStart(layer, rootId, rootRecordIds[rootId]);
+        records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
           rootId
         ]
           .slice(
-            sliceStarts[rootId],
-            undefOr(
-              args.end,
-              sliceStarts[rootId] + args.end! - (args.start || 0),
-            ),
+            start,
+            undefOr(args.end, start - (args.start || 0) + args.end!),
           )
           .map(getRecord);
       } else {
-        records[root.path][rootId][root.alias || root.field] = getRecord(
+        records[rootPath][rootId][root.alias || root.field] = getRecord(
           rootRecordIds[rootId][0] || null,
         );
       }
@@ -224,7 +156,7 @@ export default queryWalker(
 
       if (root.type) {
         for (const id of Object.keys(changes[root.type] || {})) {
-          if (records[root.path][id]) {
+          if (records[rootPath][id]) {
             if ((changes[root.type][id] || {})[root.field]) return 2;
           }
         }
@@ -232,16 +164,14 @@ export default queryWalker(
 
       let hasUpdated = false;
       for (const id of Object.keys(changes[field.type] || {})) {
-        if (records[path][id]) {
+        if (records[fieldPath][id]) {
           for (const f of Object.keys(changes[field.type][id] || {})) {
             if (fields.includes(f)) {
-              const prev = records[path][id][f];
-              const value = noUndef(
-                ((state.combined[field.type] || {})[id] || {})[f],
-              );
+              const prev = records[fieldPath][id][f];
+              const value = noUndef(((data[field.type] || {})[id] || {})[f]);
               if (!_.isEqual(value, prev)) {
                 hasUpdated = true;
-                records[path][id][f] = value;
+                records[fieldPath][id][f] = value;
               }
             }
           }
@@ -393,7 +323,7 @@ export default queryWalker(
 //               }
 //             }
 //           };
-//           const value = state.combined[root.type!][rootId]![root.field];
+//           const value = data[root.type!][rootId]![root.field];
 //           filteredAdded.forEach(id => {
 //             if (fieldIs.relation(field)) {
 //               if (field.isList) {
@@ -419,7 +349,7 @@ export default queryWalker(
 //               if (
 //                 (value || []).includes(id) ||
 //                 isOrIncludes(
-//                   state.combined[root.type!][id]![field.foreign],
+//                   data[root.type!][id]![field.foreign],
 //                   rootId,
 //                 )
 //               ) {
@@ -446,7 +376,7 @@ export default queryWalker(
 //               const included =
 //                 (value || []).includes(id) ||
 //                 isOrIncludes(
-//                   state.combined[root.type!][id]![field.foreign],
+//                   data[root.type!][id]![field.foreign],
 //                   rootId,
 //                 );
 //               const prevIndex = rootRecordIds[rootId].indexOf(id);
@@ -474,7 +404,7 @@ export default queryWalker(
 //       if (records[id] && !newRecords.includes(id)) {
 //         for (const f of Object.keys(changes[field.type][id] || {})) {
 //           if (scalarFields[f]) {
-//             const value = ((state.combined[field.type] || {})[id] || {})[f];
+//             const value = ((data[field.type] || {})[id] || {})[f];
 //             if (value === undefined) delete records[id][f];
 //             else records[id][f] = value;
 //           }

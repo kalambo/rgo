@@ -1,106 +1,103 @@
 export { Client, ClientPlugin } from './typings';
 
 import * as _ from 'lodash';
-import {
-  buildClientSchema,
-  GraphQLList,
-  GraphQLNonNull,
-  GraphQLObjectType,
-  introspectionQuery,
-} from 'graphql';
 
 import {
+  createCompare,
+  DataChanges,
   encodeDate,
   keysToObject,
   Field,
   fieldIs,
-  FieldValue,
   localPrefix,
+  locationOf,
   mapArray,
   noUndef,
   Obj,
   promisifyEmitter,
   Query,
-  QueryRequest,
-  QueryResponse,
-  queryWalker,
-  sortedStringify,
+  QueryLayer,
+  read,
+  Record,
+  RecordValue,
+  RequestQuery,
+  RgoRequest,
+  RgoResponse,
+  runFilter,
   standardiseQuery,
+  walker,
 } from '../core';
 
 import getRequests from './getRequests';
-import readLayer from './readLayer';
 import setState from './setState';
-import {
-  Client,
-  ClientPlugin,
-  ClientState,
-  DataChanges,
-  FetchInfo,
-} from './typings';
+import { Client, ClientPlugin, ClientState, FetchInfo } from './typings';
 
-const addQuery = queryWalker<
-  void,
-  { info: Obj<FetchInfo> }
->(({ root, field, args, fields, path }, { info }, walkRelations) => {
-  const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-  info[root.path].relations[infoKey] = info[root.path].relations[infoKey] || {
-    name: root.field,
-    field: field,
-    args: args,
-    fields: {},
-    relations: {},
-    complete: {
-      data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
-      firstIds: {},
-    },
-    active: {},
-  };
-  info[path] = info[root.path].relations[infoKey];
-  fields.forEach(f => (info[path].fields[f] = (info[path].fields[f] || 0) + 1));
-  walkRelations();
-});
+const addQueries = walker<void, { fetchInfo: FetchInfo }>(
+  ({ root, field, args, fields, path, key }, { fetchInfo }, walkRelations) => {
+    const info = path.reduce((res, k) => res.relations[k], fetchInfo);
+    info.relations[key] = info.relations[key] || {
+      name: root.field,
+      field: field,
+      args: args,
+      fields: {},
+      relations: {},
+      complete: {
+        data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
+        offset: 0,
+        firstIds: {},
+      },
+      active: {},
+    };
+    fields.forEach(
+      f =>
+        (info.relations[key].fields[f] =
+          (info.relations[key].fields[f] || 0) + 1),
+    );
+    walkRelations();
+  },
+);
 
-const removeQuery = queryWalker<
-  void,
-  { info: Obj<FetchInfo> }
->(({ root, field, args, fields, path }, { info }, walkRelations) => {
-  const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-  info[path] = info[root.path].relations[infoKey];
-  walkRelations();
-  fields.forEach(f => {
-    info[path].fields[f]--;
-    if (info[path].fields[f] === 0) delete info[path].fields[f];
-  });
-  if (
-    Object.keys(info[path].fields).length === 0 &&
-    Object.keys(info[path].relations).length === 0
-  ) {
-    delete info[root.path].relations[infoKey];
-  }
-});
+const removeQueries = walker<void, { fetchInfo: FetchInfo }>(
+  ({ fields, path, key }, { fetchInfo }, walkRelations) => {
+    const info = path.reduce((res, k) => res.relations[k], fetchInfo);
+    walkRelations();
+    fields.forEach(f => {
+      info.relations[key].fields[f]--;
+      if (info.relations[key].fields[f] === 0) {
+        delete info.relations[key].fields[f];
+      }
+    });
+    if (
+      Object.keys(info.relations[key].fields).length === 0 &&
+      Object.keys(info.relations[key].relations).length === 0
+    ) {
+      delete info.relations[key];
+    }
+  },
+);
 
-const queryChanging = queryWalker<
-  boolean,
-  { info: Obj<FetchInfo> }
->(({ root, field, args, fields, path }, { info }, walkRelations) => {
-  const infoKey = `${sortedStringify(field)},${sortedStringify(args)}`;
-  info[path] = info[root.path].relations[infoKey];
-  const changing = Object.keys(info[path].active || {}).reduce(
-    (res, k) => [...res, ...info[path].active![k].changing],
-    info[path].pending ? info[path].pending!.changing : [],
-  );
-  return fields.some(f => changing.includes(f)) || walkRelations().some(r => r);
-});
+const queriesChanging = walker<boolean, { fetchInfo: FetchInfo }>(
+  ({ fields, path, key }, { fetchInfo }, walkRelations) => {
+    const info = path.reduce((res, k) => res.relations[k], fetchInfo);
+    const changing = Object.keys(info.relations[key].active || {}).reduce(
+      (res, k) => [...res, ...info.relations[key].active![k]],
+      info.relations[key].pending ? info.relations[key].pending!.changing : [],
+    );
+    return (
+      fields.some(f => changing.includes(f)) || walkRelations().some(r => r)
+    );
+  },
+);
 
 export default function buildClient(
+  schema: Obj<Obj<Field>>,
   url: string,
   ...plugins: ClientPlugin[]
 ): Client {
   const baseFetch = plugins.filter(p => p.onFetch).reduce(
-    (res, p) => (body: QueryRequest[], headers: Obj) =>
+    (res, p) => (body: RgoRequest, headers: Obj) =>
       p.onFetch!(body, headers, res),
-    async (body: QueryRequest[], headers: Obj): Promise<QueryResponse[]> => {
+    async (body: RgoRequest, headers: Obj): Promise<RgoResponse> => {
       const response = await fetch(url, {
         method: 'POST',
         headers: new Headers({
@@ -127,40 +124,29 @@ export default function buildClient(
     relations: {},
     complete: {
       data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
+      offset: 0,
       firstIds: {},
     },
     active: {},
   };
-  let queries: string[];
   const listeners: ((changes?: DataChanges) => void)[] = [];
+  let queries: RequestQuery[];
   let commits: {
-    request: string;
-    variables: Obj<any[]>;
-    resolve: (
-      response: { newIds?: Obj<Obj<string>>; errors?: string[] },
-    ) => void;
+    data: Obj<Obj<Record | null>>;
+    resolve: (response: string | Obj<Obj<string>>) => void;
   }[] = [];
 
   const getQueries = () => {
     queries = Object.keys(fetchInfo.relations)
-      .reduce(
-        (res, k, index) => {
-          const { idQueries, newFields, trace } = getRequests(
-            client.schema,
-            state,
-            fetchInfo.relations[k],
-            index,
-          );
-          return [
-            ...res,
-            ...idQueries.map((q, i) => `i${res.length + i}:${q}`),
-            newFields,
-            trace,
-          ];
-        },
-        [] as string[],
-      )
-      .filter(s => s);
+      .reduce<(RequestQuery | null)[]>((res, k) => {
+        const { idQueries, newFields, trace } = getRequests(
+          client.schema,
+          state,
+          fetchInfo.relations[k],
+        );
+        return [...res, ...idQueries, newFields, trace];
+      }, [])
+      .filter(s => s) as RequestQuery[];
     if (queries.length > 0) {
       listeners.forEach(l => l());
       run();
@@ -170,7 +156,7 @@ export default function buildClient(
   };
 
   const set = (
-    data: Obj<Obj<Obj<FieldValue | null | undefined> | null | undefined>>,
+    data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
     schema?: Obj<Obj<Field>>,
   ) => {
     const changes = setState(state, data, schema);
@@ -186,60 +172,39 @@ export default function buildClient(
   const run = _.throttle(
     async () => {
       const fetchIndex = ++fetchCounter;
-      const requests: QueryRequest[] = [];
-
-      const hasQueries = queries.length > 0;
-      if (hasQueries) {
-        requests.push({
-          query: `{\n  ${queries.join('\n')}\n}`,
-          normalize: true,
-        });
-        const setFetched = (info: FetchInfo, path: string) => {
+      const request = { queries, commits: commits.map(c => c.data) };
+      const commitResolves = commits.map(c => c.resolve);
+      commits = [];
+      if (request.queries.length > 0) {
+        const setFetched = (info: FetchInfo) => {
           if (info.pending) {
-            info.complete.data = info.pending!.data;
-            info.active[fetchIndex] = {
-              path,
-              changing: info.pending!.changing,
-            };
+            info.complete.data = info.pending.data;
+            info.complete.offset = info.pending.offset;
+            info.active[fetchIndex] = info.pending.changing;
             delete info.pending;
           }
           Object.keys(info.relations).forEach(k => {
-            if (info.relations[k].pending) {
-              const alias = info.relations[k].pending!.alias;
-              setFetched(info.relations[k], path ? `${path}_${alias}` : alias);
-            }
+            if (info.relations[k].pending) setFetched(info.relations[k]);
           });
         };
-        setFetched(fetchInfo, '');
+        setFetched(fetchInfo);
       }
-
-      const commitIndices: number[] = [];
-      for (const { request, variables } of commits) {
-        commitIndices.push(requests.length);
-        requests.push({ query: request, variables, normalize: true });
-      }
-      const commitResolves = commits.map(c => c.resolve);
-      commits = [];
-
-      const responses = await baseFetch(requests, {});
-      if (hasQueries) {
-        const updateInfo = (info: FetchInfo, firstIds: Obj<Obj<string>>) => {
+      const response = await baseFetch(request, {});
+      if (request.queries.length > 0) {
+        const updateInfo = (info: FetchInfo, path: string) => {
           if (info.active[fetchIndex]) {
             info.complete.firstIds =
-              firstIds[info.active[fetchIndex].path] || info.complete.firstIds;
+              response.firstIds[path] || info.complete.firstIds;
             delete info.active[fetchIndex];
           }
           Object.keys(info.relations).forEach(k =>
-            updateInfo(info.relations[k], firstIds),
+            updateInfo(info.relations[k], path ? `${path}_${k}` : k),
           );
         };
-        updateInfo(fetchInfo, responses[0].firstIds!);
+        updateInfo(fetchInfo, '');
       }
-      commitResolves.forEach((watcher, i) => {
-        const { newIds, errors } = responses[commitIndices[i]];
-        watcher({ newIds, errors: errors && errors.map(e => e.message) });
-      });
-      set(fetchIndex > resetFetch ? responses[0].data : {}, client.schema);
+      commitResolves.forEach((watcher, i) => watcher(response.commits[i]));
+      set(fetchIndex > resetFetch ? response.data : {}, client.schema);
     },
     50,
     { leading: false },
@@ -250,6 +215,7 @@ export default function buildClient(
     const resetInfo = (info: FetchInfo) => {
       info.complete = {
         data: { fields: [], slice: { start: 0, end: 0 }, ids: [] },
+        offset: 0,
         firstIds: {},
       };
       info.active = {};
@@ -265,7 +231,81 @@ export default function buildClient(
     );
   };
 
-  const client = {
+  const getStart = (
+    { root, field, args, path, key }: QueryLayer,
+    rootId: string,
+    recordIds: (string | null)[],
+  ) => {
+    const info = [...path, key].reduce((res, k) => res.relations[k], fetchInfo);
+    if (!info.complete.firstIds[rootId]) {
+      return (args.start || 0) + info.complete.offset;
+    }
+
+    const compareRecords = createCompare(
+      (record: Obj, key) => record[key],
+      args.sort,
+    );
+    const findRecordIndex = (record: Obj) =>
+      locationOf(
+        '',
+        recordIds,
+        createCompare(
+          (id: string | null, key) =>
+            key === 'id'
+              ? id || record.id
+              : noUndef(
+                  id ? state.combined[field.type][id]![key] : record[key],
+                ),
+          args.sort,
+        ),
+      );
+
+    const queryFirst = {
+      id: info.complete.firstIds[rootId],
+      ...state.server[field.type][info.complete.firstIds[rootId]]!,
+    };
+    const queryStart = findRecordIndex(queryFirst);
+    let start = queryStart;
+    for (const id of Object.keys(state.diff[field.type] || {})) {
+      if (state.diff[field.type][id] === 1) {
+        const localIndex = recordIds.indexOf(id);
+        if (localIndex !== -1 && localIndex < queryStart) {
+          start -= 1;
+        }
+      }
+      if (state.diff[field.type][id] === 0) {
+        if (
+          state.server[field.type][id] &&
+          runFilter(args.filter, id, state.server[field.type][id]) &&
+          compareRecords(state.server[field.type][id]!, queryFirst) === -1
+        ) {
+          start += 1;
+        }
+        const localIndex = recordIds.indexOf(id);
+        if (localIndex !== -1 && localIndex < queryStart) {
+          start -= 1;
+        }
+      }
+      if (state.diff[field.type][id] === -1) {
+        const serverRecord = (state.server[field.type] || {})[id];
+        if (
+          serverRecord &&
+          (!root.type ||
+            fieldIs.foreignRelation(field) ||
+            ((state.combined[root.type][rootId]![root.field] ||
+              []) as string[]).includes(id)) &&
+          runFilter(args.filter, id, serverRecord)
+        ) {
+          if (compareRecords({ id, ...serverRecord }, queryFirst) === -1) {
+            start += 1;
+          }
+        }
+      }
+    }
+    return start + info.complete.offset;
+  };
+
+  const client: Client = {
     schema: null as any,
     reset,
 
@@ -279,12 +319,13 @@ export default function buildClient(
     query(...args) {
       if (args.length === 0) return schemaPromise;
 
-      const baseQueries: Query<string>[] = Array.isArray(args[0])
-        ? args[0]
-        : [args[0]];
-      const onLoad = args[1] as
-        | ((data: Obj | { data: Obj; spans: Obj } | null) => void)
-        | undefined;
+      const onLoad =
+        typeof args[args.length - 1] === 'function'
+          ? (args[args.length - 1] as ((
+              data: Obj | { data: Obj; spans: Obj } | null,
+            ) => void))
+          : undefined;
+      const baseQueries: Query<string>[] = onLoad ? args.slice(0, -1) : args;
 
       return promisifyEmitter(innerListener => {
         let serverQueries: Query[];
@@ -304,19 +345,15 @@ export default function buildClient(
                   query.filter[query.filter.length - 1].startsWith(localPrefix)
                 ),
             );
-            serverQueries.forEach(query =>
-              addQuery(query, client.schema, { info: { '': fetchInfo } }),
-            );
+            addQueries(serverQueries, client.schema, { fetchInfo });
 
             let data: Obj;
             let updaters: ((changes: Obj<Obj<Obj<true>>>) => number)[] | null;
             listener = changes => {
               if (
-                serverQueries.some(query =>
-                  queryChanging(query, client.schema, {
-                    info: { '': fetchInfo },
-                  }),
-                )
+                queriesChanging(serverQueries, client.schema, {
+                  fetchInfo,
+                }).some(c => c)
               ) {
                 if (!data || updaters) {
                   updaters = null;
@@ -329,16 +366,11 @@ export default function buildClient(
                     : 2;
                 if (updateType === 2) {
                   data = {};
-                  updaters = allQueries.map(query =>
-                    readLayer(query, client.schema, {
-                      records: { '': { '': data } },
-                      state,
-                      info: { '': fetchInfo },
-                      plugins: plugins
-                        .filter(p => p.onFilter)
-                        .map(p => p.onFilter!),
-                    }),
-                  );
+                  updaters = read(allQueries, client.schema, {
+                    records: { '': { '': data } },
+                    data: state.combined,
+                    getStart,
+                  });
                 }
                 if (updateType) innerListener(data);
               }
@@ -351,109 +383,67 @@ export default function buildClient(
           const index = listeners.indexOf(listener);
           if (index !== -1) {
             listeners.splice(index, 1);
-            serverQueries.forEach(query =>
-              removeQuery(query, client.schema, { info: { '': fetchInfo } }),
-            );
+            removeQueries(serverQueries, client.schema, { fetchInfo });
           }
         };
       }, onLoad) as any;
     },
 
-    set(values) {
+    set(...values) {
       if (values.length !== 0) {
         set(values.reduce((res, v) => _.set(res, v.key, v.value), {}));
       }
     },
 
-    async commit(keys: [string, string, string][]) {
+    async commit(...keys) {
       await schemaPromise;
       if (keys.length === 0) return { values: [], newIds: {} };
 
-      const data = keys.reduce((res, key) => {
-        const field = this.schema![key[0]][key[2]];
-        const isDate = fieldIs.scalar(field) && field.scalar === 'date';
-        const value = noUndef(_.get(state.combined, key));
-        return _.set(res, key, isDate ? mapArray(value, encodeDate) : value);
-      }, {});
-      const types = Object.keys(data);
-      const dataArrays = keysToObject(types, type =>
-        Object.keys(data[type]).map(id => ({ id, ...data[type][id] })),
-      );
-      const { newIds, errors } = await new Promise<{
-        newIds?: Obj<Obj<string>>;
-        errors?: string[];
-      }>(resolve => {
+      const response = await new Promise<string | Obj<Obj<string>>>(resolve => {
         commits.push({
-          request: `mutation Mutate(${types
-            .map(t => `$${t}: [${t}Input!]`)
-            .join(', ')}) {
-            commit(${types.map(t => `${t}: $${t}`).join(', ')}) {
-              ${types
-                .map(
-                  t => `${t} {
-                    ${Array.from(
-                      new Set([
-                        ...dataArrays[t].reduce<string[]>(
-                          (res, o) => [...res, ...Object.keys(o)],
-                          [],
-                        ),
-                        'createdat',
-                        'modifiedat',
-                      ]),
-                    )
-                      .map(
-                        f =>
-                          fieldIs.scalar(this.schema![t][f])
-                            ? f
-                            : `${f} { id }`,
-                      )
-                      .join('\n')}
-                  }`,
-                )
-                .join('\n')}
-            }
-          }`,
-          variables: dataArrays,
+          data: keys.reduce((res, key) => {
+            if (key.length === 2) return _.set(res, key, null);
+            const field = this.schema![key[0]][key[2]];
+            const isDate = fieldIs.scalar(field) && field.scalar === 'date';
+            const value = noUndef(_.get(state.combined, key));
+            return _.set(
+              res,
+              key,
+              isDate ? mapArray(value, encodeDate) : value,
+            );
+          }, {}),
           resolve,
         });
         run();
       });
 
-      if (errors) return null;
+      if (typeof response === 'string') return null;
       set(keys.reduce((res, key) => _.set(res, key, undefined), {}));
       return {
-        values: keys.map(([type, id, field]) =>
-          noUndef(
-            _.get(state.combined, [
-              type,
-              (newIds![type] && newIds![type][id]) || id,
-              field,
-            ]),
-          ),
+        values: keys.map(
+          key =>
+            key.length === 2
+              ? null
+              : noUndef(
+                  _.get(state.combined, [
+                    key[0],
+                    (response[key[0]] && response[key[0]][key[1]]) || key[1],
+                    key[2],
+                  ]),
+                ),
         ),
-        newIds: newIds!,
+        newIds: response,
       };
     },
   };
 
   (async () => {
-    const schemaFields = buildClientSchema(
-      (await (await fetch(url, {
-        method: 'POST',
-        headers: new Headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ query: introspectionQuery }),
-      })).json()).data,
-    )
-      .getQueryType()
-      .getFields();
-    client.schema = keysToObject(Object.keys(schemaFields), type => {
-      const fields = (schemaFields[type].type as GraphQLList<
-        GraphQLNonNull<GraphQLObjectType>
-      >).ofType.ofType.getFields();
-      return keysToObject(Object.keys(fields), field =>
-        JSON.parse(fields[field].description),
-      );
-    });
+    client.schema = keysToObject<Obj<Field>>(Object.keys(schema), type => ({
+      id: { scalar: 'string' },
+      createdat: { scalar: 'date' },
+      modifiedat: { scalar: 'date' },
+      ...schema[type],
+    }));
     schemaResolve();
   })();
 
