@@ -1,7 +1,7 @@
-import { clearClient, client, setupClient } from '../setup';
+import { clear, rgo, setup } from '../setup';
 
-beforeEach(setupClient);
-afterEach(clearClient);
+beforeEach(setup);
+afterEach(clear);
 
 describe('change: root', () => {
   test('test', async done => {
@@ -16,7 +16,7 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () => client.flush(),
+      func: () => rgo.flush(),
       load: true,
     });
     results.push({
@@ -28,7 +28,7 @@ describe('change: root', () => {
 
     updates.push({
       func: () =>
-        client.set({ key: ['people', 'C', 'lastname'], value: 'Collier' }),
+        rgo.set({ key: ['people', 'C', 'lastname'], value: 'Collier' }),
     });
     results.push({
       people: [
@@ -38,7 +38,7 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () => client.flush(),
+      func: () => rgo.flush(),
       load: true,
     });
     results.push({
@@ -50,7 +50,7 @@ describe('change: root', () => {
 
     updates.push({
       func: () =>
-        client.set({
+        rgo.set({
           key: ['people', 'LOCAL__RECORD__0', 'firstname'],
           value: 'Brent',
         }),
@@ -64,7 +64,7 @@ describe('change: root', () => {
 
     updates.push({
       func: () =>
-        client.set({
+        rgo.set({
           key: ['people', 'LOCAL__RECORD__1', 'firstname'],
           value: 'Elissa',
         }),
@@ -77,7 +77,7 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () => client.set({ key: ['people', 'B'], value: null }),
+      func: () => rgo.set({ key: ['people', 'B'], value: null }),
     });
     results.push({
       people: [
@@ -87,7 +87,7 @@ describe('change: root', () => {
     });
 
     updates.push({
-      func: () => client.flush(),
+      func: () => rgo.flush(),
       load: true,
     });
     results.push({
@@ -99,7 +99,7 @@ describe('change: root', () => {
 
     let count = -1;
     let nextLoad = true;
-    client.query(
+    rgo.query(
       {
         name: 'people',
         sort: 'firstname',

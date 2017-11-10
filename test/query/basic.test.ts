@@ -1,12 +1,12 @@
-import { clearClient, client, setupClient } from '../setup';
+import { clear, rgo, setup } from '../setup';
 
-beforeEach(setupClient);
-afterEach(clearClient);
+beforeEach(setup);
+afterEach(clear);
 
 describe('query: basic', () => {
   test('simple', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         sort: 'firstname',
         fields: [
@@ -30,7 +30,7 @@ describe('query: basic', () => {
 
   test('filter', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         filter: ['firstname', 'Delphia'],
         fields: [
@@ -48,7 +48,7 @@ describe('query: basic', () => {
 
   test('slice', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         sort: 'firstname',
         start: 1,
@@ -71,7 +71,7 @@ describe('query: basic', () => {
 
   test('relation', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         sort: 'firstname',
         start: 1,
@@ -102,9 +102,9 @@ describe('query: basic', () => {
     });
   });
 
-  test.only('foreign', async () => {
+  test('foreign', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'addresses',
         sort: 'city',
         start: 1,
@@ -137,7 +137,7 @@ describe('query: basic', () => {
 
   test('relation with args', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         sort: 'firstname',
         start: 1,
@@ -168,7 +168,7 @@ describe('query: basic', () => {
 
   test('relation ids', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         sort: 'firstname',
         fields: ['firstname', 'address', 'places'],
@@ -186,7 +186,7 @@ describe('query: basic', () => {
 
   test('alias', async () => {
     expect(
-      await client.query(
+      await rgo.query(
         {
           name: 'people',
           alias: 'a',
@@ -215,7 +215,7 @@ describe('query: basic', () => {
 
   test('relation ids mixed', async () => {
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         sort: 'firstname',
         start: 1,

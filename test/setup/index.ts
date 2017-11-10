@@ -1,50 +1,42 @@
-import { Headers } from 'node-fetch';
-(global as any).Headers = Headers;
+import loadRgo, { Rgo, run, update } from '../../src';
+import { find, localPrefix } from '../../src/utils';
 
-import * as fetchMock from 'fetch-mock';
+const allData = require('./data.json');
+const schema = require('./schema.json');
 
-import { buildClient, buildServer, Client, sources } from '../../src';
+export let rgo: Rgo;
 
-const baseData = require('./data.json');
-const baseSchema = require('./schema.json');
-
-export let client: Client;
-
-export const setupClient = async () => {
-  const db: any = {};
-  const server = await buildServer({
-    addresses: {
-      schema: baseSchema.addresses,
-      source: sources.memory(
-        () => '',
-        Object.keys(baseData.addresses).map(id => ({
-          id,
-          ...baseData.addresses[id],
-        })),
-      ),
+export const setup = async () => {
+  let counter = 0;
+  const connector = {
+    query(type, args, fields) {
+      return find(allData[type], args, fields);
     },
-    people: {
-      schema: baseSchema.people,
-      source: sources.memory(
-        () => '',
-        Object.keys(baseData.people).map(id => ({
-          id,
-          ...baseData.people[id],
-        })),
-      ),
+    upsert(type, id, record) {
+      if (!id) {
+        const newId = `${counter++}`;
+        const result = { id: newId, ...record };
+        allData[type].push(result);
+        return result;
+      } else {
+        const index = allData[type].findIndex(r => r.id === id);
+        if (index !== -1) Object.assign(allData[type][index], record);
+        return { id, ...record };
+      }
     },
+    delete(type, id) {
+      const index = allData[type].findIndex(r => r.id === id);
+      if (index !== -1) allData[type].splice(index, 1);
+    },
+  };
+  rgo = loadRgo(schema, async request => {
+    const data = {};
+    const newIds = await update(request.updates, schema, connector, data);
+    const firstIds = await run(request.queries, schema, connector, data);
+    return { data, newIds, firstIds };
   });
-  fetchMock.post('https://www.example.com', async (_, opts) => {
-    const request = JSON.parse(opts.body);
-    // console.log(JSON.stringify(request, null, 2));
-    const response = await server(request, {});
-    // console.log(JSON.stringify(response, null, 2));
-    return response;
-  });
-  client = buildClient(baseSchema, 'https://www.example.com');
 };
 
-export const clearClient = () => {
-  fetchMock.restore();
-  client = null;
+export const clear = () => {
+  rgo = null;
 };

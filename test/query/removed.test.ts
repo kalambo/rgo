@@ -1,7 +1,7 @@
-import { clearClient, client, setupClient } from '../setup';
+import { clear, rgo, setup } from '../setup';
 
-beforeEach(setupClient);
-afterEach(clearClient);
+beforeEach(setup);
+afterEach(clear);
 
 const simpleQuery = {
   name: 'people',
@@ -48,8 +48,8 @@ const sortedRelationQuery = {
 
 describe('query: removed', () => {
   test('simple: 1st', async () => {
-    client.set({ key: ['people', 'B'], value: null });
-    expect(await client.query(simpleQuery)).toEqual({
+    rgo.set({ key: ['people', 'B'], value: null });
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
@@ -57,8 +57,8 @@ describe('query: removed', () => {
     });
   });
   test('simple: 2nd', async () => {
-    client.set({ key: ['people', 'C'], value: null });
-    expect(await client.query(simpleQuery)).toEqual({
+    rgo.set({ key: ['people', 'C'], value: null });
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
@@ -66,8 +66,8 @@ describe('query: removed', () => {
     });
   });
   test('simple: 3rd', async () => {
-    client.set({ key: ['people', 'A'], value: null });
-    expect(await client.query(simpleQuery)).toEqual({
+    rgo.set({ key: ['people', 'A'], value: null });
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
@@ -75,8 +75,8 @@ describe('query: removed', () => {
     });
   });
   test('simple: 4th', async () => {
-    client.set({ key: ['people', 'D'], value: null });
-    expect(await client.query(simpleQuery)).toEqual({
+    rgo.set({ key: ['people', 'D'], value: null });
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -84,8 +84,8 @@ describe('query: removed', () => {
     });
   });
   test('simple: 5th', async () => {
-    client.set({ key: ['people', 'E'], value: null });
-    expect(await client.query(simpleQuery)).toEqual({
+    rgo.set({ key: ['people', 'E'], value: null });
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Ena', address: { city: 'Princeview' } },
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
@@ -93,11 +93,11 @@ describe('query: removed', () => {
     });
   });
   test('simple: 1st, 2nd', async () => {
-    client.set(
+    rgo.set(
       { key: ['people', 'B'], value: null },
       { key: ['people', 'C'], value: null },
     );
-    expect(await client.query(simpleQuery)).toEqual({
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
         { firstname: null, address: null },
@@ -105,11 +105,11 @@ describe('query: removed', () => {
     });
   });
   test('simple: 1st, 3rd', async () => {
-    client.set(
+    rgo.set(
       { key: ['people', 'B'], value: null },
       { key: ['people', 'A'], value: null },
     );
-    expect(await client.query(simpleQuery)).toEqual({
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Griffin', address: { city: 'Jeannebury' } },
         { firstname: null, address: null },
@@ -117,11 +117,11 @@ describe('query: removed', () => {
     });
   });
   test('simple: 2nd, 4th', async () => {
-    client.set(
+    rgo.set(
       { key: ['people', 'C'], value: null },
       { key: ['people', 'D'], value: null },
     );
-    expect(await client.query(simpleQuery)).toEqual({
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [
         { firstname: 'Esperanza', address: { city: 'Lynchfurt' } },
         { firstname: null, address: null },
@@ -129,30 +129,30 @@ describe('query: removed', () => {
     });
   });
   test('simple: 1st, 2nd, 4th', async () => {
-    client.set(
+    rgo.set(
       { key: ['people', 'B'], value: null },
       { key: ['people', 'C'], value: null },
       { key: ['people', 'D'], value: null },
     );
-    expect(await client.query(simpleQuery)).toEqual({
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [{ firstname: null, address: null }],
     });
   });
   test('simple: 1st, 2nd, 4th, 5th', async () => {
-    client.set(
+    rgo.set(
       { key: ['people', 'B'], value: null },
       { key: ['people', 'C'], value: null },
       { key: ['people', 'D'], value: null },
       { key: ['people', 'E'], value: null },
     );
-    expect(await client.query(simpleQuery)).toEqual({
+    expect(await rgo.query(simpleQuery)).toEqual({
       people: [],
     });
   });
 
   test('relation: 1st', async () => {
-    client.set({ key: ['addresses', 'B'], value: null });
-    expect(await client.query(relationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'B'], value: null });
+    expect(await rgo.query(relationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -166,8 +166,8 @@ describe('query: removed', () => {
     });
   });
   test('relation: 2nd', async () => {
-    client.set({ key: ['addresses', 'C'], value: null });
-    expect(await client.query(relationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'C'], value: null });
+    expect(await rgo.query(relationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -181,8 +181,8 @@ describe('query: removed', () => {
     });
   });
   test('relation: 3rd', async () => {
-    client.set({ key: ['addresses', 'A'], value: null });
-    expect(await client.query(relationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'A'], value: null });
+    expect(await rgo.query(relationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -196,8 +196,8 @@ describe('query: removed', () => {
     });
   });
   test('relation: 4th', async () => {
-    client.set({ key: ['addresses', 'D'], value: null });
-    expect(await client.query(relationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'D'], value: null });
+    expect(await rgo.query(relationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -215,8 +215,8 @@ describe('query: removed', () => {
     });
   });
   test('relation: 5th', async () => {
-    client.set({ key: ['addresses', 'E'], value: null });
-    expect(await client.query(relationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'E'], value: null });
+    expect(await rgo.query(relationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -235,8 +235,8 @@ describe('query: removed', () => {
   });
 
   test('sorted relation: 1st', async () => {
-    client.set({ key: ['addresses', 'B'], value: null });
-    expect(await client.query(sortedRelationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'B'], value: null });
+    expect(await rgo.query(sortedRelationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -250,8 +250,8 @@ describe('query: removed', () => {
     });
   });
   test('sorted relation: 2nd', async () => {
-    client.set({ key: ['addresses', 'C'], value: null });
-    expect(await client.query(sortedRelationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'C'], value: null });
+    expect(await rgo.query(sortedRelationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -265,8 +265,8 @@ describe('query: removed', () => {
     });
   });
   test('sorted relation: 3rd', async () => {
-    client.set({ key: ['addresses', 'A'], value: null });
-    expect(await client.query(sortedRelationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'A'], value: null });
+    expect(await rgo.query(sortedRelationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -280,8 +280,8 @@ describe('query: removed', () => {
     });
   });
   test('sorted relation: 4th', async () => {
-    client.set({ key: ['addresses', 'D'], value: null });
-    expect(await client.query(sortedRelationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'D'], value: null });
+    expect(await rgo.query(sortedRelationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',
@@ -299,8 +299,8 @@ describe('query: removed', () => {
     });
   });
   test('sorted relation: 5th', async () => {
-    client.set({ key: ['addresses', 'E'], value: null });
-    expect(await client.query(sortedRelationQuery)).toEqual({
+    rgo.set({ key: ['addresses', 'E'], value: null });
+    expect(await rgo.query(sortedRelationQuery)).toEqual({
       people: [
         {
           firstname: 'Ena',

@@ -1,21 +1,20 @@
+import { standardizeQueries, standardizeSchema } from './standardize';
 import {
+  Connector,
   Field,
   fieldIs,
   FullQuery,
   IdRecord,
   Obj,
   Record,
-  Source,
 } from './typings';
 import walker from './walker';
 import { undefOr } from './utils';
 
-(x: Field | FullQuery) => x;
-
-export default walker<
+const runner = walker<
   Promise<void>,
   {
-    sources: Obj<Source>;
+    connector: Connector;
     data: Obj<Obj<Record>>;
     firstIds: Obj<Obj<string | null>>;
     records: Obj<IdRecord[]>;
@@ -23,7 +22,7 @@ export default walker<
 >(
   async (
     { root, field, args, fields, offset, relations, path, key },
-    { sources, data, firstIds, records },
+    { connector, data, firstIds, records },
     walkRelations,
   ) => {
     const rootPath = path.join('_');
@@ -32,7 +31,7 @@ export default walker<
     if (!root.type || fieldIs.foreignRelation(field)) {
       args.sort = args.sort || [];
     }
-    const queryFields = [...fields, ...relations];
+    const queryFields = Array.from(new Set(['id', ...fields, ...relations]));
     if (root.type) {
       const rootField = fieldIs.relation(field) ? root.field : 'id';
       const relField = fieldIs.relation(field) ? 'id' : field.foreign;
@@ -45,9 +44,10 @@ export default walker<
         ),
       ];
       args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
-      queryFields.push(relField);
+      if (!queryFields.includes(relField)) queryFields.push(relField);
     }
-    records[fieldPath] = await sources[field.type].query(
+    records[fieldPath] = await connector.query(
+      field.type,
       {
         ...args,
         start: 0,
@@ -106,6 +106,27 @@ export default walker<
     await Promise.all(walkRelations());
   },
 );
+
+export default async function run(
+  queries: FullQuery[],
+  schema: Obj<Obj<Field>>,
+  connector: Connector,
+  data: Obj<Obj<Record>>,
+) {
+  const standardSchema = standardizeSchema(schema);
+  const standardQueries = standardizeQueries(queries, standardSchema);
+
+  const firstIds = {} as Obj<Obj<string | null>>;
+  await Promise.all(
+    runner(standardQueries, standardSchema, {
+      connector,
+      data,
+      firstIds,
+      records: {},
+    }),
+  );
+  return firstIds;
+}
 
 // args.filter = mapFilter('decode', args.filter, info.schema[field.type]);
 

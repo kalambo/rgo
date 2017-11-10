@@ -1,67 +1,77 @@
 {
-  "addresses": {
-    "A": {
+  "addresses": [
+    {
+      "id": "A",
       "street": "23106 Frederique Street",
       "city": "Lynchfurt",
       "zipcode": "17381",
       "people": ["D"]
     },
-    "B": {
+    {
+      "id": "B",
       "street": "39691 Crooks Centers",
       "city": "Tobyhaven",
       "zipcode": "08963"
     },
-    "C": {
+    {
+      "id": "C",
       "street": "79464 Ottis Heights",
       "city": "Princeview",
       "zipcode": "23194"
     },
-    "D": {
+    {
+      "id": "D",
       "street": "407 Jakubowski Vista",
       "city": "Jeannebury",
       "zipcode": "56075"
     },
-    "E": {
+    {
+      "id": "E",
       "street": "99228 Witting Mountains",
       "city": "Rileyfurt",
       "zipcode": "43912"
     }
-  },
-  "people": {
-    "A": {
+  ],
+  "people": [
+    {
+      "id": "A",
       "firstname": "Esperanza",
       "lastname": "Boyle",
       "email": "Braeden_OKon88@yahoo.com",
       "address": "A",
       "places": ["A", "B", "C"]
     },
-    "B": {
+    {
+      "id": "B",
       "firstname": "Delphia",
       "lastname": "Cole",
       "email": "Althea.Trantow54@hotmail.com",
       "address": "B",
       "places": ["B", "C", null]
     },
-    "C": {
+    {
+      "id": "C",
       "firstname": "Ena",
       "lastname": "Cartwright",
       "email": "Lacy_Marks69@yahoo.com",
       "address": "C",
       "places": [null, "C", "D"]
     },
-    "D": {
+    {
+      "id": "D",
       "firstname": "Griffin",
       "lastname": "Farrell",
       "email": "Keshawn78@hotmail.com",
       "address": "D",
       "places": ["D"]
     },
-    "E": {
+    {
+      "id": "E",
       "firstname": null,
       "lastname": "Hansen",
       "email": "Misael12@gmail.com",
       "address": null,
       "places": null
     }
-  }
+  ]
 }

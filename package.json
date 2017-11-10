@@ -5,15 +5,12 @@
   "author": "Jon Whitehead",
   "license": "MIT",
   "main": "lib/index.js",
-  "module": "lib/clientIndex.js",
   "types": "lib/index.d.ts",
   "scripts": {
     "prettier":
       "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.{ts,tsx}\"",
     "clean": "rimraf lib/*",
-    "tsc": "yarn run clean && tsc",
-    "build":
-      "yarn run clean && tsc && babel lib/core -d lib/core --presets env && babel lib/client -d lib/client --presets env",
+    "build": "yarn run clean && tsc",
     "test": "jest",
     "prepare": "yarn run test && yarn run build"
   },
@@ -27,22 +24,13 @@
   "devDependencies": {
     "@types/jest": "^21.1.5",
     "@types/lodash": "^4.14.83",
-    "@types/node-fetch": "^1.6.7",
-    "babel-cli": "^6.26.0",
-    "babel-preset-env": "^1.6.1",
-    "fetch-mock": "^5.13.1",
     "jest": "^21.2.1",
-    "node-fetch": "^1.7.3",
     "prettier": "^1.8.2",
     "rimraf": "^2.6.2",
     "ts-jest": "^21.2.1",
     "typescript": "^2.6.1"
   },
   "dependencies": {
-    "@types/flat": "^0.0.28",
-    "@types/knex": "^0.0.64",
-    "@types/mongodb": "^2.2.15",
-    "flat": "^4.0.0",
     "lodash": "^4.17.4"
   }
 }

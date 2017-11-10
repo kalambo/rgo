@@ -1,10 +1,12 @@
 import * as _ from 'lodash';
 
+import { standardizeQueries, standardizeSchema } from './standardize';
 import {
   DataChanges,
   Field,
   fieldIs,
   FullQuery,
+  GetStart,
   Obj,
   QueryLayer,
   Record,
@@ -19,9 +21,7 @@ import {
 } from './utils';
 import walker from './walker';
 
-(x: Field | FullQuery) => x;
-
-export default walker(
+const reader = walker(
   (
     layer: QueryLayer,
     {
@@ -33,11 +33,7 @@ export default walker(
       schema: Obj<Obj<Field>>;
       data: Obj<Obj<Record>>;
       records: Obj<Obj<Obj>>;
-      getStart: (
-        layer: QueryLayer,
-        rootId: string,
-        recordIds: (string | null)[],
-      ) => number;
+      getStart: GetStart;
     },
     walkRelations: () => ((changes: DataChanges) => number)[],
   ) => {
@@ -56,7 +52,7 @@ export default walker(
       runFilter(args.filter, id, data[field.type][id]);
     const compare = createCompare(
       (id: string, key) =>
-        key === 'id' ? id : noUndef(data[field.type][id]![key]),
+        key === 'id' ? id : noUndef(data[field.type][id][key]),
       args.sort,
     );
 
@@ -69,7 +65,7 @@ export default walker(
       if (records[fieldPath][id]) return records[fieldPath][id];
       return (records[fieldPath][id] = keysToObject(fields, f => {
         if (f === 'id') return id;
-        const value = noUndef(data[field.type][id]![f]);
+        const value = noUndef(data[field.type][id][f]);
         if (value !== null) return value;
         const schemaField = schema[field.type][f];
         if (fieldIs.foreignRelation(schemaField) || schemaField.isList) {
@@ -87,7 +83,7 @@ export default walker(
       if (!root.type) {
         rootRecordIds[rootId] = filteredIds;
       } else {
-        const value = noUndef(data[root.type][rootId]![root.field]);
+        const value = noUndef(data[root.type][rootId][root.field]);
         if (fieldIs.relation(field)) {
           if (field.isList) {
             if (!args.sort) {
@@ -105,7 +101,7 @@ export default walker(
           }
         } else {
           rootRecordIds[rootId] = filteredIds.filter(id => {
-            const v = noUndef(data[field.type!][id]![field.foreign]);
+            const v = noUndef(data[field.type][id][field.foreign]);
             return Array.isArray(v) ? v.includes(rootId) : v === rootId;
           });
         }
@@ -187,6 +183,41 @@ export default walker(
     };
   },
 );
+
+export default function read(
+  queries: FullQuery[],
+  schema: Obj<Obj<Field>>,
+  data: Obj<Obj<Record>>,
+  starts: Obj<Obj<string | null>> | GetStart,
+) {
+  const standardSchema = standardizeSchema(schema);
+  const standardQueries = standardizeQueries(queries, standardSchema);
+
+  const result: Obj = {};
+  const getStart =
+    typeof starts === 'function'
+      ? starts
+      : (
+          { args, path, key }: QueryLayer,
+          rootId: string,
+          recordIds: (string | null)[],
+        ) => {
+          const fieldPath = [...path, key].join('_');
+          return (
+            (starts[fieldPath] &&
+              recordIds.indexOf(starts[fieldPath][rootId])) ||
+            args.start ||
+            0
+          );
+        };
+  const updaters = reader(standardQueries, standardSchema, {
+    schema: standardSchema,
+    records: { '': { '': result } },
+    data,
+    getStart,
+  });
+  return { result, updaters };
+}
 
 // const sliceInfo = (rootId: string, index: number) => {
 //   const end = args.show !== null ? sliceStarts[rootId] + args.show : null;

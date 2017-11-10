@@ -2,25 +2,26 @@ import * as _ from 'lodash';
 
 import {
   DataChanges,
-  decodeDate,
   Field,
   fieldIs,
+  Obj,
+  Record,
+  RecordValue,
+  State,
+} from './typings';
+import {
+  decodeDate,
   keysToObject,
   localPrefix,
   mapArray,
   noUndef,
-  Obj,
-  Record,
-  RecordValue,
-} from '../core';
-
-import { ClientState } from './typings';
+} from './utils';
 
 const withoutNulls = (rec: Record): Obj<RecordValue> =>
   keysToObject(Object.keys(rec).filter(k => rec[k] !== null), k => rec[k]!);
 
 export default function setState(
-  state: ClientState,
+  state: State,
   data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
   schema?: Obj<Obj<Field>>,
 ) {
@@ -135,7 +136,7 @@ export default function setState(
                 if (Object.keys(state.client[type][id]!).length === 0) {
                   delete state.client[type][id];
                 }
-                if (Object.keys(state.combined[type][id]!).length === 0) {
+                if (Object.keys(state.combined[type][id]).length === 0) {
                   delete state.combined[type][id];
                 }
               } else {

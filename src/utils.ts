@@ -1,13 +1,8 @@
 import * as _ from 'lodash';
 
-import {
-  Field,
-  fieldIs,
-  ForeignRelationField,
-  Obj,
-  Query,
-  RelationField,
-} from './typings';
+import { Args, Field, fieldIs, IdRecord, Obj } from './typings';
+
+export const localPrefix = 'LOCAL__RECORD__';
 
 export const noUndef = (v: any, replacer: any = null) =>
   v === undefined ? replacer : v;
@@ -134,40 +129,20 @@ export const runFilter = (
   return false;
 };
 
-export const standardiseQuery = (
-  { filter, sort, fields, ...query }: Query<string>,
-  schema: Obj<Obj<Field>>,
-  field?: ForeignRelationField | RelationField,
+export const find = (
+  data: IdRecord[],
+  { filter, sort, start = 0, end }: Args,
+  fields: string[],
 ) => {
-  const result: Query = {
-    ...query,
-    filter:
-      filter && !Array.isArray(filter)
-        ? ['id', filter]
-        : (filter as any[] | undefined),
-    sort:
-      sort && !Array.isArray(sort) ? [sort] : (sort as string[] | undefined),
-    fields: fields.map(
-      f =>
-        typeof f === 'string'
-          ? f
-          : standardiseQuery(f, schema, schema[field ? field.type : query.name][
-              f.name
-            ] as ForeignRelationField | RelationField),
-    ),
-  };
-  if (!field || fieldIs.foreignRelation(field)) {
-    result.sort = result.sort || [];
-  }
-  if (result.sort) {
-    if (!result.sort.some(s => s.replace('-', '') === 'createdat')) {
-      result.sort.push('-createdat');
-    }
-    if (!result.sort.some(s => s.replace('-', '') === 'id')) {
-      result.sort.push('id');
-    }
-  }
-  return result;
+  if (start === end) return [];
+  const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
+  const compareFunc = createCompare((record: Obj, key) => record[key], sort);
+  return _.cloneDeep(
+    data
+      .filter(filterFunc)
+      .sort(compareFunc)
+      .slice(start, end),
+  ).map(record => keysToObject(fields, f => noUndef(record[f])) as IdRecord);
 };
 
 export const getFilterFields = (filter: any[]): string[] => {

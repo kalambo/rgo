@@ -1,17 +1,13 @@
 import * as _ from 'lodash';
 
+import { Args, FetchInfo, fieldIs, FullQuery, State } from './typings';
 import {
-  Args,
-  fieldIs,
-  FullQuery,
   getFilterFields,
   localPrefix,
   noUndef,
   runFilter,
   undefOr,
-} from '../core';
-
-import { ClientState, FetchInfo } from './typings';
+} from './utils';
 
 const getFields = (fields: (string | FullQuery | null)[]) => {
   const filtered = fields.filter(s => s) as (string | FullQuery)[];
@@ -21,7 +17,7 @@ const getFields = (fields: (string | FullQuery | null)[]) => {
 };
 
 export default function getRequests(
-  state: ClientState,
+  state: State,
   info: FetchInfo,
 ): {
   idQueries: FullQuery[];
@@ -156,7 +152,7 @@ export default function getRequests(
         filter: ['id', 'in', ids.new],
         fields: innerAll,
       });
-      info.pending!.changing = allFields;
+      info.pending.changing = allFields;
     }
     if (innerNew && ids.old.length > 0) {
       idQueries.push({

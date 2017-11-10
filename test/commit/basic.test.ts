@@ -1,14 +1,14 @@
-import { clearClient, client, setupClient } from '../setup';
+import { clear, rgo, setup } from '../setup';
 
-beforeEach(setupClient);
-afterEach(clearClient);
+beforeEach(setup);
+afterEach(clear);
 
 describe('commit: basic', () => {
   test('simple', async () => {
-    client.set({ key: ['people', 'A', 'firstname'], value: 'Elissa' });
-    await client.commit(['people', 'A', 'firstname']);
+    rgo.set({ key: ['people', 'A', 'firstname'], value: 'Elissa' });
+    await rgo.commit(['people', 'A', 'firstname']);
     expect(
-      await client.query({
+      await rgo.query({
         name: 'people',
         filter: 'A',
         fields: ['firstname'],
