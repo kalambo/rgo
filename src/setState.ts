@@ -1,29 +1,25 @@
-import * as _ from 'lodash';
+import * as deepEqual from 'deep-equal';
 
 import {
   DataChanges,
   Field,
-  fieldIs,
   Obj,
   Record,
   RecordValue,
+  RelationField,
+  ScalarField,
   State,
 } from './typings';
-import {
-  decodeDate,
-  keysToObject,
-  localPrefix,
-  mapArray,
-  noUndef,
-} from './utils';
+import { get, keysToObject, localPrefix, noUndef } from './utils';
 
 const withoutNulls = (rec: Record): Obj<RecordValue> =>
   keysToObject(Object.keys(rec).filter(k => rec[k] !== null), k => rec[k]!);
 
 export default function setState(
+  store: 'server' | 'client',
   state: State,
   data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
-  schema?: Obj<Obj<Field>>,
+  schema: Obj<Obj<Field>>,
 ) {
   const changes: DataChanges = {};
   const setChanged = (type: string, id: string, field: string) => {
@@ -32,16 +28,15 @@ export default function setState(
     changes[type][id][field] = true;
   };
 
-  const store = schema ? 'server' : 'client';
   for (const type of Object.keys(data)) {
     if (data[type] === undefined) {
       if (store === 'client') {
         for (const id of Object.keys(state.client[type] || {})) {
           for (const field of Object.keys(state.client[type][id] || {})) {
             if (
-              !_.isEqual(
-                noUndef(_.get(state.combined, [type, id, field])),
-                noUndef(_.get(state.server, [type, id, field])),
+              !deepEqual(
+                noUndef(get(state.combined, [type, id, field])),
+                noUndef(get(state.server, [type, id, field])),
               )
             ) {
               setChanged(type, id, field);
@@ -71,16 +66,16 @@ export default function setState(
           if (store === 'client') {
             for (const field of Object.keys(state.client[type][id] || {})) {
               if (
-                !_.isEqual(
-                  noUndef(_.get(state.combined, [type, id, field])),
-                  noUndef(_.get(state.server, [type, id, field])),
+                !deepEqual(
+                  noUndef(get(state.combined, [type, id, field])),
+                  noUndef(get(state.server, [type, id, field])),
                 )
               ) {
                 setChanged(type, id, field);
               }
             }
             delete state.client[type][id];
-            if (_.get(state.server, [type, id])) {
+            if (get(state.server, [type, id])) {
               state.combined[type][id] = withoutNulls(state.server[type][id]);
             } else {
               delete state.combined[type][id];
@@ -98,16 +93,16 @@ export default function setState(
           } else {
             for (const field of Object.keys(state.combined[type][id] || {})) {
               if (
-                !_.isEqual(
-                  noUndef(_.get(state.combined, [type, id, field])),
-                  noUndef(_.get(state.client, [type, id, field])),
+                !deepEqual(
+                  noUndef(get(state.combined, [type, id, field])),
+                  noUndef(get(state.client, [type, id, field])),
                 )
               ) {
                 setChanged(type, id, field);
               }
             }
             delete state.server[type][id];
-            if (_.get(state.client, [type, id])) {
+            if (get(state.client, [type, id])) {
               state.combined[type][id] = withoutNulls(state.client[type][id]!);
               state.diff[type][id] = 0;
             } else {
@@ -116,17 +111,22 @@ export default function setState(
           }
         } else {
           state[store][type][id] = state[store][type][id] || {};
-          if (_.get(state.client, [type, id]) !== null) {
+          if (get(state.client, [type, id]) !== null) {
             state.combined[type][id] = state.combined[type][id] || {};
           }
           for (const field of Object.keys(data[type][id]!)) {
-            const prev = noUndef(_.get(state.combined, [type, id, field]));
+            const prev = noUndef(get(state.combined, [type, id, field]));
+            let value = data[type][id]![field];
+            const f = schema![type][field] as RelationField | ScalarField;
+            if (f.isList && value && (value as any[]).length === 0) {
+              value = null;
+            }
             if (store === 'client') {
               state[store][type][id] = state[store][type][id] || {};
               state.combined[type][id] = state.combined[type][id] || {};
               if (data[type][id]![field] === undefined) {
                 delete state.client[type][id]![field];
-                if (noUndef(_.get(state.server, [type, id, field])) !== null) {
+                if (noUndef(get(state.server, [type, id, field])) !== null) {
                   state.combined[type][id][field] = state.server[type][id][
                     field
                   ]!;
@@ -148,39 +148,24 @@ export default function setState(
                 }
               }
             } else {
-              const f = schema![type][field];
-              const fieldValue =
-                fieldIs.scalar(f) && f.scalar === 'date'
-                  ? mapArray(data[type][id]![field], decodeDate)
-                  : data[type][id]![field];
               if (
-                fieldIs.relation(f) &&
-                f.isList &&
-                typeof (fieldValue && fieldValue[0]) === 'number'
+                get(state.client, [type, id]) !== null &&
+                get(state.client, [type, id, field]) === undefined
               ) {
-                fieldValue.unshift(...new Array(fieldValue.shift()));
+                if (value === null) delete state.combined[type][id][field];
+                else state.combined[type][id][field] = value!;
               }
-              if (
-                _.get(state.client, [type, id]) !== null &&
-                _.get(state.client, [type, id, field]) === undefined
-              ) {
-                if (fieldValue === null) delete state.combined[type][id][field];
-                else state.combined[type][id][field] = fieldValue;
-              }
-              state.server[type][id][field] = fieldValue;
+              state.server[type][id][field] = value!;
             }
             if (
-              !_.isEqual(
-                noUndef(_.get(state.combined, [type, id, field])),
-                prev,
-              )
+              !deepEqual(noUndef(get(state.combined, [type, id, field])), prev)
             ) {
               setChanged(type, id, field);
             }
           }
-          if (_.get(state.client, [type, id]) === undefined) {
+          if (get(state.client, [type, id]) === undefined) {
             delete state.diff[type][id];
-          } else if (_.get(state.client, [type, id])) {
+          } else if (get(state.client, [type, id])) {
             state.diff[type][id] = id.startsWith(localPrefix) ? 1 : 0;
           }
         }

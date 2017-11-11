@@ -3,20 +3,10 @@ import {
   fieldIs,
   ForeignRelationField,
   FullQuery,
-  IdRecord,
   Obj,
   Query,
   RelationField,
-  ScalarField,
 } from './typings';
-import { keysToObject } from './utils';
-
-export const standardizeSchema = (schema: Obj<Obj<Field>>) => {
-  return keysToObject<Obj<Field>>(Object.keys(schema), type => ({
-    id: { scalar: 'string' },
-    ...schema[type],
-  }));
-};
 
 const standardizeQuery = (
   { filter, sort, fields, ...query }: FullQuery | Query,
@@ -56,21 +46,4 @@ export const standardizeQueries = (
 ) =>
   (queries as (FullQuery | Query)[]).map(query =>
     standardizeQuery(query, schema),
-  );
-
-export const standardizeUpdates = (
-  updates: Obj<(IdRecord)[]>[],
-  schema: Obj<Obj<Field>>,
-) =>
-  updates.map(records =>
-    keysToObject(Object.keys(records), type =>
-      records[type].map(
-        record =>
-          keysToObject(Object.keys(record), f => {
-            const field = schema[type][f] as RelationField | ScalarField;
-            if (field.isList && (record[f] as any[]).length === 0) return null;
-            return record[f];
-          }) as IdRecord,
-      ),
-    ),
   );

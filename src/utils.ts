@@ -1,6 +1,6 @@
-import * as _ from 'lodash';
+import * as deepEqual from 'deep-equal';
 
-import { Args, Field, fieldIs, IdRecord, Obj } from './typings';
+import { Args, IdRecord, Obj } from './typings';
 
 export const localPrefix = 'LOCAL__RECORD__';
 
@@ -10,8 +10,18 @@ export const noUndef = (v: any, replacer: any = null) =>
 export const undefOr = (v: any, replacer: any = null) =>
   v === undefined ? undefined : replacer;
 
-export const mapArray = (v: any, map: (x: any) => any) =>
-  Array.isArray(v) ? v.map(map) : map(v);
+export const get = (obj: any, key: string[]) =>
+  key.reduce((res, k) => res && res[k], obj);
+
+export const buildObject = (values: { key: string[]; value: any }[]) =>
+  values.reduce((res, { key, value }) => {
+    key.reduce((r, k, i) => {
+      if (i === key.length - 1) r[k] = value;
+      else r[k] = r[k] || {};
+      return r[k];
+    }, res);
+    return res;
+  }, {});
 
 export const keysToObject = <T, U = any>(
   keys: U[],
@@ -70,7 +80,7 @@ export const promisifyEmitter = <T>(
 };
 
 const compareValues = (a, b) => {
-  if (_.isEqual(a, b)) return 0;
+  if (deepEqual(a, b)) return 0;
   if (typeof a === 'string' && typeof b === 'string') {
     return a.toLowerCase().localeCompare(b.toLowerCase()) as 0 | 1 | -1;
   }
@@ -114,8 +124,8 @@ export const runFilter = (
   const value = filter[filter.length - 1];
 
   const v = filter[0] === 'id' ? id : noUndef(record[filter[0]]);
-  if (op === '=') return _.isEqual(v, value);
-  if (op === '!=') return !_.isEqual(v, value);
+  if (op === '=') return deepEqual(v, value);
+  if (op === '!=') return !deepEqual(v, value);
   if (op === '<') return v < value;
   if (op === '<=') return v <= value;
   if (op === '>') return v > value;
@@ -137,12 +147,11 @@ export const find = (
   if (start === end) return [];
   const filterFunc = (record: Obj) => runFilter(filter, record.id, record);
   const compareFunc = createCompare((record: Obj, key) => record[key], sort);
-  return _.cloneDeep(
-    data
-      .filter(filterFunc)
-      .sort(compareFunc)
-      .slice(start, end),
-  ).map(record => keysToObject(fields, f => noUndef(record[f])) as IdRecord);
+  return data
+    .filter(filterFunc)
+    .sort(compareFunc)
+    .slice(start, end)
+    .map(record => keysToObject(fields, f => noUndef(record[f])) as IdRecord);
 };
 
 export const getFilterFields = (filter: any[]): string[] => {
@@ -152,27 +161,4 @@ export const getFilterFields = (filter: any[]): string[] => {
       .reduce((res, f) => [...res, ...getFilterFields(f)], []);
   }
   return [filter[0]];
-};
-
-export const encodeDate = (v: Date | null) => v && v.getTime();
-export const decodeDate = (v: number | null) => v && new Date(v);
-export const mapFilter = (
-  map: 'encode' | 'decode',
-  filter: any[],
-  fields: Obj<Field>,
-) => {
-  if (typeof filter === 'string') return filter;
-  if (['AND', 'OR'].includes(filter[0])) {
-    return [filter[0], ...filter.slice(1).map(f => mapFilter(map, f, fields))];
-  }
-  const field = fields[filter[0]];
-  const isDate = fieldIs.scalar(field) && field.scalar === 'date';
-  if (!isDate) return filter;
-  const op = filter.length === 3 ? filter[1] : '=';
-  const value = filter[filter.length - 1];
-  return [
-    filter[0],
-    op,
-    mapArray(value, map === 'encode' ? encodeDate : decodeDate),
-  ];
 };

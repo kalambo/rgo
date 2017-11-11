@@ -1,6 +1,6 @@
-import * as _ from 'lodash';
+import * as deepEqual from 'deep-equal';
 
-import { standardizeQueries, standardizeSchema } from './standardize';
+import { standardizeQueries } from './standardize';
 import {
   DataChanges,
   Field,
@@ -60,19 +60,18 @@ const reader = walker(
     const rootRecordIds = {} as Obj<(string | null)[]>;
     records[fieldPath] = {};
 
+    const getValue = (id: string, f: string) => {
+      const v = noUndef(data[field.type][id][f]);
+      if (v !== null) return v;
+      const s = schema[field.type][f];
+      return fieldIs.foreignRelation(s) || s.isList ? [] : null;
+    };
     const getRecord = (id: string | null) => {
       if (!id) return null;
       if (records[fieldPath][id]) return records[fieldPath][id];
-      return (records[fieldPath][id] = keysToObject(fields, f => {
-        if (f === 'id') return id;
-        const value = noUndef(data[field.type][id][f]);
-        if (value !== null) return value;
-        const schemaField = schema[field.type][f];
-        if (fieldIs.foreignRelation(schemaField) || schemaField.isList) {
-          return [];
-        }
-        return null;
-      }));
+      return (records[fieldPath][id] = keysToObject(fields, f =>
+        getValue(id, f),
+      ));
     };
 
     const allIds = Object.keys(data[field.type] || {});
@@ -163,23 +162,20 @@ const reader = walker(
         }
       }
 
-      let hasUpdated = false;
+      let changed = false;
       for (const id of Object.keys(changes[field.type] || {})) {
         if (records[fieldPath][id]) {
           for (const f of Object.keys(changes[field.type][id] || {})) {
             if (fields.includes(f)) {
               const prev = records[fieldPath][id][f];
-              const value = noUndef(((data[field.type] || {})[id] || {})[f]);
-              if (!_.isEqual(value, prev)) {
-                hasUpdated = true;
-                records[fieldPath][id][f] = value;
-              }
+              records[fieldPath][id][f] = getValue(id, f);
+              if (!deepEqual(records[fieldPath][id][f], prev)) changed = true;
             }
           }
         }
       }
 
-      return Math.max(relationsChange, hasUpdated ? 1 : 0);
+      return Math.max(relationsChange, changed ? 1 : 0);
     };
   },
 );
@@ -190,9 +186,6 @@ export default function read(
   data: Obj<Obj<Record>>,
   starts: Obj<Obj<string | null>> | GetStart,
 ) {
-  const standardSchema = standardizeSchema(schema);
-  const standardQueries = standardizeQueries(queries, standardSchema);
-
   const result: Obj = {};
   const getStart =
     typeof starts === 'function'
@@ -210,8 +203,8 @@ export default function read(
             0
           );
         };
-  const updaters = reader(standardQueries, standardSchema, {
-    schema: standardSchema,
+  const updaters = reader(standardizeQueries(queries, schema), schema, {
+    schema: schema,
     records: { '': { '': result } },
     data,
     getStart,

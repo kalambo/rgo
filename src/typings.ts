@@ -95,17 +95,6 @@ export type GetStart = (
 
 export type DataChanges = Obj<Obj<Obj<true>>>;
 
-export interface ResolveRequest {
-  updates: Obj<(IdRecord)[]>[];
-  queries: FullQuery[];
-}
-
-export interface ResolveResponse {
-  data: Obj<Obj<Record | null>>;
-  newIds: (string | Obj<Obj<string>>)[];
-  firstIds: Obj<Obj<string | null>>;
-}
-
 export interface State {
   server: Obj<Obj<Record>>;
   client: Obj<Obj<Record | null>>;
@@ -138,19 +127,15 @@ export interface FetchInfo {
   };
 }
 
-export interface Connector {
-  query: (
-    type: string,
-    args: Args,
-    fields: string[],
-  ) => IdRecord[] | Promise<IdRecord[]>;
-  upsert: (
-    type: string,
-    id: string | null,
-    record: Record,
-  ) => IdRecord | Promise<IdRecord>;
-  delete: (type: string, id: string) => void | Promise<void>;
-  prepare?: (type: string, record: IdRecord) => IdRecord | Promise<IdRecord>;
+export interface ResolveRequest {
+  updates: Obj<(IdRecord)[]>[];
+  queries: FullQuery[];
+}
+
+export interface ResolveResponse {
+  data: Obj<Obj<Record | null>>;
+  newIds: (string | Obj<Obj<string>>)[];
+  firstIds: Obj<Obj<string | null>>;
 }
 
 export interface Rgo {
@@ -191,8 +176,8 @@ export interface Rgo {
 
   set(
     ...values: (
-      | { key: [string, string, string]; value: any }
-      | { key: [string, string]; value?: null })[]
+      | { key: [string, string, string]; value: RecordValue | null | undefined }
+      | { key: [string, string]; value: null | undefined })[]
   ): void;
 
   commit(

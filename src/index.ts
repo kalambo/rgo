@@ -1,13 +1,14 @@
-export { default as run } from './run';
+import * as resolvers from './resolvers';
+export { resolvers };
 export { Query, Rgo } from './typings';
-export { default as update } from './update';
 
-import * as _ from 'lodash';
+import * as clone from 'clone';
+import * as throttle from 'lodash.throttle';
 
 import getRequests from './getRequests';
 import read from './read';
 import setState from './setState';
-import { standardizeQueries, standardizeSchema } from './standardize';
+import { standardizeQueries } from './standardize';
 import {
   DataChanges,
   FetchInfo,
@@ -25,12 +26,12 @@ import {
   State,
 } from './typings';
 import {
+  buildObject,
   createCompare,
-  encodeDate,
+  get,
   keysToObject,
   localPrefix,
   locationOf,
-  mapArray,
   noUndef,
   promisifyEmitter,
   runFilter,
@@ -141,18 +142,18 @@ export default function rgo(
   };
 
   const set = (
+    store: 'server' | 'client',
     data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
-    schema?: Obj<Obj<Field>>,
   ) => {
-    const changes = setState(state, data, schema);
-    if (log) console.log(_.cloneDeep(state));
+    const changes = setState(store, state, data, rgo.schema);
+    if (log) console.log(clone(state));
     getQueries();
     listeners.forEach(l => l(changes));
   };
 
   let fetchCounter: number = 0;
   let flushFetch: number = 0;
-  const process = _.throttle(
+  const process = throttle(
     async () => {
       const fetchIndex = ++fetchCounter;
       const request = { queries, updates: commits.map(c => c.records) };
@@ -186,7 +187,7 @@ export default function rgo(
         };
         updateInfo(fetchInfo, '');
       }
-      set(fetchIndex > flushFetch ? response.data : {}, rgo.schema);
+      set('server', fetchIndex > flushFetch ? response.data : {});
     },
     50,
     { leading: false },
@@ -205,10 +206,10 @@ export default function rgo(
     };
     flushInfo(fetchInfo);
     set(
+      'server',
       keysToObject(Object.keys(state.server), type =>
         keysToObject(Object.keys(state.server[type]), null),
       ),
-      rgo.schema,
     );
   };
 
@@ -291,7 +292,7 @@ export default function rgo(
     create(type) {
       localCounters[type] = localCounters[type] || 0;
       const id = `${localPrefix}${localCounters[type]++}`;
-      set({ [type]: { [id]: {} } });
+      set('client', { [type]: { [id]: {} } });
       return id;
     },
 
@@ -371,22 +372,19 @@ export default function rgo(
     },
 
     set(...values) {
-      if (values.length !== 0) {
-        set(values.reduce((res, v) => _.set(res, v.key, v.value), {}));
-      }
+      if (values.length !== 0) set('client', buildObject(values));
     },
 
     async commit(...keys) {
       await schemaPromise;
       if (keys.length === 0) return { values: [], newIds: {} };
 
-      const data = keys.reduce((res, key) => {
-        if (key.length === 2) return _.set(res, key, null);
-        const field = this.schema[key[0]][key[2]];
-        const isDate = fieldIs.scalar(field) && field.scalar === 'date';
-        const value = noUndef(_.get(state.combined, key));
-        return _.set(res, key, isDate ? mapArray(value, encodeDate) : value);
-      }, {});
+      const data = buildObject(
+        keys.map(key => ({
+          key,
+          value: key.length === 2 ? null : noUndef(get(state.combined, key)),
+        })),
+      );
       const response = await new Promise<string | Obj<Obj<string>>>(resolve => {
         commits.push({
           records: keysToObject(Object.keys(data), type =>
@@ -398,14 +396,14 @@ export default function rgo(
       });
 
       if (typeof response === 'string') return null;
-      set(keys.reduce((res, key) => _.set(res, key, undefined), {}));
+      set('client', buildObject(keys.map(key => ({ key, value: undefined }))));
       return {
         values: keys.map(
           key =>
             key.length === 2
               ? null
               : noUndef(
-                  _.get(state.combined, [
+                  get(state.combined, [
                     key[0],
                     (response[key[0]] && response[key[0]][key[1]]) || key[1],
                     key[2],
@@ -418,7 +416,7 @@ export default function rgo(
   };
 
   (async () => {
-    rgo.schema = standardizeSchema(schema);
+    rgo.schema = schema;
     schemaResolve();
   })();
 

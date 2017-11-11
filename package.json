@@ -22,8 +22,7 @@
     "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/jest": "^21.1.5",
-    "@types/lodash": "^4.14.83",
+    "@types/jest": "^21.1.6",
     "jest": "^21.2.1",
     "prettier": "^1.8.2",
     "rimraf": "^2.6.2",
@@ -31,6 +30,8 @@
     "typescript": "^2.6.1"
   },
   "dependencies": {
-    "lodash": "^4.17.4"
+    "clone": "^2.1.1",
+    "deep-equal": "^1.0.1",
+    "lodash.throttle": "^4.1.1"
   }
 }

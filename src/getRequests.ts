@@ -1,4 +1,4 @@
-import * as _ from 'lodash';
+import * as deepEqual from 'deep-equal';
 
 import { Args, FetchInfo, fieldIs, FullQuery, State } from './typings';
 import {
@@ -100,7 +100,7 @@ export default function getRequests(
             f =>
               server[f] === undefined ||
               (combined[f] || server[f]) === undefined ||
-              !_.isEqual(noUndef(server[f]), noUndef(combined[f])),
+              !deepEqual(noUndef(server[f]), noUndef(combined[f])),
           )
         ) {
           extra.start += 1;
