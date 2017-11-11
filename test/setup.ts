@@ -1,4 +1,4 @@
-import loadRgo, { Rgo, resolvers } from '../src';
+import loadRgo, { enhancers, Rgo, resolvers } from '../src';
 import { find, localPrefix } from '../src/utils';
 
 export let rgo: Rgo;
@@ -100,34 +100,27 @@ export const setup = async () => {
 
   let counter = 0;
   rgo = loadRgo(
-    schema,
-    resolvers.network.requester(
-      schema,
-      resolvers.network.responder(
-        schema,
-        resolvers.simple(schema, {
-          query(type, args, fields) {
-            return find(allData[type], args, fields);
-          },
-          upsert(type, id, record) {
-            if (!id) {
-              const newId = `${counter++}`;
-              const result = { id: newId, ...record };
-              allData[type].push(result);
-              return result;
-            } else {
-              const index = allData[type].findIndex(r => r.id === id);
-              if (index !== -1) Object.assign(allData[type][index], record);
-              return { id, ...record };
-            }
-          },
-          delete(type, id) {
-            const index = allData[type].findIndex(r => r.id === id);
-            if (index !== -1) allData[type].splice(index, 1);
-          },
-        }),
-      ),
-    ),
+    resolvers.simple(schema, {
+      query(type, args, fields) {
+        return find(allData[type], args, fields);
+      },
+      upsert(type, id, record) {
+        if (!id) {
+          const newId = `${counter++}`;
+          const result = { id: newId, ...record };
+          allData[type].push(result);
+          return result;
+        } else {
+          const index = allData[type].findIndex(r => r.id === id);
+          if (index !== -1) Object.assign(allData[type][index], record);
+          return { id, ...record };
+        }
+      },
+      delete(type, id) {
+        const index = allData[type].findIndex(r => r.id === id);
+        if (index !== -1) allData[type].splice(index, 1);
+      },
+    }),
   );
 };
 

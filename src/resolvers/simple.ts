@@ -1,4 +1,5 @@
 import * as deepEqual from 'deep-equal';
+import keysToObject from 'keys-to-object';
 
 import {
   Args,
@@ -7,11 +8,12 @@ import {
   IdRecord,
   Obj,
   Record,
+  Resolver,
   RelationField,
   ResolveRequest,
   ScalarField,
 } from '../typings';
-import { keysToObject, localPrefix, undefOr } from '../utils';
+import { localPrefix, undefOr } from '../utils';
 import walker from '../walker';
 
 export interface Connector {
@@ -26,7 +28,6 @@ export interface Connector {
     record: Record,
   ) => IdRecord | Promise<IdRecord>;
   delete: (type: string, id: string) => void | Promise<void>;
-  prepare?: (type: string, record: IdRecord) => IdRecord | Promise<IdRecord>;
 }
 
 const runner = walker<
@@ -132,23 +133,8 @@ const update = async (
   data: Obj<Obj<Record>>,
 ) =>
   Promise.all(
-    updates.map(async updateRecords => {
-      const types = Object.keys(updateRecords);
-      const records: Obj<IdRecord[]> = {};
-      try {
-        await Promise.all(
-          types.map(async type => {
-            records[type] = connector.prepare
-              ? await Promise.all(
-                  updateRecords[type].map(r => connector.prepare!(type, r)),
-                )
-              : updateRecords[type];
-          }),
-        );
-      } catch (error) {
-        return error.message;
-      }
-
+    updates.map(async records => {
+      const types = Object.keys(records);
       const newIds = keysToObject<Obj<string>>(types, {});
       const getId = (type: string, id: string) =>
         (newIds[type] || {})[id] || id;
@@ -221,7 +207,8 @@ export default function simpleResolver(
   schema: Obj<Obj<Field>>,
   connector: Connector,
 ) {
-  return async (request: ResolveRequest) => {
+  return (async (request?: ResolveRequest) => {
+    if (!request) return schema;
     const data = {};
     const newIds = await update(request.updates, schema, connector, data);
     const firstIds = {} as Obj<Obj<string | null>>;
@@ -234,5 +221,5 @@ export default function simpleResolver(
       }),
     );
     return { data, newIds, firstIds };
-  };
+  }) as Resolver;
 }

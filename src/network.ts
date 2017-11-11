@@ -1,3 +1,5 @@
+import keysToObject from 'keys-to-object';
+
 import {
   Field,
   fieldIs,
@@ -7,9 +9,8 @@ import {
   Record,
   ResolveRequest,
   ResolveResponse,
-} from '../typings';
-import { keysToObject } from '../utils';
-import walker from '../walker';
+} from './typings';
+import walker from './walker';
 
 const mapArray = (v: any, map: (x: any) => any) =>
   Array.isArray(v) ? v.map(map) : map(v);
@@ -40,7 +41,8 @@ const mapFilter = (
   }
   return filter;
 };
-const mapQueries = walker<
+
+const queryMapper = walker<
   FullQuery,
   { map: 'encode' | 'decode'; schema: Obj<Obj<Field>> }
 >(
@@ -73,6 +75,7 @@ const mapRecord = <T = IdRecord | Record | null>(
     }
     return record[f];
   }) as T);
+
 const mapUpdates = (
   map: 'encode' | 'decode',
   schema: Obj<Obj<Field>>,
@@ -83,6 +86,7 @@ const mapUpdates = (
       update[type].map(record => mapRecord(map, schema[type], record)),
     ),
   );
+
 const mapData = (
   map: 'encode' | 'decode',
   schema: Obj<Obj<Field>>,
@@ -95,36 +99,21 @@ const mapData = (
   );
 
 export default {
-  requester(
+  request(
+    map: 'encode' | 'decode',
     schema: Obj<Obj<Field>>,
-    resolver: (request: ResolveRequest) => Promise<ResolveResponse>,
+    request: ResolveRequest,
   ) {
-    return async ({ queries, updates }: ResolveRequest) => {
-      const { data, newIds, firstIds } = await resolver({
-        queries: mapQueries(queries, schema, { map: 'encode', schema }),
-        updates: mapUpdates('encode', schema, updates),
-      });
-      return {
-        data: mapData('decode', schema, data),
-        newIds,
-        firstIds,
-      };
+    return {
+      updates: mapUpdates(map, schema, request.updates),
+      queries: queryMapper(request.queries, schema, { map, schema }),
     };
   },
-  responder(
+  response(
+    map: 'encode' | 'decode',
     schema: Obj<Obj<Field>>,
-    resolver: (request: ResolveRequest) => Promise<ResolveResponse>,
+    response: ResolveResponse,
   ) {
-    return async ({ queries, updates }: ResolveRequest) => {
-      const { data, newIds, firstIds } = await resolver({
-        queries: mapQueries(queries, schema, { map: 'decode', schema }),
-        updates: mapUpdates('decode', schema, updates),
-      });
-      return {
-        data: mapData('encode', schema, data),
-        newIds,
-        firstIds,
-      };
-    };
+    return { data: mapData(map, schema, response.data), ...response };
   },
 };

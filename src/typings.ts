@@ -1,7 +1,9 @@
 export type Obj<T = any> = { [key: string]: T };
 
+export type Scalar = 'boolean' | 'int' | 'float' | 'string' | 'date' | 'json';
+
 export interface ScalarField {
-  scalar: 'boolean' | 'int' | 'float' | 'string' | 'date' | 'json';
+  scalar: Scalar;
   isList?: true;
   meta?: any;
 }
@@ -137,6 +139,11 @@ export interface ResolveResponse {
   newIds: (string | Obj<Obj<string>>)[];
   firstIds: Obj<Obj<string | null>>;
 }
+
+export type Resolver = (() => Promise<Obj<Obj<Field>>>) &
+  ((request: ResolveRequest) => Promise<ResolveResponse>);
+
+export type Enhancer = (resolver: Resolver) => Resolver;
 
 export interface Rgo {
   schema: Obj<Obj<Field>>;

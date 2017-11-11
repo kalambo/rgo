@@ -1507,6 +1507,10 @@ jsprim@^1.2.2:
     json-schema "0.2.3"
     verror "1.10.0"
 
+keys-to-object@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/keys-to-object/-/keys-to-object-0.1.0.tgz#db6ec8be31d03d2d07a822410803261ea94912df"
+
 kind-of@^3.0.2:
   version "3.2.2"
   resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-3.2.2.tgz#31ea21a734bab9bbb0f32466d893aea51e4a3c64"

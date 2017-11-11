@@ -1,4 +1,5 @@
 import * as deepEqual from 'deep-equal';
+import keysToObject from 'keys-to-object';
 
 import {
   DataChanges,
@@ -10,7 +11,7 @@ import {
   ScalarField,
   State,
 } from './typings';
-import { get, keysToObject, localPrefix, noUndef } from './utils';
+import { get, localPrefix, noUndef } from './utils';
 
 const withoutNulls = (rec: Record): Obj<RecordValue> =>
   keysToObject(Object.keys(rec).filter(k => rec[k] !== null), k => rec[k]!);

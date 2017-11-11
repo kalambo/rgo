@@ -1,6 +1,7 @@
 import * as deepEqual from 'deep-equal';
+import keysToObject from 'keys-to-object';
 
-import { Args, IdRecord, Obj } from './typings';
+import { Args, Enhancer, IdRecord, Obj } from './typings';
 
 export const localPrefix = 'LOCAL__RECORD__';
 
@@ -22,22 +23,6 @@ export const buildObject = (values: { key: string[]; value: any }[]) =>
     }, res);
     return res;
   }, {});
-
-export const keysToObject = <T, U = any>(
-  keys: U[],
-  valueMap: T | ((k: U, i: number) => T | undefined),
-  keyMap?: (k: U, i: number) => string,
-) => {
-  const valueFunc = typeof valueMap === 'function';
-  return keys.reduce<Obj<T>>((res, k, i) => {
-    const newValue = valueFunc
-      ? (valueMap as ((k: U, i: number) => T | undefined))(k, i)
-      : (valueMap as T);
-    return newValue === undefined
-      ? res
-      : { ...res, [keyMap ? keyMap(k, i) : `${k}`]: newValue };
-  }, {});
-};
 
 const binarySearch = <T>(
   element: T,
@@ -161,4 +146,10 @@ export const getFilterFields = (filter: any[]): string[] => {
       .reduce((res, f) => [...res, ...getFilterFields(f)], []);
   }
   return [filter[0]];
+};
+
+export const compose = (...enhancers: Enhancer[]): Enhancer => {
+  if (enhancers.length === 0) return arg => arg;
+  if (enhancers.length === 1) return enhancers[0];
+  return enhancers.reduce((a, b) => request => a(b(request)));
 };

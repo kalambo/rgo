@@ -1,4 +1,5 @@
 import * as deepEqual from 'deep-equal';
+import keysToObject from 'keys-to-object';
 
 import { standardizeQueries } from './standardize';
 import {
@@ -14,7 +15,6 @@ import {
 import {
   createCompare,
   getFilterFields,
-  keysToObject,
   noUndef,
   runFilter,
   undefOr,

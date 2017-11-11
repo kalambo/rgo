@@ -1,9 +1,22 @@
+import * as enhancers from './enhancers';
+export { enhancers };
 import * as resolvers from './resolvers';
 export { resolvers };
-export { Query, Rgo } from './typings';
+export {
+  Field,
+  fieldIs,
+  ForeignRelationField,
+  Query,
+  RelationField,
+  Rgo,
+  Scalar,
+  ScalarField,
+} from './typings';
+export { compose } from './utils';
 
 import * as clone from 'clone';
 import * as throttle from 'lodash.throttle';
+import keysToObject from 'keys-to-object';
 
 import getRequests from './getRequests';
 import read from './read';
@@ -12,7 +25,6 @@ import { standardizeQueries } from './standardize';
 import {
   DataChanges,
   FetchInfo,
-  Field,
   fieldIs,
   FullQuery,
   IdRecord,
@@ -20,8 +32,7 @@ import {
   Query,
   QueryLayer,
   RecordValue,
-  ResolveRequest,
-  ResolveResponse,
+  Resolver,
   Rgo,
   State,
 } from './typings';
@@ -29,7 +40,6 @@ import {
   buildObject,
   createCompare,
   get,
-  keysToObject,
   localPrefix,
   locationOf,
   noUndef,
@@ -94,11 +104,7 @@ const queriesChanging = walker<boolean, { fetchInfo: FetchInfo }>(
   },
 );
 
-export default function rgo(
-  schema: Obj<Obj<Field>>,
-  resolve: (request: ResolveRequest) => Promise<ResolveResponse>,
-  log?: boolean,
-): Rgo {
+export default function rgo(resolver: Resolver, log?: boolean): Rgo {
   let schemaResolve;
   const schemaPromise = new Promise(resolve => (schemaResolve = resolve));
   const state: State = { server: {}, client: {}, combined: {}, diff: {} };
@@ -156,7 +162,7 @@ export default function rgo(
   const process = throttle(
     async () => {
       const fetchIndex = ++fetchCounter;
-      const request = { queries, updates: commits.map(c => c.records) };
+      const request = { updates: commits.map(c => c.records), queries };
       const commitResolves = commits.map(c => c.resolve);
       commits = [];
       if (request.queries.length > 0) {
@@ -172,7 +178,7 @@ export default function rgo(
         };
         setFetched(fetchInfo);
       }
-      const response = await resolve(request);
+      const response = await resolver(request);
       commitResolves.forEach((watcher, i) => watcher(response.newIds[i]));
       if (request.queries.length > 0) {
         const updateInfo = (info: FetchInfo, path: string) => {
@@ -416,7 +422,7 @@ export default function rgo(
   };
 
   (async () => {
-    rgo.schema = schema;
+    rgo.schema = await resolver();
     schemaResolve();
   })();
 
