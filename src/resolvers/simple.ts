@@ -5,9 +5,9 @@ import {
   Args,
   Field,
   fieldIs,
-  IdRecord,
   Obj,
   Record,
+  RecordValue,
   Resolver,
   RelationField,
   ResolveRequest,
@@ -15,6 +15,11 @@ import {
 } from '../typings';
 import { localPrefix, undefOr } from '../utils';
 import walker from '../walker';
+
+export interface IdRecord {
+  id: string;
+  [field: string]: RecordValue | null;
+}
 
 export interface Connector {
   query: (
@@ -126,14 +131,14 @@ const runner = walker<
   },
 );
 
-const update = async (
-  updates: Obj<IdRecord[]>[],
+const commit = async (
+  commits: Obj<Obj<Record | null>>[],
   schema: Obj<Obj<Field>>,
   connector: Connector,
-  data: Obj<Obj<Record>>,
+  data: Obj<Obj<Record | null>>,
 ) =>
   Promise.all(
-    updates.map(async records => {
+    commits.map(async records => {
       const types = Object.keys(records);
       const newIds = keysToObject<Obj<string>>(types, {});
       const getId = (type: string, id: string) =>
@@ -142,14 +147,15 @@ const update = async (
         types.map(async type => {
           data[type] = data[type] || {};
           await Promise.all(
-            records[type].map(async ({ id, ...record }) => {
-              if (Object.keys(record).length === 0) {
+            Object.keys(records[type]).map(async id => {
+              if (!records[type][id]) {
                 await connector.delete(type, id);
+                data[type][id] = null;
               } else if (id.startsWith(localPrefix)) {
                 const { id: newId, ...r } = await connector.upsert(
                   type,
                   null,
-                  record,
+                  records[type][id]!,
                 );
                 newIds[type][id] = newId;
                 data[type][newId] = r;
@@ -157,7 +163,7 @@ const update = async (
                 const { id: _, ...r } = await connector.upsert(
                   type,
                   id,
-                  record,
+                  records[type][id]!,
                 );
                 data[type][id] = { ...data[type][id], ...r };
               }
@@ -168,10 +174,10 @@ const update = async (
       await Promise.all(
         types.map(async type =>
           Promise.all(
-            records[type].map(async ({ id: tempId, ...record }) => {
-              if (Object.keys(record).length !== 0) {
-                const id = getId(type, tempId);
-                let hasNewId = false;
+            Object.keys(records[type]).map(async id => {
+              if (records[type][id]) {
+                const record = { ...records[type][id] };
+                let hasNewRelations = false;
                 for (const f of Object.keys(record)) {
                   if (record[f]) {
                     const field = schema[type][f] as
@@ -182,17 +188,18 @@ const update = async (
                       record[f] = field.isList
                         ? (record[f] as any[]).map(v => getId(field.type, v))
                         : getId(field.type, record[f] as string);
-                      if (!deepEqual(record[f], prev)) hasNewId = true;
+                      if (!deepEqual(record[f], prev)) hasNewRelations = true;
                     }
                   }
                 }
-                if (hasNewId) {
+                if (hasNewRelations) {
+                  const newId = getId(type, id);
                   const { id: _, ...r } = await connector.upsert(
                     type,
-                    id,
+                    newId,
                     record,
                   );
-                  data[type][id] = { ...data[type][id], ...r };
+                  data[type][newId] = { ...data[type][newId], ...r };
                 }
               }
             }),
@@ -210,7 +217,7 @@ export default function simpleResolver(
   return (async (request?: ResolveRequest) => {
     if (!request) return schema;
     const data = {};
-    const newIds = await update(request.updates, schema, connector, data);
+    const newIds = await commit(request.commits, schema, connector, data);
     const firstIds = {} as Obj<Obj<string | null>>;
     await Promise.all(
       runner(request.queries, schema, {

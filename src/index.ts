@@ -27,10 +27,10 @@ import {
   FetchInfo,
   fieldIs,
   FullQuery,
-  IdRecord,
   Obj,
   Query,
   QueryLayer,
+  Record,
   RecordValue,
   Resolver,
   Rgo,
@@ -125,7 +125,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
   const listeners: ((changes?: DataChanges) => void)[] = [];
   let queries: FullQuery[];
   let commits: {
-    records: Obj<IdRecord[]>;
+    data: Obj<Obj<Record | null>>;
     resolve: (response: string | Obj<Obj<string>>) => void;
   }[] = [];
 
@@ -162,7 +162,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
   const process = throttle(
     async () => {
       const fetchIndex = ++fetchCounter;
-      const request = { updates: commits.map(c => c.records), queries };
+      const request = { commits: commits.map(c => c.data), queries };
       const commitResolves = commits.map(c => c.resolve);
       commits = [];
       if (request.queries.length > 0) {
@@ -225,7 +225,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     recordIds: (string | null)[],
   ) => {
     const info = [...path, key].reduce((res, k) => res.relations[k], fetchInfo);
-    if (!info.complete.firstIds[rootId]) {
+    if (!info || !info.complete.firstIds[rootId]) {
       return args.start || 0;
     }
 
@@ -393,8 +393,8 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
       );
       const response = await new Promise<string | Obj<Obj<string>>>(resolve => {
         commits.push({
-          records: keysToObject(Object.keys(data), type =>
-            Object.keys(data[type]).map(id => ({ id, ...data[type][id] })),
+          data: keysToObject(Object.keys(data), type =>
+            keysToObject(Object.keys(data[type]), id => data[type][id]),
           ),
           resolve,
         });
@@ -423,7 +423,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
 
   (async () => {
     rgo.schema = await resolver();
-    schemaResolve();
+    schemaResolve({});
   })();
 
   return rgo;

@@ -5,8 +5,10 @@ export default function fetchResolver(url: string) {
   const doFetch = (async (request = null) =>
     await (await fetch(url, {
       method: 'POST',
-      headers: new Headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(request),
+      headers: new Headers({
+        'Content-Type': request ? 'application/json' : 'text/plain',
+      }),
+      ...request ? { body: JSON.stringify(request) } : {},
     })).json()) as Resolver;
 
   let schema: Obj<Obj<Field>>;

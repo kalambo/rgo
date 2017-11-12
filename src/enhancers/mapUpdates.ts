@@ -1,6 +1,6 @@
 import keysToObject from 'keys-to-object';
 
-import { Enhancer, IdRecord, Obj, Record, ResolveRequest } from '../typings';
+import { Enhancer, Obj, Record, ResolveRequest } from '../typings';
 import { localPrefix } from '../utils';
 
 export default function mapUpdates(
@@ -13,26 +13,33 @@ export default function mapUpdates(
   return (resolver => {
     return async (request?: ResolveRequest) => {
       if (!request) return await resolver();
-      const updates = await Promise.all(
-        request.updates.map(async update => {
+      const commits = await Promise.all(
+        request.commits.map(async records => {
           try {
-            const types = Object.keys(update);
-            return keysToObject<IdRecord[]>(
+            const types = Object.keys(records);
+            return keysToObject<Obj<Record>>(
               await Promise.all(
-                types.map(type =>
-                  Promise.all(
-                    update[type].map(async ({ id, ...record }) => ({
-                      id,
-                      ...((await map(
-                        type,
-                        id.startsWith(localPrefix) ? null : id,
-                        Object.keys(record).length === 0 ? null : record,
-                      )) || record),
-                    })),
-                  ),
-                ),
+                types.map(async type => {
+                  const ids = Object.keys(records[type]);
+                  return keysToObject<Record>(
+                    await Promise.all(
+                      ids.map(async id => ({
+                        id,
+                        ...((await map(
+                          type,
+                          id.startsWith(localPrefix) ? null : id,
+                          records[type][id],
+                        )) ||
+                          records[type][id] ||
+                          {}),
+                      })),
+                    ),
+                    res => res,
+                    (_, i) => ids[i],
+                  );
+                }),
               ),
-              records => records,
+              res => res,
               (_, i) => types[i],
             );
           } catch (error) {
@@ -43,17 +50,17 @@ export default function mapUpdates(
 
       const response = await resolver({
         ...request,
-        updates: updates.filter(u => typeof u !== 'string') as Obj<
-          IdRecord[]
+        commits: commits.filter(u => typeof u !== 'string') as Obj<
+          Obj<Record | null>
         >[],
       });
       let counter = 0;
       return {
         ...response,
-        newIds: request.updates.map(
+        newIds: request.commits.map(
           (_, i) =>
-            typeof updates[i] === 'string'
-              ? updates[i]
+            typeof commits[i] === 'string'
+              ? commits[i]
               : response.newIds[counter++],
         ),
       };

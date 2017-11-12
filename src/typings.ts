@@ -51,11 +51,6 @@ export type RecordValue =
 
 export type Record = Obj<RecordValue | null>;
 
-export interface IdRecord {
-  id: string;
-  [field: string]: RecordValue | null;
-}
-
 export interface Args<T = undefined> {
   filter?: T | any[];
   sort?: T | string[];
@@ -130,7 +125,7 @@ export interface FetchInfo {
 }
 
 export interface ResolveRequest {
-  updates: Obj<(IdRecord)[]>[];
+  commits: Obj<Obj<Record | null>>[];
   queries: FullQuery[];
 }
 

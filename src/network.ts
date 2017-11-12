@@ -4,7 +4,6 @@ import {
   Field,
   fieldIs,
   FullQuery,
-  IdRecord,
   Obj,
   Record,
   ResolveRequest,
@@ -61,40 +60,27 @@ const queryMapper = walker<
   }),
 );
 
-const mapRecord = <T = IdRecord | Record | null>(
-  map: 'encode' | 'decode',
-  fields: Obj<Field>,
-  record: T,
-) =>
-  record &&
-  (keysToObject(Object.keys(record), f => {
-    if (f === 'id') return record[f];
-    const field = fields[f];
-    if (fieldIs.scalar(field) && field.scalar === 'date') {
-      return mapArray(record[f], map === 'encode' ? encodeDate : decodeDate);
-    }
-    return record[f];
-  }) as T);
-
-const mapUpdates = (
-  map: 'encode' | 'decode',
-  schema: Obj<Obj<Field>>,
-  updates: Obj<IdRecord[]>[],
-) =>
-  updates.map(update =>
-    keysToObject(Object.keys(update), type =>
-      update[type].map(record => mapRecord(map, schema[type], record)),
-    ),
-  );
-
 const mapData = (
   map: 'encode' | 'decode',
   schema: Obj<Obj<Field>>,
   data: Obj<Obj<Record | null>>,
 ) =>
   keysToObject(Object.keys(data), type =>
-    keysToObject(Object.keys(data[type]), id =>
-      mapRecord(map, schema[type], data[type][id]),
+    keysToObject(
+      Object.keys(data[type]),
+      id =>
+        data[type][id] &&
+        keysToObject(Object.keys(data[type][id]!), f => {
+          if (f === 'id') return data[type][id]![f];
+          const field = schema[type][f];
+          if (fieldIs.scalar(field) && field.scalar === 'date') {
+            return mapArray(
+              data[type][id]![f],
+              map === 'encode' ? encodeDate : decodeDate,
+            );
+          }
+          return data[type][id]![f];
+        }),
     ),
   );
 
@@ -105,7 +91,7 @@ export default {
     request: ResolveRequest,
   ) {
     return {
-      updates: mapUpdates(map, schema, request.updates),
+      commits: request.commits.map(c => mapData(map, schema, c)),
       queries: queryMapper(request.queries, schema, { map, schema }),
     };
   },

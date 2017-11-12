@@ -1,7 +1,7 @@
 import * as deepEqual from 'deep-equal';
 import keysToObject from 'keys-to-object';
 
-import { Args, Enhancer, IdRecord, Obj } from './typings';
+import { Args, Enhancer, Obj } from './typings';
 
 export const localPrefix = 'LOCAL__RECORD__';
 
@@ -125,7 +125,7 @@ export const runFilter = (
 };
 
 export const find = (
-  data: IdRecord[],
+  data: Obj[],
   { filter, sort, start = 0, end }: Args,
   fields: string[],
 ) => {
@@ -136,7 +136,7 @@ export const find = (
     .filter(filterFunc)
     .sort(compareFunc)
     .slice(start, end)
-    .map(record => keysToObject(fields, f => noUndef(record[f])) as IdRecord);
+    .map(record => keysToObject(fields, f => noUndef(record[f])));
 };
 
 export const getFilterFields = (filter: any[]): string[] => {
