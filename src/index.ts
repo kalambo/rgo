@@ -17,6 +17,7 @@ export { compose } from './utils';
 import * as clone from 'clone';
 import * as throttle from 'lodash.throttle';
 import keysToObject from 'keys-to-object';
+import * as deepEqual from 'deep-equal';
 
 import getRequests from './getRequests';
 import read from './read';
@@ -383,21 +384,19 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
 
     async commit(...keys) {
       await schemaPromise;
-      if (keys.length === 0) return { values: [], newIds: {} };
 
-      const data = buildObject(
-        keys.map(key => ({
+      const values = keys
+        .map(key => ({
           key,
           value: key.length === 2 ? null : noUndef(get(state.combined, key)),
-        })),
-      );
+        }))
+        .filter(
+          ({ key, value }) =>
+            !deepEqual(value, noUndef(get(state.server, key))),
+        );
+      if (values.length === 0) return { values: [], newIds: {} };
       const response = await new Promise<string | Obj<Obj<string>>>(resolve => {
-        commits.push({
-          data: keysToObject(Object.keys(data), type =>
-            keysToObject(Object.keys(data[type]), id => data[type][id]),
-          ),
-          resolve,
-        });
+        commits.push({ data: buildObject(values), resolve });
         process();
       });
 

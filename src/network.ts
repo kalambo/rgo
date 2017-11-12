@@ -100,6 +100,6 @@ export default {
     schema: Obj<Obj<Field>>,
     response: ResolveResponse,
   ) {
-    return { data: mapData(map, schema, response.data), ...response };
+    return { ...response, data: mapData(map, schema, response.data) };
   },
 };

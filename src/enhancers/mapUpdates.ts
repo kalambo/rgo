@@ -23,16 +23,16 @@ export default function mapUpdates(
                   const ids = Object.keys(records[type]);
                   return keysToObject<Record>(
                     await Promise.all(
-                      ids.map(async id => ({
-                        id,
-                        ...((await map(
-                          type,
-                          id.startsWith(localPrefix) ? null : id,
-                          records[type][id],
-                        )) ||
+                      ids.map(
+                        async id =>
+                          (await map(
+                            type,
+                            id.startsWith(localPrefix) ? null : id,
+                            records[type][id],
+                          )) ||
                           records[type][id] ||
-                          {}),
-                      })),
+                          {},
+                      ),
                     ),
                     res => res,
                     (_, i) => ids[i],

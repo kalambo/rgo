@@ -14,6 +14,7 @@ import {
 } from './typings';
 import {
   createCompare,
+  get,
   getFilterFields,
   noUndef,
   runFilter,
@@ -61,7 +62,8 @@ const reader = walker(
     records[fieldPath] = {};
 
     const getValue = (id: string, f: string) => {
-      const v = noUndef(data[field.type][id][f]);
+      if (f === 'id') return id;
+      const v = noUndef(get(data, [field.type, id, f]));
       if (v !== null) return v;
       const s = schema[field.type][f];
       return fieldIs.foreignRelation(s) || s.isList ? [] : null;
