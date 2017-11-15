@@ -17,7 +17,6 @@ export { compose } from './utils';
 import * as clone from 'clone';
 import * as throttle from 'lodash.throttle';
 import keysToObject from 'keys-to-object';
-import * as deepEqual from 'deep-equal';
 
 import getRequests from './getRequests';
 import read from './read';
@@ -31,7 +30,6 @@ import {
   Obj,
   Query,
   QueryLayer,
-  Record,
   RecordValue,
   Resolver,
   Rgo,
@@ -41,7 +39,10 @@ import {
   buildObject,
   createCompare,
   get,
-  localPrefix,
+  isEqual,
+  mapArray,
+  merge,
+  newIdPrefix,
   locationOf,
   noUndef,
   promisifyEmitter,
@@ -126,8 +127,11 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
   const listeners: ((changes?: DataChanges) => void)[] = [];
   let queries: FullQuery[];
   let commits: {
-    data: Obj<Obj<Record | null>>;
-    resolve: (response: string | Obj<Obj<string>>) => void;
+    values: {
+      key: [string, string] | [string, string, string];
+      value: RecordValue | null;
+    }[];
+    resolve: (response: Obj<Obj<string>> | string) => void;
   }[] = [];
 
   const getQueries = () => {
@@ -148,11 +152,16 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     return false;
   };
 
-  const set = (
-    store: 'server' | 'client',
-    data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
-  ) => {
-    const changes = setState(store, state, data, rgo.schema);
+  const set = ({
+    server,
+    client,
+  }: {
+    server?: Obj<Obj<Obj<RecordValue | null> | null>>;
+    client?: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>;
+  }) => {
+    const changes: DataChanges = {};
+    if (server) setState('server', state, server, rgo.schema, changes);
+    if (client) setState('client', state, client, rgo.schema, changes);
     if (log) console.log(clone(state));
     getQueries();
     listeners.forEach(l => l(changes));
@@ -163,38 +172,104 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
   const process = throttle(
     async () => {
       const fetchIndex = ++fetchCounter;
-      const request = { commits: commits.map(c => c.data), queries };
-      const commitResolves = commits.map(c => c.resolve);
+      const request = {
+        commits: commits.map(c =>
+          buildObject(
+            c.values.filter(
+              ({ key, value }) => !isEqual(value, get(state.server, key)),
+            ),
+          ),
+        ),
+        queries,
+      };
+      const processCommits = commits;
       commits = [];
-      if (request.queries.length > 0) {
-        const setFetched = (info: FetchInfo) => {
-          if (info.pending) {
-            info.complete.data = info.pending.data;
-            info.active[fetchIndex] = info.pending.changing;
-            delete info.pending;
+      if (
+        request.commits.some(c => Object.keys(c).length > 0) ||
+        request.queries.length > 0
+      ) {
+        if (request.queries.length > 0) {
+          const setFetched = (info: FetchInfo) => {
+            if (info.pending) {
+              info.complete.data = info.pending.data;
+              info.active[fetchIndex] = info.pending.changing;
+              delete info.pending;
+            }
+            Object.keys(info.relations).forEach(k => {
+              if (info.relations[k].pending) setFetched(info.relations[k]);
+            });
+          };
+          setFetched(fetchInfo);
+        }
+        const response = await resolver(request);
+        if (request.queries.length > 0) {
+          const updateInfo = (info: FetchInfo, path: string) => {
+            if (info.active[fetchIndex]) {
+              info.complete.firstIds =
+                response.firstIds[path] || info.complete.firstIds;
+              delete info.active[fetchIndex];
+            }
+            Object.keys(info.relations).forEach(k =>
+              updateInfo(info.relations[k], path ? `${path}_${k}` : k),
+            );
+          };
+          updateInfo(fetchInfo, '');
+        }
+        const data = { server: {}, client: {} };
+        const newIds = merge(
+          ...(response.newIds.filter(n => typeof n !== 'string') as Obj[]),
+        );
+        const getId = (type: string, id: string | null) =>
+          (id && newIds[type] && newIds[type][id]) || id;
+        for (const type of Object.keys(state.client)) {
+          for (const id of Object.keys(state.client[type])) {
+            for (const f of Object.keys(state.client[type][id] || {})) {
+              const field = rgo.schema[type][f];
+              if (fieldIs.relation(field) && newIds[field.type]) {
+                const mapped = mapArray(state.client[type][id]![f], id =>
+                  getId(field.type, id),
+                );
+                if (!isEqual(mapped, state.client[type][id]![f])) {
+                  data.client[type] = data.client[type] || {};
+                  data.client[type][id] = data.client[type][id] || {};
+                  data.client[type][id][f] = mapped;
+                }
+              }
+            }
           }
-          Object.keys(info.relations).forEach(k => {
-            if (info.relations[k].pending) setFetched(info.relations[k]);
-          });
-        };
-        setFetched(fetchInfo);
-      }
-      const response = await resolver(request);
-      commitResolves.forEach((watcher, i) => watcher(response.newIds[i]));
-      if (request.queries.length > 0) {
-        const updateInfo = (info: FetchInfo, path: string) => {
-          if (info.active[fetchIndex]) {
-            info.complete.firstIds =
-              response.firstIds[path] || info.complete.firstIds;
-            delete info.active[fetchIndex];
-          }
-          Object.keys(info.relations).forEach(k =>
-            updateInfo(info.relations[k], path ? `${path}_${k}` : k),
+        }
+        for (const { values } of processCommits) {
+          buildObject(
+            values.map(({ key }) => ({ key, value: undefined })),
+            data.client,
           );
-        };
-        updateInfo(fetchInfo, '');
+          if (fetchIndex > flushFetch) {
+            buildObject(
+              values.map(({ key, value }) => {
+                const k = [...key];
+                k[1] = (newIds[k[0]] && newIds[k[0]][k[1]]) || k[1];
+                if (key.length === 2) return { key: k, value };
+                const field = rgo.schema[k[0]][k[2]];
+                if (fieldIs.relation(field) && newIds[k[0]]) {
+                  return {
+                    key: k,
+                    value: mapArray(value, v => getId(k[0], v)),
+                  };
+                }
+                return { key: k, value };
+              }),
+              data.server,
+            );
+          }
+        }
+        if (fetchIndex > flushFetch) {
+          data.server = merge(data.server, response.data);
+        }
+        set(data);
+        processCommits.forEach(({ resolve }, i) => resolve(response.newIds[i]));
+      } else {
+        processCommits.forEach(({ resolve }) => resolve({}));
       }
-      set('server', fetchIndex > flushFetch ? response.data : {});
     },
     50,
     { leading: false },
@@ -212,12 +287,11 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
       Object.keys(info.relations).forEach(k => flushInfo(info.relations[k]));
     };
     flushInfo(fetchInfo);
-    set(
-      'server',
-      keysToObject(Object.keys(state.server), type =>
+    set({
+      server: keysToObject(Object.keys(state.server), type =>
         keysToObject(Object.keys(state.server[type]), null),
       ),
-    );
+    });
   };
 
   const getStart = (
@@ -298,8 +372,8 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
 
     create(type) {
       localCounters[type] = localCounters[type] || 0;
-      const id = `${localPrefix}${localCounters[type]++}`;
-      set('client', { [type]: { [id]: {} } });
+      const id = `${newIdPrefix}${localCounters[type]++}`;
+      set({ client: { [type]: { [id]: {} } } });
       return id;
     },
 
@@ -327,7 +401,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
                 !(
                   query.filter &&
                   query.filter[0] === 'id' &&
-                  query.filter[query.filter.length - 1].startsWith(localPrefix)
+                  query.filter[query.filter.length - 1].startsWith(newIdPrefix)
                 ),
             );
             addQueries(serverQueries, rgo.schema, { fetchInfo });
@@ -379,44 +453,24 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     },
 
     set(...values) {
-      if (values.length !== 0) set('client', buildObject(values));
+      if (values.length !== 0) set({ client: buildObject(values) });
     },
 
     async commit(...keys) {
       await schemaPromise;
-
-      const values = keys
-        .map(key => ({
-          key,
-          value: key.length === 2 ? null : noUndef(get(state.combined, key)),
-        }))
-        .filter(
-          ({ key, value }) =>
-            !deepEqual(value, noUndef(get(state.server, key))),
-        );
-      if (values.length === 0) return { values: [], newIds: {} };
+      if (keys.length === 0) return {};
       const response = await new Promise<string | Obj<Obj<string>>>(resolve => {
-        commits.push({ data: buildObject(values), resolve });
+        commits.push({
+          values: keys.map(key => ({
+            key,
+            value: key.length === 2 ? null : noUndef(get(state.combined, key)),
+          })),
+          resolve,
+        });
         process();
       });
-
-      if (typeof response === 'string') return null;
-      set('client', buildObject(keys.map(key => ({ key, value: undefined }))));
-      return {
-        values: keys.map(
-          key =>
-            key.length === 2
-              ? null
-              : noUndef(
-                  get(state.combined, [
-                    key[0],
-                    (response[key[0]] && response[key[0]][key[1]]) || key[1],
-                    key[2],
-                  ]),
-                ),
-        ),
-        newIds: response,
-      };
+      if (typeof response === 'string') throw new Error(response);
+      return response;
     },
   };
 

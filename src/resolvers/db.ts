@@ -1,4 +1,3 @@
-import * as deepEqual from 'deep-equal';
 import keysToObject from 'keys-to-object';
 
 import {
@@ -9,11 +8,9 @@ import {
   Record,
   RecordValue,
   Resolver,
-  RelationField,
   ResolveRequest,
-  ScalarField,
 } from '../typings';
-import { localPrefix, undefOr } from '../utils';
+import { isEqual, mapArray, newIdPrefix, undefOr } from '../utils';
 import walker from '../walker';
 
 export interface IdRecord {
@@ -21,24 +18,21 @@ export interface IdRecord {
   [field: string]: RecordValue | null;
 }
 
-export interface Connector {
-  query: (
+export interface Db {
+  find(
     type: string,
     args: Args,
     fields: string[],
-  ) => IdRecord[] | Promise<IdRecord[]>;
-  upsert: (
-    type: string,
-    id: string | null,
-    record: Record,
-  ) => IdRecord | Promise<IdRecord>;
+  ): IdRecord[] | Promise<IdRecord[]>;
+  insert(type: string, record: Record): string | Promise<string>;
+  update(type: string, id: string, record: Record): void | Promise<void>;
   delete: (type: string, id: string) => void | Promise<void>;
 }
 
 const runner = walker<
   Promise<void>,
   {
-    connector: Connector;
+    db: Db;
     data: Obj<Obj<Record>>;
     firstIds: Obj<Obj<string | null>>;
     records: Obj<IdRecord[]>;
@@ -46,7 +40,7 @@ const runner = walker<
 >(
   async (
     { root, field, args, fields, offset, relations, path, key },
-    { connector, data, firstIds, records },
+    { db, data, firstIds, records },
     walkRelations,
   ) => {
     const rootPath = path.join('_');
@@ -70,7 +64,7 @@ const runner = walker<
       args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
       if (!queryFields.includes(relField)) queryFields.push(relField);
     }
-    records[fieldPath] = await connector.query(
+    records[fieldPath] = await db.find(
       field.type,
       {
         ...args,
@@ -134,99 +128,71 @@ const runner = walker<
 const commit = async (
   commits: Obj<Obj<Record | null>>[],
   schema: Obj<Obj<Field>>,
-  connector: Connector,
-  data: Obj<Obj<Record | null>>,
-) =>
-  Promise.all(
-    commits.map(async records => {
-      const types = Object.keys(records);
-      const newIds = keysToObject<Obj<string>>(types, {});
-      const getId = (type: string, id: string) =>
-        (newIds[type] || {})[id] || id;
-      await Promise.all(
-        types.map(async type => {
-          data[type] = data[type] || {};
-          await Promise.all(
-            Object.keys(records[type]).map(async id => {
-              if (!records[type][id]) {
-                await connector.delete(type, id);
-                data[type][id] = null;
-              } else if (id.startsWith(localPrefix)) {
-                const { id: newId, ...r } = await connector.upsert(
-                  type,
-                  null,
-                  records[type][id]!,
-                );
-                newIds[type][id] = newId;
-                data[type][newId] = r;
-              } else {
-                const { id: _, ...r } = await connector.upsert(
-                  type,
-                  id,
-                  records[type][id]!,
-                );
-                data[type][id] = { ...data[type][id], ...r };
-              }
-            }),
-          );
-        }),
-      );
-      await Promise.all(
-        types.map(async type =>
-          Promise.all(
-            Object.keys(records[type]).map(async id => {
-              if (records[type][id]) {
-                const record = { ...records[type][id] };
-                let hasNewRelations = false;
-                for (const f of Object.keys(record)) {
-                  if (record[f]) {
-                    const field = schema[type][f] as
-                      | RelationField
-                      | ScalarField;
-                    if (fieldIs.relation(field)) {
-                      const prev = record[f];
-                      record[f] = field.isList
-                        ? (record[f] as any[]).map(v => getId(field.type, v))
-                        : getId(field.type, record[f] as string);
-                      if (!deepEqual(record[f], prev)) hasNewRelations = true;
-                    }
-                  }
-                }
-                if (hasNewRelations) {
-                  const newId = getId(type, id);
-                  const { id: _, ...r } = await connector.upsert(
-                    type,
-                    newId,
-                    record,
-                  );
-                  data[type][newId] = { ...data[type][newId], ...r };
+  db: Db,
+) => {
+  const result: Obj<Obj<string>>[] = [];
+  for (const records of commits) {
+    const types = Object.keys(records);
+    const newIds = keysToObject<Obj<string>>(types, () => ({}));
+    const getId = (type: string, id: string) => (newIds[type] || {})[id] || id;
+    await Promise.all(
+      types.map(async type => {
+        await Promise.all(
+          Object.keys(records[type]).map(async id => {
+            if (!records[type][id]) {
+              await db.delete(type, id);
+            } else if (id.startsWith(newIdPrefix)) {
+              const newId = await db.insert(type, records[type][id]!);
+              newIds[type][id] = newId;
+            } else {
+              await db.update(type, id, records[type][id]!);
+            }
+          }),
+        );
+      }),
+    );
+    await Promise.all(
+      types.map(async type =>
+        Promise.all(
+          Object.keys(records[type]).map(async id => {
+            if (records[type][id]) {
+              const record = { ...records[type][id] };
+              let hasNewIds = false;
+              for (const f of Object.keys(record)) {
+                const field = schema[type][f];
+                if (fieldIs.relation(field) && newIds[field.type]) {
+                  const prev = record[f];
+                  record[f] = mapArray(record[f], id => getId(field.type, id));
+                  if (!isEqual(record[f], prev)) hasNewIds = true;
                 }
               }
-            }),
-          ),
+              if (hasNewIds) {
+                await db.update(type, getId(type, id), record);
+              }
+            }
+          }),
         ),
-      );
-      return newIds;
-    }),
-  );
+      ),
+    );
+    result.push(newIds);
+  }
+  return result;
+};
 
-export default function simpleResolver(
-  schema: Obj<Obj<Field>>,
-  connector: Connector,
-) {
+export default function dbResolver(schema: Obj<Obj<Field>>, db: Db) {
   return (async (request?: ResolveRequest) => {
     if (!request) return schema;
+    const newIds = await commit(request.commits, schema, db);
     const data = {};
-    const newIds = await commit(request.commits, schema, connector, data);
     const firstIds = {} as Obj<Obj<string | null>>;
     await Promise.all(
       runner(request.queries, schema, {
-        connector,
+        db,
         data,
         firstIds,
         records: {},
       }),
     );
-    return { data, newIds, firstIds };
+    return { newIds, data, firstIds };
   }) as Resolver;
 }

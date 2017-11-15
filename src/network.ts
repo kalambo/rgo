@@ -10,9 +10,7 @@ import {
   ResolveResponse,
 } from './typings';
 import walker from './walker';
-
-const mapArray = (v: any, map: (x: any) => any) =>
-  Array.isArray(v) ? v.map(map) : map(v);
+import { mapArray } from './utils';
 
 const encodeDate = (v: Date | null) => v && v.getTime();
 const decodeDate = (v: number | null) => v && new Date(v);

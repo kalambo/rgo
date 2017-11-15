@@ -1,7 +1,7 @@
 import keysToObject from 'keys-to-object';
 
 import { Enhancer, Obj, Record, ResolveRequest } from '../typings';
-import { localPrefix } from '../utils';
+import { newIdPrefix } from '../utils';
 
 export default function mapUpdates(
   map: (
@@ -27,7 +27,7 @@ export default function mapUpdates(
                         async id =>
                           (await map(
                             type,
-                            id.startsWith(localPrefix) ? null : id,
+                            id.startsWith(newIdPrefix) ? null : id,
                             records[type][id],
                           )) ||
                           records[type][id] ||

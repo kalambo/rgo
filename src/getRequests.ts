@@ -1,9 +1,8 @@
-import * as deepEqual from 'deep-equal';
-
 import { Args, FetchInfo, fieldIs, FullQuery, State } from './typings';
 import {
   getFilterFields,
-  localPrefix,
+  isEqual,
+  newIdPrefix,
   noUndef,
   runFilter,
   undefOr,
@@ -80,7 +79,7 @@ export default function getRequests(
       const combined =
         state.combined[info.field.type] && state.combined[info.field.type][id];
       const combinedStatus =
-        id.startsWith(localPrefix) ||
+        id.startsWith(newIdPrefix) ||
         (combined && filterFields.every(f => combined[f] !== undefined))
           ? runFilter(info.args.filter, id, combined)
           : null;
@@ -100,7 +99,7 @@ export default function getRequests(
             f =>
               server[f] === undefined ||
               (combined[f] || server[f]) === undefined ||
-              !deepEqual(noUndef(server[f]), noUndef(combined[f])),
+              !isEqual(noUndef(server[f]), noUndef(combined[f])),
           )
         ) {
           extra.start += 1;

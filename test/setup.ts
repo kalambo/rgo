@@ -1,5 +1,5 @@
 import loadRgo, { enhancers, Rgo, resolvers } from '../src';
-import { find, localPrefix } from '../src/utils';
+import { find, newIdPrefix } from '../src/utils';
 
 export let rgo: Rgo;
 
@@ -100,21 +100,18 @@ export const setup = async () => {
 
   let counter = 0;
   rgo = loadRgo(
-    resolvers.simple(schema, {
-      query(type, args, fields) {
-        return find(allData[type], args, fields);
+    resolvers.db(schema, {
+      find(type, args, fields) {
+        return find(allData[type], args, fields) as any[];
       },
-      upsert(type, id, record) {
-        if (!id) {
-          const newId = `${counter++}`;
-          const result = { id: newId, ...record };
-          allData[type].push(result);
-          return result;
-        } else {
-          const index = allData[type].findIndex(r => r.id === id);
-          if (index !== -1) Object.assign(allData[type][index], record);
-          return { id, ...record };
-        }
+      insert(type, record) {
+        const newId = `${counter++}`;
+        allData[type].push({ id: newId, ...record });
+        return newId;
+      },
+      update(type, id, record) {
+        const index = allData[type].findIndex(r => r.id === id);
+        if (index !== -1) Object.assign(allData[type][index], record);
       },
       delete(type, id) {
         const index = allData[type].findIndex(r => r.id === id);

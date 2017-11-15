@@ -130,8 +130,8 @@ export interface ResolveRequest {
 }
 
 export interface ResolveResponse {
-  data: Obj<Obj<Record | null>>;
-  newIds: (string | Obj<Obj<string>>)[];
+  newIds: (Obj<Obj<string>> | string)[];
+  data: Obj<Obj<Record>>;
   firstIds: Obj<Obj<string | null>>;
 }
 
@@ -184,5 +184,5 @@ export interface Rgo {
 
   commit(
     ...keys: ([string, string] | [string, string, string])[]
-  ): Promise<{ values: any[]; newIds: Obj } | null>;
+  ): Promise<Obj<Obj<string>>>;
 }

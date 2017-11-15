@@ -3,7 +3,13 @@ import keysToObject from 'keys-to-object';
 
 import { Args, Enhancer, Obj } from './typings';
 
-export const localPrefix = 'LOCAL__RECORD__';
+export const newIdPrefix = 'LOCAL__RECORD__';
+
+export const isEqual = (v1: any, v2: any) =>
+  deepEqual(v1, v2, { strict: true });
+
+export const mapArray = (v: any, map: (x: any) => any) =>
+  Array.isArray(v) ? v.map(map) : map(v);
 
 export const noUndef = (v: any, replacer: any = null) =>
   v === undefined ? replacer : v;
@@ -14,7 +20,27 @@ export const undefOr = (v: any, replacer: any = null) =>
 export const get = (obj: any, key: string[]) =>
   key.reduce((res, k) => res && res[k], obj);
 
-export const buildObject = (values: { key: string[]; value: any }[]) =>
+const isObject = (v: any) =>
+  Object.prototype.toString.call(v) === '[object Object]';
+const clone = v => (isObject(v) ? mergeTwo({}, v) : v);
+const mergeTwo = (target: any, source: Obj) => {
+  const result = {};
+  if (isObject(target)) {
+    Object.keys(target).forEach(k => (result[k] = clone(target[k])));
+  }
+  Object.keys(source).forEach(k => {
+    if (!isObject(source[k]) || !target[k]) result[k] = clone(source[k]);
+    else result[k] = mergeTwo(target[k], source[k]);
+  });
+  return result;
+};
+export const merge = (...args: Obj[]) =>
+  args.reduce((res, obj) => mergeTwo(res, obj), {});
+
+export const buildObject = (
+  values: { key: string[]; value: any }[],
+  initial = {},
+) =>
   values.reduce((res, { key, value }) => {
     key.reduce((r, k, i) => {
       if (i === key.length - 1) r[k] = value;
@@ -22,7 +48,7 @@ export const buildObject = (values: { key: string[]; value: any }[]) =>
       return r[k];
     }, res);
     return res;
-  }, {});
+  }, initial);
 
 const binarySearch = <T>(
   element: T,
@@ -65,7 +91,7 @@ export const promisifyEmitter = <T>(
 };
 
 const compareValues = (a, b) => {
-  if (deepEqual(a, b)) return 0;
+  if (isEqual(a, b)) return 0;
   if (typeof a === 'string' && typeof b === 'string') {
     return a.toLowerCase().localeCompare(b.toLowerCase()) as 0 | 1 | -1;
   }
@@ -109,8 +135,8 @@ export const runFilter = (
   const value = filter[filter.length - 1];
 
   const v = filter[0] === 'id' ? id : noUndef(record[filter[0]]);
-  if (op === '=') return deepEqual(v, value);
-  if (op === '!=') return !deepEqual(v, value);
+  if (op === '=') return isEqual(v, value);
+  if (op === '!=') return !isEqual(v, value);
   if (op === '<') return v < value;
   if (op === '<=') return v <= value;
   if (op === '>') return v > value;

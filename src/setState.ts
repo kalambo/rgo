@@ -1,4 +1,3 @@
-import * as deepEqual from 'deep-equal';
 import keysToObject from 'keys-to-object';
 
 import {
@@ -11,7 +10,7 @@ import {
   ScalarField,
   State,
 } from './typings';
-import { get, localPrefix, noUndef } from './utils';
+import { get, isEqual, newIdPrefix, noUndef } from './utils';
 
 const withoutNulls = (rec: Record): Obj<RecordValue> =>
   keysToObject(Object.keys(rec).filter(k => rec[k] !== null), k => rec[k]!);
@@ -21,8 +20,8 @@ export default function setState(
   state: State,
   data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
   schema: Obj<Obj<Field>>,
+  changes: DataChanges,
 ) {
-  const changes: DataChanges = {};
   const setChanged = (type: string, id: string, field: string) => {
     changes[type] = changes[type] || {};
     changes[type][id] = changes[type][id] || {};
@@ -35,7 +34,7 @@ export default function setState(
         for (const id of Object.keys(state.client[type] || {})) {
           for (const field of Object.keys(state.client[type][id] || {})) {
             if (
-              !deepEqual(
+              !isEqual(
                 noUndef(get(state.combined, [type, id, field])),
                 noUndef(get(state.server, [type, id, field])),
               )
@@ -62,12 +61,12 @@ export default function setState(
       for (const id of Object.keys(data[type])) {
         if (
           data[type][id] === undefined ||
-          (data[type][id] === null && id.startsWith(localPrefix))
+          (data[type][id] === null && id.startsWith(newIdPrefix))
         ) {
           if (store === 'client') {
             for (const field of Object.keys(state.client[type][id] || {})) {
               if (
-                !deepEqual(
+                !isEqual(
                   noUndef(get(state.combined, [type, id, field])),
                   noUndef(get(state.server, [type, id, field])),
                 )
@@ -94,7 +93,7 @@ export default function setState(
           } else {
             for (const field of Object.keys(state.combined[type][id] || {})) {
               if (
-                !deepEqual(
+                !isEqual(
                   noUndef(get(state.combined, [type, id, field])),
                   noUndef(get(state.client, [type, id, field])),
                 )
@@ -159,7 +158,7 @@ export default function setState(
               state.server[type][id][field] = value!;
             }
             if (
-              !deepEqual(noUndef(get(state.combined, [type, id, field])), prev)
+              !isEqual(noUndef(get(state.combined, [type, id, field])), prev)
             ) {
               setChanged(type, id, field);
             }
@@ -167,12 +166,10 @@ export default function setState(
           if (get(state.client, [type, id]) === undefined) {
             delete state.diff[type][id];
           } else if (get(state.client, [type, id])) {
-            state.diff[type][id] = id.startsWith(localPrefix) ? 1 : 0;
+            state.diff[type][id] = id.startsWith(newIdPrefix) ? 1 : 0;
           }
         }
       }
     }
   }
-
-  return changes;
 }

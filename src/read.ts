@@ -1,4 +1,3 @@
-import * as deepEqual from 'deep-equal';
 import keysToObject from 'keys-to-object';
 
 import { standardizeQueries } from './standardize';
@@ -16,6 +15,7 @@ import {
   createCompare,
   get,
   getFilterFields,
+  isEqual,
   noUndef,
   runFilter,
   undefOr,
@@ -171,7 +171,7 @@ const reader = walker(
             if (fields.includes(f)) {
               const prev = records[fieldPath][id][f];
               records[fieldPath][id][f] = getValue(id, f);
-              if (!deepEqual(records[fieldPath][id][f], prev)) changed = true;
+              if (!isEqual(records[fieldPath][id][f], prev)) changed = true;
             }
           }
         }
