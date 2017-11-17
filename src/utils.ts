@@ -1,7 +1,7 @@
 import * as deepEqual from 'deep-equal';
 import keysToObject from 'keys-to-object';
 
-import { Args, Enhancer, Obj } from './typings';
+import { Args, Data, Enhancer, Obj } from './typings';
 
 export const newIdPrefix = 'NEW__RECORD__';
 export const isNewId = (id: string) => id.startsWith(newIdPrefix);
@@ -37,6 +37,35 @@ const mergeTwo = (target: any, source: Obj) => {
 };
 export const merge = (...args: Obj[]) =>
   args.reduce((res, obj) => mergeTwo(res, obj), {});
+
+export const mapData = <T1, T2 = T1>(
+  data: Data<T1>,
+  map: (value: T1, type: string, id: string) => T2,
+) =>
+  keysToObject(Object.keys(data), type =>
+    keysToObject(Object.keys(data[type]), id => map(data[type][id], type, id)),
+  ) as Data<T2>;
+
+export const mapDataAsync = async <T1, T2 = T1>(
+  data: Data<T1>,
+  map: (value: T1, type: string, id: string) => Promise<T2>,
+) => {
+  const types = Object.keys(data);
+  return keysToObject(
+    await Promise.all(
+      types.map(async type => {
+        const ids = Object.keys(data[type]);
+        return keysToObject(
+          await Promise.all(ids.map(id => map(data[type][id], type, id))),
+          v => v,
+          (_, i) => ids[i],
+        );
+      }),
+    ),
+    v => v,
+    (_, i) => types[i],
+  );
+};
 
 const binarySearch = <T>(
   element: T,

@@ -1,20 +1,22 @@
 import keysToObject from 'keys-to-object';
 
 import {
+  Data,
   Field,
   fieldIs,
   ResolveQuery,
   Obj,
   ResolveRequest,
   ResolveResponse,
+  Schema,
 } from './typings';
 import walker from './walker';
-import { mapArray } from './utils';
+import { mapArray, mapData } from './utils';
 
 const encodeDate = (v: Date | null) => v && v.getTime();
 const decodeDate = (v: number | null) => v && new Date(v);
 
-const mapFilter = (
+const codeFilter = (
   map: 'encode' | 'decode',
   fields: Obj<Field>,
   filter?: any[],
@@ -22,7 +24,7 @@ const mapFilter = (
   if (!filter) return filter;
   if (typeof filter === 'string') return filter;
   if (['AND', 'OR'].includes(filter[0])) {
-    return [filter[0], ...filter.slice(1).map(f => mapFilter(map, fields, f))];
+    return [filter[0], ...filter.slice(1).map(f => codeFilter(map, fields, f))];
   }
   if (filter[0] === 'id') return filter;
   const field = fields[filter[0]];
@@ -38,9 +40,9 @@ const mapFilter = (
   return filter;
 };
 
-const queryMapper = walker<
+const queryCoder = walker<
   ResolveQuery,
-  { map: 'encode' | 'decode'; schema: Obj<Obj<Field>> }
+  { map: 'encode' | 'decode'; schema: Schema }
 >(
   (
     { root, field, args, fields, extra, trace },
@@ -50,57 +52,46 @@ const queryMapper = walker<
     name: root.field,
     alias: root.alias,
     ...args,
-    filter: args.filter && mapFilter(map, schema[field.type], args.filter),
+    filter: args.filter && codeFilter(map, schema[field.type], args.filter),
     fields: [...fields, ...relations.map(r => r.walk())],
     extra,
     trace,
   }),
 );
 
-const mapData = <T>(
-  map: 'encode' | 'decode',
-  schema: Obj<Obj<Field>>,
-  data: Obj<Obj<T>>,
-) =>
-  keysToObject(Object.keys(data), type =>
-    keysToObject(
-      Object.keys(data[type]),
-      id =>
-        data[type][id] &&
-        keysToObject(Object.keys(data[type][id]!), f => {
-          if (f === 'id') return data[type][id]![f];
-          const field = schema[type][f];
-          if (fieldIs.scalar(field) && field.scalar === 'date') {
-            return mapArray(
-              data[type][id]![f],
-              map === 'encode' ? encodeDate : decodeDate,
-            );
-          }
-          return data[type][id]![f];
-        }),
-    ),
-  ) as Obj<Obj<T>>;
+const codeDate = <T>(map: 'encode' | 'decode', schema: Schema, data: Data<T>) =>
+  mapData(
+    data,
+    (record, type) =>
+      record &&
+      keysToObject(Object.keys(record), f => {
+        if (f === 'id') return record[f];
+        const field = schema[type][f];
+        if (fieldIs.scalar(field) && field.scalar === 'date') {
+          return mapArray(
+            record[f],
+            map === 'encode' ? encodeDate : decodeDate,
+          );
+        }
+        return record[f];
+      }),
+  );
 
 export default {
-  request(
-    map: 'encode' | 'decode',
-    schema: Obj<Obj<Field>>,
-    request: ResolveRequest,
-  ) {
+  request(map: 'encode' | 'decode', schema: Schema, request: ResolveRequest) {
     return {
       commits:
-        request.commits && request.commits.map(c => mapData(map, schema, c)),
+        request.commits && request.commits.map(c => codeDate(map, schema, c)),
       queries:
-        request.queries &&
-        queryMapper(request.queries, schema, { map, schema }),
+        request.queries && queryCoder(request.queries, schema, { map, schema }),
       context: request.context,
     };
   },
   response(
     map: 'encode' | 'decode',
-    schema: Obj<Obj<Field>>,
+    schema: Schema,
     response: ResolveResponse,
   ) {
-    return { ...response, data: mapData(map, schema, response.data) };
+    return { ...response, data: codeDate(map, schema, response.data) };
   },
 };

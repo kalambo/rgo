@@ -2,15 +2,18 @@ import {
   Field,
   fieldIs,
   ForeignRelationField,
-  ResolveQuery,
   Obj,
+  ResolveQuery,
   Query,
   RelationField,
+  Schema,
 } from './typings';
+
+x => x as Field | Obj;
 
 const standardizeQuery = (
   { filter, sort, fields, ...query }: ResolveQuery | Query,
-  schema: Obj<Obj<Field>>,
+  schema: Schema,
   field?: ForeignRelationField | RelationField,
 ) => {
   const result: ResolveQuery = {
@@ -42,7 +45,7 @@ const standardizeQuery = (
 };
 export const standardizeQueries = (
   queries: ResolveQuery[] | Query[],
-  schema: Obj<Obj<Field>>,
+  schema: Schema,
 ) =>
   (queries as (ResolveQuery | Query)[]).map(query =>
     standardizeQuery(query, schema),

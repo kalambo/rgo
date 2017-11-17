@@ -1,4 +1,4 @@
-import { Enhancer, Field, ResolveQuery, Obj } from '../typings';
+import { Enhancer, ResolveQuery, Obj, Schema } from '../typings';
 import walker from '../walker';
 
 import base from './base';
@@ -17,9 +17,9 @@ const queryMapper = walker<
         filter?: any[];
         fields: string[];
       },
-      info: { schema: Obj<Obj<Field>>; context: Obj },
+      info: { schema: Schema; context: Obj },
     ) => QueryMap | QueryMap[] | Promise<QueryMap | QueryMap[]>;
-    info: { schema: Obj<Obj<Field>>; context: Obj };
+    info: { schema: Schema; context: Obj };
   }
 >(
   async (
@@ -102,7 +102,7 @@ export default function mapQueries(
       filter?: any[];
       fields: string[];
     },
-    info: { schema: Obj<Obj<Field>>; context: Obj },
+    info: { schema: Schema; context: Obj },
   ) => QueryMap | QueryMap[] | Promise<QueryMap | QueryMap[]>,
 ) {
   return base(async (resolver, request, schema) => {

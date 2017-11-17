@@ -1,21 +1,20 @@
 import {
   Enhancer,
-  Field,
-  Obj,
   Resolver,
   ResolveRequest,
   ResolveResponse,
+  Schema,
 } from '../typings';
 
 export default function base(
   enhancer: (
     resolver: Resolver,
     request: ResolveRequest,
-    schema: Obj<Obj<Field>>,
+    schema: Schema,
   ) => Promise<ResolveResponse>,
 ) {
   return (resolver => {
-    let schema: Obj<Obj<Field>>;
+    let schema: Schema;
     return async (request?: ResolveRequest) => {
       if (!schema) schema = await resolver();
       if (!request) return schema;

@@ -2,14 +2,15 @@ import keysToObject from 'keys-to-object';
 
 import { standardizeQueries } from './standardize';
 import {
+  Data,
   DataChanges,
-  Field,
   fieldIs,
   ResolveQuery,
   GetStart,
   Obj,
   QueryLayer,
   Record,
+  Schema,
 } from './typings';
 import {
   createCompare,
@@ -25,9 +26,9 @@ import walker from './walker';
 const reader = walker<
   (changes: DataChanges) => number,
   {
-    schema: Obj<Obj<Field>>;
-    data: Obj<Obj<Record>>;
-    records: Obj<Obj<Obj>>;
+    schema: Schema;
+    data: Data<Record>;
+    records: Data<Record>;
     getStart: GetStart;
   }
 >((layer: QueryLayer, relations, { schema, data, records, getStart }) => {
@@ -173,9 +174,9 @@ const reader = walker<
 
 export default function read(
   queries: ResolveQuery[],
-  schema: Obj<Obj<Field>>,
-  data: Obj<Obj<Record>>,
-  starts: Obj<Obj<string | null>> | GetStart,
+  schema: Schema,
+  data: Data<Record>,
+  starts: Data<string | null> | GetStart,
 ) {
   const result: Obj = {};
   const getStart =

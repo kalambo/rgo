@@ -6,7 +6,10 @@ import {
   Obj,
   QueryLayer,
   RelationField,
+  Schema,
 } from './typings';
+
+x => x as Field;
 
 const sortedStringify = (obj: Obj) =>
   Object.keys(obj)
@@ -18,7 +21,7 @@ const sortedStringify = (obj: Obj) =>
 const walkQueryLayer = <T, U>(
   layer: QueryLayer,
   relations: ResolveQuery[],
-  schema: Obj<Obj<Field>>,
+  schema: Schema,
   context: U,
   func: (
     layer: QueryLayer,
@@ -75,7 +78,7 @@ export default function walker<T, U>(
     context: U,
   ) => T,
 ) {
-  return (queries: ResolveQuery[], schema: Obj<Obj<Field>>, context: U) =>
+  return (queries: ResolveQuery[], schema: Schema, context: U) =>
     queries.map(({ name, alias, fields, extra, trace, key, ...args }) =>
       walkQueryLayer(
         {

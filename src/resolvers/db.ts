@@ -2,15 +2,16 @@ import keysToObject from 'keys-to-object';
 
 import {
   Args,
-  Field,
+  Data,
   fieldIs,
   Obj,
   Record,
   RecordValue,
   Resolver,
   ResolveRequest,
+  Schema,
 } from '../typings';
-import { isEqual, isNewId, mapArray, undefOr } from '../utils';
+import { isEqual, isNewId, mapArray, mapDataAsync, undefOr } from '../utils';
 import walker from '../walker';
 
 export interface IdRecord {
@@ -33,8 +34,8 @@ const runner = walker<
   Promise<void>,
   {
     db: Db;
-    data: Obj<Obj<Record>>;
-    firstIds: Obj<Obj<string | null>>;
+    data: Data<Record>;
+    firstIds: Data<string | null>;
     records: Obj<IdRecord[]>;
   }
 >(
@@ -165,66 +166,42 @@ const runner = walker<
   },
 );
 
-const commit = async (
-  commits: Obj<Obj<Record | null>>[] = [],
-  schema: Obj<Obj<Field>>,
-  db: Db,
-) => {
-  const result: Obj<Obj<string>>[] = [];
+const commit = async (commits: Data[] = [], schema: Schema, db: Db) => {
+  const result: Data<string>[] = [];
   for (const records of commits) {
-    const types = Object.keys(records);
-    const newIds = keysToObject<Obj<string>>(types, () => ({}));
+    const newIds = keysToObject<Obj<string>>(Object.keys(records), () => ({}));
     const getId = (type: string, id: string) => (newIds[type] || {})[id] || id;
-    await Promise.all(
-      types.map(async type => {
-        await Promise.all(
-          Object.keys(records[type]).map(async id => {
-            if (!records[type][id]) {
-              await db.delete(type, id);
-            } else if (isNewId(id)) {
-              const newId = await db.insert(type, records[type][id]!);
-              newIds[type][id] = newId;
-            } else {
-              await db.update(type, id, records[type][id]!);
-            }
-          }),
-        );
-      }),
-    );
-    await Promise.all(
-      types.map(async type =>
-        Promise.all(
-          Object.keys(records[type]).map(async id => {
-            if (records[type][id]) {
-              const record = { ...records[type][id] };
-              let hasNewIds = false;
-              for (const f of Object.keys(record)) {
-                const field = schema[type][f];
-                if (fieldIs.relation(field) && newIds[field.type]) {
-                  const prev = record[f];
-                  record[f] = mapArray(record[f], id => getId(field.type, id));
-                  if (!isEqual(record[f], prev)) hasNewIds = true;
-                }
-              }
-              if (hasNewIds) {
-                await db.update(type, getId(type, id), record);
-              }
-            }
-          }),
-        ),
-      ),
-    );
+    await mapDataAsync(records, async (record, type, id) => {
+      if (!record) await db.delete(type, id);
+      else if (isNewId(id)) newIds[type][id] = await db.insert(type, record);
+      else await db.update(type, id, record);
+    });
+    await mapDataAsync(records, async (r, type, id) => {
+      if (r) {
+        const record = { ...r };
+        let hasNewIds = false;
+        for (const f of Object.keys(record)) {
+          const field = schema[type][f];
+          if (fieldIs.relation(field) && newIds[field.type]) {
+            const prev = record[f];
+            record[f] = mapArray(record[f], id => getId(field.type, id));
+            if (!isEqual(record[f], prev)) hasNewIds = true;
+          }
+        }
+        if (hasNewIds) await db.update(type, getId(type, id), record);
+      }
+    });
     result.push(newIds);
   }
   return result;
 };
 
-export default function dbResolver(schema: Obj<Obj<Field>>, db: Db) {
+export default function dbResolver(schema: Schema, db: Db) {
   return (async (request?: ResolveRequest) => {
     if (!request) return schema;
     const newIds = await commit(request.commits, schema, db);
     const data = {};
-    const firstIds = {} as Obj<Obj<string | null>>;
+    const firstIds = {} as Data<string | null>;
     await Promise.all(
       runner(request.queries || [], schema, {
         db,

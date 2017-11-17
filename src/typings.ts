@@ -19,6 +19,8 @@ export interface ForeignRelationField {
 }
 export type Field = ScalarField | RelationField | ForeignRelationField;
 
+export type Schema = Obj<Obj<Field>>;
+
 export const fieldIs = {
   scalar: (field: Field): field is ScalarField => {
     return !!(field as ScalarField).scalar;
@@ -50,6 +52,12 @@ export type RecordValue =
   | Obj[];
 
 export type Record = Obj<RecordValue | null>;
+
+export type Data<T = Record | null> = Obj<Obj<T>>;
+
+export type ClientData = Data<
+  Obj<RecordValue | null | undefined> | null | undefined
+>;
 
 export interface Args<T = undefined> {
   filter?: T | any[];
@@ -90,13 +98,13 @@ export type GetStart = (
   recordIds: (string | null)[],
 ) => number;
 
-export type DataChanges = Obj<Obj<Obj<true>>>;
+export type DataChanges = Data<Obj<true>>;
 
 export interface State {
-  server: Obj<Obj<Record>>;
-  client: Obj<Obj<Record | null>>;
-  combined: Obj<Obj<Obj<RecordValue>>>;
-  diff: Obj<Obj<1 | -1 | 0>>;
+  server: Data<Record>;
+  client: Data;
+  combined: Data<Obj<RecordValue>>;
+  diff: Data<1 | -1 | 0>;
 }
 
 export interface FetchInfo {
@@ -125,24 +133,24 @@ export interface FetchInfo {
 }
 
 export interface ResolveRequest {
-  commits?: Obj<Obj<Record | null>>[];
+  commits?: Data[];
   queries?: ResolveQuery[];
   context?: Obj;
 }
 
 export interface ResolveResponse {
-  newIds: (Obj<Obj<string>> | string)[];
-  data: Obj<Obj<Record>>;
-  firstIds: Obj<Obj<string | null>>;
+  newIds: (Data<string> | string)[];
+  data: Data<Record>;
+  firstIds: Data<string | null>;
 }
 
-export type Resolver = (() => Promise<Obj<Obj<Field>>>) &
+export type Resolver = (() => Promise<Schema>) &
   ((request: ResolveRequest) => Promise<ResolveResponse>);
 
 export type Enhancer = (resolver: Resolver) => Resolver;
 
 export interface Rgo {
-  schema: Obj<Obj<Field>>;
+  schema: Schema;
   flush(): void;
 
   create(type: string): string;
@@ -185,5 +193,5 @@ export interface Rgo {
 
   commit(
     ...keys: ([string, string] | [string, string, string])[]
-  ): Promise<Obj<Obj<string>>>;
+  ): Promise<Data<string>>;
 }

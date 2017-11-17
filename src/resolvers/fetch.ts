@@ -1,5 +1,5 @@
 import network from '../network';
-import { Field, Obj, Resolver } from '../typings';
+import { Obj, Resolver, Schema } from '../typings';
 
 export default function fetchResolver(
   url: string,
@@ -15,7 +15,7 @@ export default function fetchResolver(
       ...request ? { body: JSON.stringify(request) } : {},
     })).json()) as Resolver;
 
-  let schema: Obj<Obj<Field>>;
+  let schema: Schema;
   return (async request => {
     if (!schema) schema = await doFetch();
     if (!request) return schema;

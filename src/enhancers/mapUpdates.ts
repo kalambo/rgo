@@ -1,7 +1,5 @@
-import keysToObject from 'keys-to-object';
-
-import { Enhancer, Field, Obj, Record } from '../typings';
-import { isNewId } from '../utils';
+import { Enhancer, Obj, Record, Schema } from '../typings';
+import { isNewId, mapDataAsync } from '../utils';
 
 import mapCommits from './mapCommits';
 
@@ -10,34 +8,13 @@ export default function mapUpdates(
     type: string,
     id: string | null,
     record: Record | null,
-    info: { schema: Obj<Obj<Field>>; context: Obj },
+    info: { schema: Schema; context: Obj },
   ) => Record | void | Promise<Record | void>,
 ) {
   return mapCommits(async (commit, _, info) => {
-    const types = Object.keys(commit);
-    return keysToObject<Obj<Record>>(
-      await Promise.all(
-        types.map(async type => {
-          const ids = Object.keys(commit[type]);
-          return keysToObject<Record>(
-            await Promise.all(
-              ids.map(async id => {
-                const mapped = await map(
-                  type,
-                  isNewId(id) ? null : id,
-                  commit[type][id],
-                  info,
-                );
-                return (commit[type][id] && mapped) || null;
-              }),
-            ),
-            res => res,
-            (_, i) => ids[i],
-          );
-        }),
-      ),
-      res => res,
-      (_, i) => types[i],
-    );
+    return mapDataAsync(commit, async (record, type, id) => {
+      const mapped = await map(type, isNewId(id) ? null : id, record, info);
+      return (record && mapped) || null;
+    });
   }) as Enhancer;
 }

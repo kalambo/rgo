@@ -26,10 +26,11 @@ import read from './read';
 import setState from './setState';
 import { standardizeQueries } from './standardize';
 import {
+  ClientData,
+  Data,
   DataChanges,
   FetchInfo,
   fieldIs,
-  Record,
   ResolveQuery,
   Obj,
   Query,
@@ -45,6 +46,7 @@ import {
   isEqual,
   isNewId,
   mapArray,
+  mapData,
   merge,
   newIdPrefix,
   locationOf,
@@ -135,7 +137,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
       key: [string, string] | [string, string, string];
       value: RecordValue | null;
     }[];
-    resolve: (response: Obj<Obj<string>> | string) => void;
+    resolve: (response: Data<string> | string) => void;
   }[] = [];
 
   const getQueries = () => {
@@ -156,13 +158,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     return false;
   };
 
-  const set = ({
-    server,
-    client,
-  }: {
-    server?: Obj<Obj<Obj<RecordValue | null> | null>>;
-    client?: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>;
-  }) => {
+  const set = ({ server, client }: { server?: Data; client?: ClientData }) => {
     const changes: DataChanges = {};
     if (server) setState('server', state, server, rgo.schema, changes);
     if (client) setState('client', state, client, rgo.schema, changes);
@@ -185,7 +181,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
               ),
               ({ value }) => value,
               ({ key }) => key,
-            ) as Obj<Obj<Record | null>>,
+            ) as Data,
         ),
         queries,
         context: {},
@@ -229,15 +225,13 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
         );
         const getId = (type: string, id: string | null) =>
           (id && newIds[type] && newIds[type][id]) || id;
-        for (const type of Object.keys(state.client)) {
-          for (const id of Object.keys(state.client[type])) {
-            for (const f of Object.keys(state.client[type][id] || {})) {
+        mapData(state.client, (record, type, id) => {
+          if (record) {
+            for (const f of Object.keys(record)) {
               const field = rgo.schema[type][f];
               if (fieldIs.relation(field) && newIds[field.type]) {
-                const mapped = mapArray(state.client[type][id]![f], id =>
-                  getId(field.type, id),
-                );
-                if (!isEqual(mapped, state.client[type][id]![f])) {
+                const mapped = mapArray(record[f], id => getId(field.type, id));
+                if (!isEqual(mapped, record[f])) {
                   data.client[type] = data.client[type] || {};
                   data.client[type][id] = data.client[type][id] || {};
                   data.client[type][id][f] = mapped;
@@ -245,7 +239,8 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
               }
             }
           }
-        }
+        });
+
         for (const { values } of processCommits) {
           keysToObject(values, undefined, ({ key }) => key, data.client);
           if (fetchIndex > flushFetch) {
@@ -293,11 +288,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
       Object.keys(info.relations).forEach(k => flushInfo(info.relations[k]));
     };
     flushInfo(fetchInfo);
-    set({
-      server: keysToObject(Object.keys(state.server), type =>
-        keysToObject(Object.keys(state.server[type]), null),
-      ),
-    });
+    set({ server: mapData(state.server, () => null) });
   };
 
   const getStart = (
@@ -415,7 +406,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
             let first = true;
             let current: {
               result: Obj;
-              updaters: ((changes: Obj<Obj<Obj<true>>>) => number)[];
+              updaters: ((changes: DataChanges) => number)[];
             } | null = null;
             listener = changes => {
               if (
@@ -466,9 +457,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
               values,
               ({ value }) => value,
               ({ key }) => key,
-            ) as Obj<
-              Obj<Obj<RecordValue | null | undefined> | null | undefined>
-            >,
+            ) as ClientData,
           });
         });
       }
@@ -477,7 +466,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     async commit(...keys) {
       await schemaPromise;
       if (keys.length === 0) return {};
-      const response = await new Promise<string | Obj<Obj<string>>>(resolve => {
+      const response = await new Promise<string | Data<string>>(resolve => {
         commits.push({
           values: keys.map(key => ({
             key,

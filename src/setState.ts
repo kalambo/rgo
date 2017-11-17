@@ -1,13 +1,14 @@
 import keysToObject from 'keys-to-object';
 
 import {
+  ClientData,
   DataChanges,
-  Field,
   Obj,
   Record,
   RecordValue,
   RelationField,
   ScalarField,
+  Schema,
   State,
 } from './typings';
 import { get, isEqual, isNewId, noUndef } from './utils';
@@ -18,8 +19,8 @@ const withoutNulls = (rec: Record): Obj<RecordValue> =>
 export default function setState(
   store: 'server' | 'client',
   state: State,
-  data: Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
-  schema: Obj<Obj<Field>>,
+  data: ClientData,
+  schema: Schema,
   changes: DataChanges,
 ) {
   const setChanged = (type: string, id: string, field: string) => {

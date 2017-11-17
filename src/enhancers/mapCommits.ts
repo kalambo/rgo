@@ -1,17 +1,14 @@
-import { Enhancer, Field, Obj, Record } from '../typings';
-import { merge } from '../utils';
+import { Data, Enhancer, Obj, Schema } from '../typings';
+import { mapData, merge } from '../utils';
 
 import base from './base';
 
-const filter = (commits: (string | Obj<Obj<Record | null>>)[]) =>
-  commits.filter(u => typeof u !== 'string') as Obj<Obj<Record | null>>[];
-
 export default function mapUpdates(
   map: (
-    commit: Obj<Obj<Record | null>>,
+    commit: Data,
     index: number,
-    info: { schema: Obj<Obj<Field>>; context: Obj },
-  ) => Obj<Obj<Record | null>> | Promise<Obj<Obj<Record | null>>>,
+    info: { schema: Schema; context: Obj },
+  ) => Data | Promise<Data>,
 ) {
   return base(async (resolver, request, schema) => {
     if (!request.commits) return await resolver(request);
@@ -28,28 +25,28 @@ export default function mapUpdates(
     );
     const commits = mapped.map((records, i) => {
       if (typeof records === 'string') return records;
-      for (const type of Object.keys(records)) {
-        for (const id of Object.keys(records[type])) {
-          if (!records[type][id]) delete records[type][id];
-        }
-        if (Object.keys(records[type]).length === 0) delete records[type];
-      }
+      mapData(records, (record, type, id) => {
+        if (!record) delete records[type][id];
+      });
       return merge(request.commits![i], records);
     });
-    const response = await resolver({ ...request, commits: filter(commits) });
-    filter(mapped).forEach((records, i) => {
-      for (const type of Object.keys(records)) {
-        const newIds = response.newIds[i][type];
-        for (const id of Object.keys(records[type])) {
-          const newId = (newIds && newIds[id]) || id;
+    const response = await resolver({
+      ...request,
+      commits: commits.filter(u => typeof u !== 'string') as Data[],
+    });
+    (mapped.filter(u => typeof u !== 'string') as Data[]).forEach(
+      (records, i) => {
+        mapData(records, (record, type, id) => {
+          const newId =
+            (response.newIds[i][type] && response.newIds[i][type][id]) || id;
           response.data[type] = response.data[type] || {};
           response.data[type][newId] = {
             ...response.data[type][newId],
-            ...records[type][id],
+            ...record,
           };
-        }
-      }
-    });
+        });
+      },
+    );
     let counter = 0;
     return {
       ...response,
