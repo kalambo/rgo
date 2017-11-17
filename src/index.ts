@@ -460,12 +460,16 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
 
     set(...values) {
       if (values.length !== 0) {
-        set({
-          client: keysToObject(
-            values,
-            ({ value }) => value,
-            ({ key }) => key,
-          ) as Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
+        schemaPromise.then(() => {
+          set({
+            client: keysToObject(
+              values,
+              ({ value }) => value,
+              ({ key }) => key,
+            ) as Obj<
+              Obj<Obj<RecordValue | null | undefined> | null | undefined>
+            >,
+          });
         });
       }
     },

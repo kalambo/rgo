@@ -33,7 +33,7 @@ const walkQueryLayer = <T, U>(
 ): T =>
   func(
     layer,
-    relations.map(({ name, alias, fields, extra, trace, ...args }) => {
+    relations.map(({ name, alias, fields, extra, trace, key, ...args }) => {
       const field = schema[layer.field.type][name] as
         | ForeignRelationField
         | RelationField;
@@ -51,7 +51,7 @@ const walkQueryLayer = <T, U>(
               extra,
               trace,
               path: [...layer.path, layer.key],
-              key: `${name}~${sortedStringify(args)}`,
+              key: key || `${name}~${sortedStringify(args)}`,
             },
             fields.filter(f => typeof f !== 'string') as ResolveQuery[],
             schema,
@@ -76,7 +76,7 @@ export default function walker<T, U>(
   ) => T,
 ) {
   return (queries: ResolveQuery[], schema: Obj<Obj<Field>>, context: U) =>
-    queries.map(({ name, alias, fields, extra, trace, ...args }) =>
+    queries.map(({ name, alias, fields, extra, trace, key, ...args }) =>
       walkQueryLayer(
         {
           root: { field: name, alias },
@@ -86,7 +86,7 @@ export default function walker<T, U>(
           extra,
           trace,
           path: [],
-          key: `${name}~${sortedStringify(args)}`,
+          key: key || `${name}~${sortedStringify(args)}`,
         },
         fields.filter(f => typeof f !== 'string') as ResolveQuery[],
         schema,

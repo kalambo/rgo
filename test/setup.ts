@@ -1,16 +1,19 @@
-import loadRgo, { Rgo, resolvers } from '../src';
+import loadRgo, { compose, enhancers, Rgo, resolvers } from '../src';
+import network from '../src/network';
 import { find } from '../src/utils';
 
 export let rgo: Rgo;
 
 const schema = {
   addresses: {
+    modifiedat: { scalar: 'date' },
     street: { scalar: 'string' },
     city: { scalar: 'string' },
     zipcode: { scalar: 'string' },
     people: { type: 'people', foreign: 'places' },
   },
   people: {
+    modifiedat: { scalar: 'date' },
     firstname: { scalar: 'string' },
     lastname: { scalar: 'string' },
     email: { scalar: 'string' },
@@ -95,29 +98,58 @@ export const setup = async () => {
         address: null,
         places: null,
       },
+      {
+        id: 'X',
+        firstname: 'Jeremy',
+        lastname: 'Simpson',
+      },
     ],
   };
 
   let counter = 0;
   rgo = loadRgo(
-    resolvers.db(schema, {
-      find(type, args, fields) {
-        return find(allData[type], args, fields) as any[];
-      },
-      insert(type, record) {
-        const newId = `${counter++}`;
-        allData[type].push({ id: newId, ...record });
-        return newId;
-      },
-      update(type, id, record) {
-        const index = allData[type].findIndex(r => r.id === id);
-        if (index !== -1) Object.assign(allData[type][index], record);
-      },
-      delete(type, id) {
-        const index = allData[type].findIndex(r => r.id === id);
-        if (index !== -1) allData[type].splice(index, 1);
-      },
-    }),
+    compose(
+      enhancers.base(async (resolver, request, schema) => {
+        const response = await resolver(
+          network.request(
+            'decode',
+            schema,
+            network.request('encode', schema, request),
+          ),
+        );
+        return network.response(
+          'decode',
+          schema,
+          network.response('encode', schema, response),
+        );
+      }),
+      enhancers.mapQueries(({ filter, fields }) => ({
+        filter: filter ? ['AND', filter, ['id', '!=', 'X']] : ['id', '!=', 'X'],
+        fields,
+      })),
+      enhancers.mapUpdates(() => {
+        return { modifiedat: new Date() };
+      }),
+    )(
+      resolvers.db(schema, {
+        find(type, args, fields) {
+          return find(allData[type], args, fields) as any[];
+        },
+        insert(type, record) {
+          const newId = `${counter++}`;
+          allData[type].push({ id: newId, ...record });
+          return newId;
+        },
+        update(type, id, record) {
+          const index = allData[type].findIndex(r => r.id === id);
+          if (index !== -1) Object.assign(allData[type][index], record);
+        },
+        delete(type, id) {
+          const index = allData[type].findIndex(r => r.id === id);
+          if (index !== -1) allData[type].splice(index, 1);
+        },
+      }),
+    ),
   );
 };
 

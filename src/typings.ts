@@ -70,6 +70,7 @@ export interface ResolveQuery extends Args<undefined> {
   fields: (string | ResolveQuery)[];
   extra?: { start: number; end: number };
   trace?: { start: number; end?: number };
+  key?: string;
 }
 
 export interface QueryLayer {
