@@ -1,5 +1,5 @@
-import loadRgo, { enhancers, Rgo, resolvers } from '../src';
-import { find, newIdPrefix } from '../src/utils';
+import loadRgo, { Rgo, resolvers } from '../src';
+import { find } from '../src/utils';
 
 export let rgo: Rgo;
 

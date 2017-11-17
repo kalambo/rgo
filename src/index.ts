@@ -3,6 +3,7 @@ export { enhancers };
 import * as resolvers from './resolvers';
 export { resolvers };
 export {
+  Enhancer,
   Field,
   fieldIs,
   ForeignRelationField,

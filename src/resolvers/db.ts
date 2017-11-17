@@ -39,7 +39,16 @@ const runner = walker<
   }
 >(
   async (
-    { root, field, args, fields, extra = { start: 0, end: 0 }, path, key },
+    {
+      root,
+      field,
+      args,
+      fields,
+      extra = { start: 0, end: 0 },
+      trace,
+      path,
+      key,
+    },
     relations,
     { db, data, firstIds, records },
   ) => {
@@ -49,13 +58,8 @@ const runner = walker<
     if (!root.type || fieldIs.foreignRelation(field)) {
       args.sort = args.sort || [];
     }
-    const queryFields = Array.from(
-      new Set([
-        'id',
-        ...fields,
-        ...relations.filter(r => !r.foreign).map(r => r.name),
-      ]),
-    );
+    const relationFields = relations.filter(r => !r.foreign).map(r => r.name);
+    const allFields = Array.from(new Set(['id', ...fields, ...relationFields]));
     if (root.type) {
       const rootField = fieldIs.relation(field) ? root.field : 'id';
       const relField = fieldIs.relation(field) ? 'id' : field.foreign;
@@ -68,7 +72,7 @@ const runner = walker<
         ),
       ];
       args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
-      if (!queryFields.includes(relField)) queryFields.push(relField);
+      if (!allFields.includes(relField)) allFields.push(relField);
     }
     const slice = {
       start: (args.start || 0) - extra.start,
@@ -84,20 +88,28 @@ const runner = walker<
           (slice.start || 0) + slice.end! * (records[rootPath] || [{}]).length,
         ),
       },
-      queryFields,
+      allFields,
     );
 
-    const dataIndices: Obj<true> = {};
+    const dataIndices: Obj<1 | 2> = {};
     const setDataRecords = (filter?: (record: IdRecord) => boolean) => {
       let counter = 0;
       let result: string | null = null;
       records[fieldPath].forEach((record, i) => {
         if (!filter || filter(record)) {
           if (
-            counter >= (slice.start || 0) &&
+            counter >= slice.start &&
             (slice.end === undefined || counter < slice.end)
           ) {
-            dataIndices[i] = true;
+            if (
+              trace &&
+              counter >= trace.start &&
+              (trace.end === undefined || counter < trace.end)
+            ) {
+              dataIndices[i] = dataIndices[i] || 1;
+            } else {
+              dataIndices[i] = 2;
+            }
           }
           if (counter === (args.start || 0)) result = record.id;
           counter++;
@@ -137,10 +149,15 @@ const runner = walker<
 
     data[field.type] = data[field.type] || {};
     records[fieldPath].forEach(({ id, ...record }, i) => {
-      if (dataIndices[i]) {
+      if (dataIndices[i] === 2) {
         data[field.type][id] = data[field.type][id]
           ? { ...data[field.type][id], ...record }
           : record;
+      } else if (dataIndices[i] === 1 && relationFields.length > 0) {
+        const filtered = keysToObject(relationFields, f => record[f]);
+        data[field.type][id] = data[field.type][id]
+          ? { ...data[field.type][id], ...filtered }
+          : filtered;
       }
     });
 

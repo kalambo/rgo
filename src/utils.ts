@@ -3,7 +3,7 @@ import keysToObject from 'keys-to-object';
 
 import { Args, Enhancer, Obj } from './typings';
 
-export const newIdPrefix = 'LOCAL__RECORD__';
+export const newIdPrefix = 'NEW__RECORD__';
 export const isNewId = (id: string) => id.startsWith(newIdPrefix);
 
 export const isEqual = (v1: any, v2: any) =>

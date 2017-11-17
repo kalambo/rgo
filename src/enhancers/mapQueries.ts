@@ -3,6 +3,11 @@ import walker from '../walker';
 
 import base from './base';
 
+export interface QueryMap {
+  filter?: any[];
+  fields: string[];
+}
+
 const queryMapper = walker<
   Promise<ResolveQuery[]>,
   {
@@ -13,9 +18,7 @@ const queryMapper = walker<
         fields: string[];
       },
       info: { schema: Obj<Obj<Field>>; context: Obj },
-    ) =>
-      | { filter?: any[]; fields: string[] }[]
-      | Promise<{ filter?: any[]; fields: string[] }[]>;
+    ) => QueryMap | QueryMap[] | Promise<QueryMap | QueryMap[]>;
     info: { schema: Obj<Obj<Field>>; context: Obj };
   }
 >(async ({ root, args, fields, extra, trace }, relations, { map, info }) => {
@@ -28,7 +31,7 @@ const queryMapper = walker<
     info,
   );
   const resultMap: Obj<any[][]> = {};
-  results.forEach(r => {
+  (Array.isArray(results) ? results : [results]).forEach(r => {
     if (!r.fields.includes('id')) r.fields.push('id');
     const key = r.fields.sort().join('-');
     resultMap[key] = resultMap[key] || [];
@@ -36,9 +39,11 @@ const queryMapper = walker<
   });
   const groupedResults = Object.keys(resultMap).map(key => ({
     filter:
-      args.filter && resultMap[key].length > 0
-        ? ['and', args.filter, ['or', ...resultMap[key]]]
-        : args.filter || ['or', ...resultMap[key]],
+      resultMap[key].length > 0
+        ? resultMap[key].length === 1
+          ? resultMap[key][0]
+          : ['OR', ...resultMap[key]]
+        : undefined,
     fields: key.split('-'),
   }));
   const resultFields = Array.from(
@@ -69,7 +74,7 @@ const queryMapper = walker<
       (res, f) => [
         ...res,
         ...(fields.includes(f) ? [f] : []),
-        ...relationQueries[f],
+        ...(relationQueries[f] || []),
       ],
       [] as (string | ResolveQuery)[],
     ),
@@ -84,9 +89,7 @@ export default function mapQueries(
       fields: string[];
     },
     info: { schema: Obj<Obj<Field>>; context: Obj },
-  ) =>
-    | { filter?: any[]; fields: string[] }[]
-    | Promise<{ filter?: any[]; fields: string[] }[]>,
+  ) => QueryMap | QueryMap[] | Promise<QueryMap | QueryMap[]>,
 ) {
   return base(async (resolver, request, schema) => {
     request.context = request.context || {};

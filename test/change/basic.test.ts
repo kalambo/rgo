@@ -1,3 +1,5 @@
+import { newIdPrefix } from '../../src/utils';
+
 import { clear, rgo, setup } from '../setup';
 
 beforeEach(setup);
@@ -51,7 +53,7 @@ describe('change: root', () => {
     updates.push({
       func: () =>
         rgo.set({
-          key: ['people', 'LOCAL__RECORD__0', 'firstname'],
+          key: ['people', `${newIdPrefix}0`, 'firstname'],
           value: 'Brent',
         }),
     });
@@ -65,7 +67,7 @@ describe('change: root', () => {
     updates.push({
       func: () =>
         rgo.set({
-          key: ['people', 'LOCAL__RECORD__1', 'firstname'],
+          key: ['people', `${newIdPrefix}1`, 'firstname'],
           value: 'Elissa',
         }),
     });
