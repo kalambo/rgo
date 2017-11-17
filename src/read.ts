@@ -5,7 +5,7 @@ import {
   DataChanges,
   Field,
   fieldIs,
-  FullQuery,
+  ResolveQuery,
   GetStart,
   Obj,
   QueryLayer,
@@ -22,168 +22,157 @@ import {
 } from './utils';
 import walker from './walker';
 
-const reader = walker(
-  (
-    layer: QueryLayer,
-    {
-      schema,
-      data,
-      records,
-      getStart,
-    }: {
-      schema: Obj<Obj<Field>>;
-      data: Obj<Obj<Record>>;
-      records: Obj<Obj<Obj>>;
-      getStart: GetStart;
-    },
-    walkRelations: () => ((changes: DataChanges) => number)[],
-  ) => {
-    const { root, field, args, fields, path, key } = layer;
-    const rootPath = path.join('_');
-    const fieldPath = [...path, key].join('_');
+const reader = walker<
+  (changes: DataChanges) => number,
+  {
+    schema: Obj<Obj<Field>>;
+    data: Obj<Obj<Record>>;
+    records: Obj<Obj<Obj>>;
+    getStart: GetStart;
+  }
+>((layer: QueryLayer, relations, { schema, data, records, getStart }) => {
+  const { root, field, args, fields, path, key } = layer;
+  const rootPath = path.join('_');
+  const fieldPath = [...path, key].join('_');
 
-    const structuralFields = Array.from(
-      new Set<string>([
-        ...(args.filter ? getFilterFields(args.filter) : []),
-        ...(args.sort ? args.sort.map(s => s.replace('-', '')) : []),
-      ]),
-    );
+  const structuralFields = Array.from(
+    new Set<string>([
+      ...(args.filter ? getFilterFields(args.filter) : []),
+      ...(args.sort ? args.sort.map(s => s.replace('-', '')) : []),
+    ]),
+  );
 
-    const filter = (id: string) =>
-      runFilter(args.filter, id, data[field.type][id]);
-    const compare = createCompare(
-      (id: string, key) =>
-        key === 'id' ? id : noUndef(data[field.type][id][key]),
-      args.sort,
-    );
+  const filter = (id: string) =>
+    runFilter(args.filter, id, data[field.type][id]);
+  const compare = createCompare(
+    (id: string, key) =>
+      key === 'id' ? id : noUndef(data[field.type][id][key]),
+    args.sort,
+  );
 
-    const rootIds = Object.keys(records[rootPath]);
-    const rootRecordIds = {} as Obj<(string | null)[]>;
-    records[fieldPath] = {};
+  const rootIds = Object.keys(records[rootPath]);
+  const rootRecordIds = {} as Obj<(string | null)[]>;
+  records[fieldPath] = {};
 
-    const getValue = (id: string, f: string) => {
-      if (f === 'id') return id;
-      const v = noUndef(get(data, [field.type, id, f]));
-      if (v !== null) return v;
-      const s = schema[field.type][f];
-      return fieldIs.foreignRelation(s) || s.isList ? [] : null;
-    };
-    const getRecord = (id: string | null) => {
-      if (!id) return null;
-      if (records[fieldPath][id]) return records[fieldPath][id];
-      return (records[fieldPath][id] = keysToObject(fields, f =>
-        getValue(id, f),
-      ));
-    };
+  const getValue = (id: string, f: string) => {
+    if (f === 'id') return id;
+    const v = noUndef(get(data, [field.type, id, f]));
+    if (v !== null) return v;
+    const s = schema[field.type][f];
+    return fieldIs.foreignRelation(s) || s.isList ? [] : null;
+  };
+  const getRecord = (id: string | null) => {
+    if (!id) return null;
+    if (records[fieldPath][id]) return records[fieldPath][id];
+    return (records[fieldPath][id] = keysToObject(fields, f =>
+      getValue(id, f),
+    ));
+  };
 
-    const allIds = Object.keys(data[field.type] || {});
-    const filteredIdsObj = keysToObject(allIds, filter);
-    const filteredIds = allIds.filter(id => filteredIdsObj[id]).sort(compare);
+  const allIds = Object.keys(data[field.type] || {});
+  const filteredIdsObj = keysToObject(allIds, filter);
+  const filteredIds = allIds.filter(id => filteredIdsObj[id]).sort(compare);
 
-    const initRootRecords = (rootId: string) => {
-      if (!root.type) {
-        rootRecordIds[rootId] = filteredIds;
-      } else {
-        const value = noUndef(data[root.type][rootId][root.field]);
-        if (fieldIs.relation(field)) {
-          if (field.isList) {
-            if (!args.sort) {
-              rootRecordIds[rootId] = ((value || []) as string[]).map(
-                id => (filteredIds.includes(id) ? id : null),
-              );
-            } else {
-              rootRecordIds[rootId] = filteredIds.filter(id =>
-                ((value || []) as string[]).includes(id),
-              );
-            }
+  const initRootRecords = (rootId: string) => {
+    if (!root.type) {
+      rootRecordIds[rootId] = filteredIds;
+    } else {
+      const value = noUndef(data[root.type][rootId][root.field]);
+      if (fieldIs.relation(field)) {
+        if (field.isList) {
+          if (!args.sort) {
+            rootRecordIds[rootId] = ((value || []) as string[]).map(
+              id => (filteredIds.includes(id) ? id : null),
+            );
           } else {
-            rootRecordIds[rootId] =
-              value && filteredIds.includes(value) ? [value as string] : [];
+            rootRecordIds[rootId] = filteredIds.filter(id =>
+              ((value || []) as string[]).includes(id),
+            );
           }
         } else {
-          rootRecordIds[rootId] = filteredIds.filter(id => {
-            const v = noUndef(data[field.type][id][field.foreign]);
-            return Array.isArray(v) ? v.includes(rootId) : v === rootId;
-          });
+          rootRecordIds[rootId] =
+            value && filteredIds.includes(value) ? [value as string] : [];
         }
-      }
-
-      if (rootRecordIds[rootId].length === 0) {
-        records[rootPath][rootId][root.alias || root.field] =
-          fieldIs.foreignRelation(field) || field.isList ? [] : null;
-      } else if (fieldIs.relation(field) && field.isList && !args.sort) {
-        records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
-          rootId
-        ].map(getRecord);
-      } else if (fieldIs.foreignRelation(field) || field.isList) {
-        const start = getStart(layer, rootId, rootRecordIds[rootId]);
-        records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
-          rootId
-        ]
-          .slice(
-            start,
-            undefOr(args.end, start - (args.start || 0) + args.end!),
-          )
-          .map(getRecord);
       } else {
-        records[rootPath][rootId][root.alias || root.field] = getRecord(
-          rootRecordIds[rootId][0] || null,
-        );
+        rootRecordIds[rootId] = filteredIds.filter(id => {
+          const v = noUndef(data[field.type][id][field.foreign]);
+          return Array.isArray(v) ? v.includes(rootId) : v === rootId;
+        });
       }
-    };
-    rootIds.forEach(initRootRecords);
+    }
 
-    const relations = walkRelations();
-
-    return (changes: DataChanges) => {
-      if (Object.keys(changes).length === 0) return 0;
-
-      const relationsChange = Math.max(
-        ...relations.map(updater => updater(changes)),
-        0,
+    if (rootRecordIds[rootId].length === 0) {
+      records[rootPath][rootId][root.alias || root.field] =
+        fieldIs.foreignRelation(field) || field.isList ? [] : null;
+    } else if (fieldIs.relation(field) && field.isList && !args.sort) {
+      records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
+        rootId
+      ].map(getRecord);
+    } else if (fieldIs.foreignRelation(field) || field.isList) {
+      const start = getStart(layer, rootId, rootRecordIds[rootId]);
+      records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
+        rootId
+      ]
+        .slice(start, undefOr(args.end, start - (args.start || 0) + args.end!))
+        .map(getRecord);
+    } else {
+      records[rootPath][rootId][root.alias || root.field] = getRecord(
+        rootRecordIds[rootId][0] || null,
       );
-      if (relationsChange === 2) return 2;
+    }
+  };
+  rootIds.forEach(initRootRecords);
 
-      for (const id of Object.keys(changes[field.type] || {})) {
-        for (const f of structuralFields) {
-          if ((changes[field.type][id] || {})[f]) return 2;
-        }
-        if (
-          fieldIs.foreignRelation(field) &&
-          (changes[field.type][id] || {})[field.foreign]
-        ) {
-          return 2;
+  const updaters = relations.map(r => r.walk());
+
+  return (changes: DataChanges) => {
+    if (Object.keys(changes).length === 0) return 0;
+
+    const relationsChange = Math.max(
+      ...updaters.map(updater => updater(changes)),
+      0,
+    );
+    if (relationsChange === 2) return 2;
+
+    for (const id of Object.keys(changes[field.type] || {})) {
+      for (const f of structuralFields) {
+        if ((changes[field.type][id] || {})[f]) return 2;
+      }
+      if (
+        fieldIs.foreignRelation(field) &&
+        (changes[field.type][id] || {})[field.foreign]
+      ) {
+        return 2;
+      }
+    }
+
+    if (root.type) {
+      for (const id of Object.keys(changes[root.type] || {})) {
+        if (records[rootPath][id]) {
+          if ((changes[root.type][id] || {})[root.field]) return 2;
         }
       }
+    }
 
-      if (root.type) {
-        for (const id of Object.keys(changes[root.type] || {})) {
-          if (records[rootPath][id]) {
-            if ((changes[root.type][id] || {})[root.field]) return 2;
+    let changed = false;
+    for (const id of Object.keys(changes[field.type] || {})) {
+      if (records[fieldPath][id]) {
+        for (const f of Object.keys(changes[field.type][id] || {})) {
+          if (fields.includes(f)) {
+            const prev = records[fieldPath][id][f];
+            records[fieldPath][id][f] = getValue(id, f);
+            if (!isEqual(records[fieldPath][id][f], prev)) changed = true;
           }
         }
       }
+    }
 
-      let changed = false;
-      for (const id of Object.keys(changes[field.type] || {})) {
-        if (records[fieldPath][id]) {
-          for (const f of Object.keys(changes[field.type][id] || {})) {
-            if (fields.includes(f)) {
-              const prev = records[fieldPath][id][f];
-              records[fieldPath][id][f] = getValue(id, f);
-              if (!isEqual(records[fieldPath][id][f], prev)) changed = true;
-            }
-          }
-        }
-      }
-
-      return Math.max(relationsChange, changed ? 1 : 0);
-    };
-  },
-);
+    return Math.max(relationsChange, changed ? 1 : 0);
+  };
+});
 
 export default function read(
-  queries: FullQuery[],
+  queries: ResolveQuery[],
   schema: Obj<Obj<Field>>,
   data: Obj<Obj<Record>>,
   starts: Obj<Obj<string | null>> | GetStart,

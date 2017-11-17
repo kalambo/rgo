@@ -10,7 +10,7 @@ import {
   Resolver,
   ResolveRequest,
 } from '../typings';
-import { isEqual, mapArray, newIdPrefix, undefOr } from '../utils';
+import { isEqual, isNewId, mapArray, undefOr } from '../utils';
 import walker from '../walker';
 
 export interface IdRecord {
@@ -39,9 +39,9 @@ const runner = walker<
   }
 >(
   async (
-    { root, field, args, fields, offset, relations, path, key },
+    { root, field, args, fields, extra = { start: 0, end: 0 }, path, key },
+    relations,
     { db, data, firstIds, records },
-    walkRelations,
   ) => {
     const rootPath = path.join('_');
     const fieldPath = [...path, key].join('_');
@@ -49,7 +49,13 @@ const runner = walker<
     if (!root.type || fieldIs.foreignRelation(field)) {
       args.sort = args.sort || [];
     }
-    const queryFields = Array.from(new Set(['id', ...fields, ...relations]));
+    const queryFields = Array.from(
+      new Set([
+        'id',
+        ...fields,
+        ...relations.filter(r => !r.foreign).map(r => r.name),
+      ]),
+    );
     if (root.type) {
       const rootField = fieldIs.relation(field) ? root.field : 'id';
       const relField = fieldIs.relation(field) ? 'id' : field.foreign;
@@ -64,69 +70,86 @@ const runner = walker<
       args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
       if (!queryFields.includes(relField)) queryFields.push(relField);
     }
+    const slice = {
+      start: (args.start || 0) - extra.start,
+      end: undefOr(args.end, args.end! + extra.end) as number | undefined,
+    };
     records[fieldPath] = await db.find(
       field.type,
       {
         ...args,
         start: 0,
         end: undefOr(
-          args.end,
-          (args.start || 0) + args.end! * (records[rootPath] || [{}]).length,
+          slice.end,
+          (slice.start || 0) + slice.end! * (records[rootPath] || [{}]).length,
         ),
       },
       queryFields,
     );
 
-    data[field.type] = data[field.type] || {};
-    records[fieldPath].forEach(({ id, ...record }) => {
-      data[field.type][id] = data[field.type][id]
-        ? { ...data[field.type][id], ...record }
-        : record;
-    });
+    const dataIndices: Obj<true> = {};
+    const setDataRecords = (filter?: (record: IdRecord) => boolean) => {
+      let counter = 0;
+      let result: string | null = null;
+      records[fieldPath].forEach((record, i) => {
+        if (!filter || filter(record)) {
+          if (
+            counter >= (slice.start || 0) &&
+            (slice.end === undefined || counter < slice.end)
+          ) {
+            dataIndices[i] = true;
+          }
+          if (counter === (args.start || 0)) result = record.id;
+          counter++;
+        }
+      });
+      return result;
+    };
 
-    const first = (args.start || 0) + offset;
     if (!root.type) {
-      firstIds[fieldPath] = firstIds[fieldPath] || {};
-      firstIds[fieldPath][''] = records[fieldPath][first]
-        ? records[fieldPath][first].id
-        : null;
-    } else if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
+      firstIds[fieldPath] = { '': setDataRecords() };
+    } else {
       firstIds[fieldPath] = firstIds[fieldPath] || {};
       records[rootPath].forEach(rootRecord => {
         if (fieldIs.relation(field)) {
-          const value = rootRecord[root.field] as (string | null)[] | null;
-          if (!value) {
-            firstIds[fieldPath][rootRecord.id] = null;
-          } else if (args.sort) {
-            const firstRecord = records[fieldPath].filter(r =>
-              value.includes(r.id),
-            )[first] as IdRecord | null | undefined;
-            firstIds[fieldPath][rootRecord.id] = firstRecord
-              ? firstRecord.id
-              : null;
+          if (!rootRecord[root.field]) {
+            if (field.isList && args.sort) {
+              firstIds[fieldPath][rootRecord.id] = null;
+            }
+          } else if (field.isList) {
+            const value = rootRecord[root.field] as (string | null)[];
+            const firstId = setDataRecords(r => value.includes(r.id));
+            if (args.sort) firstIds[fieldPath][rootRecord.id] = firstId;
           } else {
-            firstIds[fieldPath][rootRecord.id] = value[first] || null;
+            const value = rootRecord[root.field] as string;
+            setDataRecords(r => r.id === value);
           }
         } else {
-          const firstRecord = records[fieldPath].filter(r => {
+          firstIds[fieldPath][rootRecord.id] = setDataRecords(r => {
             const value = r[field.foreign] as string[] | string | null;
             return Array.isArray(value)
               ? value.includes(rootRecord.id)
               : value === rootRecord.id;
-          })[first] as IdRecord | undefined;
-          firstIds[fieldPath][rootRecord.id] = firstRecord
-            ? firstRecord.id
-            : null;
+          });
         }
       });
     }
 
-    await Promise.all(walkRelations());
+    data[field.type] = data[field.type] || {};
+    records[fieldPath].forEach(({ id, ...record }, i) => {
+      if (dataIndices[i]) {
+        data[field.type][id] = data[field.type][id]
+          ? { ...data[field.type][id], ...record }
+          : record;
+      }
+    });
+
+    await Promise.all(relations.map(r => r.walk()));
   },
 );
 
 const commit = async (
-  commits: Obj<Obj<Record | null>>[],
+  commits: Obj<Obj<Record | null>>[] = [],
   schema: Obj<Obj<Field>>,
   db: Db,
 ) => {
@@ -141,7 +164,7 @@ const commit = async (
           Object.keys(records[type]).map(async id => {
             if (!records[type][id]) {
               await db.delete(type, id);
-            } else if (id.startsWith(newIdPrefix)) {
+            } else if (isNewId(id)) {
               const newId = await db.insert(type, records[type][id]!);
               newIds[type][id] = newId;
             } else {
@@ -186,7 +209,7 @@ export default function dbResolver(schema: Obj<Obj<Field>>, db: Db) {
     const data = {};
     const firstIds = {} as Obj<Obj<string | null>>;
     await Promise.all(
-      runner(request.queries, schema, {
+      runner(request.queries || [], schema, {
         db,
         data,
         firstIds,

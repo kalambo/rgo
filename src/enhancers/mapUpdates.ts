@@ -1,69 +1,43 @@
 import keysToObject from 'keys-to-object';
 
-import { Enhancer, Obj, Record, ResolveRequest } from '../typings';
-import { newIdPrefix } from '../utils';
+import { Enhancer, Field, Obj, Record } from '../typings';
+import { isNewId } from '../utils';
+
+import mapCommits from './mapCommits';
 
 export default function mapUpdates(
   map: (
     type: string,
     id: string | null,
     record: Record | null,
+    info: { schema: Obj<Obj<Field>>; context: Obj },
   ) => Record | void | Promise<Record | void>,
 ) {
-  return (resolver => {
-    return async (request?: ResolveRequest) => {
-      if (!request) return await resolver();
-      const commits = await Promise.all(
-        request.commits.map(async records => {
-          try {
-            const types = Object.keys(records);
-            return keysToObject<Obj<Record>>(
-              await Promise.all(
-                types.map(async type => {
-                  const ids = Object.keys(records[type]);
-                  return keysToObject<Record>(
-                    await Promise.all(
-                      ids.map(
-                        async id =>
-                          (await map(
-                            type,
-                            id.startsWith(newIdPrefix) ? null : id,
-                            records[type][id],
-                          )) ||
-                          records[type][id] ||
-                          {},
-                      ),
-                    ),
-                    res => res,
-                    (_, i) => ids[i],
-                  );
-                }),
-              ),
-              res => res,
-              (_, i) => types[i],
-            );
-          } catch (error) {
-            return error.message as string;
-          }
+  return mapCommits(async (commit, _, info) => {
+    const types = Object.keys(commit);
+    return keysToObject<Obj<Record>>(
+      await Promise.all(
+        types.map(async type => {
+          const ids = Object.keys(commit[type]);
+          return keysToObject<Record>(
+            await Promise.all(
+              ids.map(async id => {
+                const mapped = await map(
+                  type,
+                  isNewId(id) ? null : id,
+                  commit[type][id],
+                  info,
+                );
+                return (commit[type][id] && mapped) || null;
+              }),
+            ),
+            res => res,
+            (_, i) => ids[i],
+          );
         }),
-      );
-
-      const response = await resolver({
-        ...request,
-        commits: commits.filter(u => typeof u !== 'string') as Obj<
-          Obj<Record | null>
-        >[],
-      });
-      let counter = 0;
-      return {
-        ...response,
-        newIds: request.commits.map(
-          (_, i) =>
-            typeof commits[i] === 'string'
-              ? commits[i]
-              : response.newIds[counter++],
-        ),
-      };
-    };
+      ),
+      res => res,
+      (_, i) => types[i],
+    );
   }) as Enhancer;
 }

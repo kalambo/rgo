@@ -3,9 +3,8 @@ import keysToObject from 'keys-to-object';
 import {
   Field,
   fieldIs,
-  FullQuery,
+  ResolveQuery,
   Obj,
-  Record,
   ResolveRequest,
   ResolveResponse,
 } from './typings';
@@ -40,28 +39,28 @@ const mapFilter = (
 };
 
 const queryMapper = walker<
-  FullQuery,
+  ResolveQuery,
   { map: 'encode' | 'decode'; schema: Obj<Obj<Field>> }
 >(
   (
-    { root, field, args, fields, offset, trace },
+    { root, field, args, fields, extra, trace },
+    relations,
     { map, schema },
-    walkRelations,
   ) => ({
     name: root.field,
     alias: root.alias,
     ...args,
     filter: args.filter && mapFilter(map, schema[field.type], args.filter),
-    fields: [...fields, ...walkRelations()],
-    offset,
+    fields: [...fields, ...relations.map(r => r.walk())],
+    extra,
     trace,
   }),
 );
 
-const mapData = (
+const mapData = <T>(
   map: 'encode' | 'decode',
   schema: Obj<Obj<Field>>,
-  data: Obj<Obj<Record | null>>,
+  data: Obj<Obj<T>>,
 ) =>
   keysToObject(Object.keys(data), type =>
     keysToObject(
@@ -80,7 +79,7 @@ const mapData = (
           return data[type][id]![f];
         }),
     ),
-  );
+  ) as Obj<Obj<T>>;
 
 export default {
   request(
@@ -89,8 +88,12 @@ export default {
     request: ResolveRequest,
   ) {
     return {
-      commits: request.commits.map(c => mapData(map, schema, c)),
-      queries: queryMapper(request.queries, schema, { map, schema }),
+      commits:
+        request.commits && request.commits.map(c => mapData(map, schema, c)),
+      queries:
+        request.queries &&
+        queryMapper(request.queries, schema, { map, schema }),
+      context: request.context,
     };
   },
   response(

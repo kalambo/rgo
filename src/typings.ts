@@ -64,11 +64,11 @@ export interface Query extends Args<string> {
   fields: (string | Query)[];
 }
 
-export interface FullQuery extends Args<undefined> {
+export interface ResolveQuery extends Args<undefined> {
   name: string;
   alias?: string;
-  fields: (string | FullQuery)[];
-  offset?: number;
+  fields: (string | ResolveQuery)[];
+  extra?: { start: number; end: number };
   trace?: { start: number; end?: number };
 }
 
@@ -77,9 +77,8 @@ export interface QueryLayer {
   field: ForeignRelationField | RelationField;
   args: Args;
   fields: string[];
-  offset: number;
+  extra?: { start: number; end: number };
   trace?: { start: number; end?: number };
-  relations: string[];
   path: string[];
   key: string;
 }
@@ -125,8 +124,9 @@ export interface FetchInfo {
 }
 
 export interface ResolveRequest {
-  commits: Obj<Obj<Record | null>>[];
-  queries: FullQuery[];
+  commits?: Obj<Obj<Record | null>>[];
+  queries?: ResolveQuery[];
+  context?: Obj;
 }
 
 export interface ResolveResponse {

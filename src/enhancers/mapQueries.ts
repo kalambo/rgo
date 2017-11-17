@@ -1,29 +1,103 @@
-import { Enhancer, Field, FullQuery, Obj, ResolveRequest } from '../typings';
+import { Enhancer, Field, ResolveQuery, Obj } from '../typings';
 import walker from '../walker';
 
-const queryMapper = walker<
-  FullQuery,
-  { map: (filter?: any[]) => any[] | undefined }
->(({ root, args, fields, offset, trace }, { map }, walkRelations) => ({
-  name: root.field,
-  alias: root.alias,
-  ...args,
-  filter: map(args.filter),
-  fields: [...fields, ...walkRelations()],
-  offset,
-  trace,
-}));
+import base from './base';
 
-export default function mapQueries(map: (filter?: any[]) => any[] | undefined) {
-  return (resolver => {
-    let schema: Obj<Obj<Field>>;
-    return async (request?: ResolveRequest) => {
-      if (!schema) schema = await resolver();
-      if (!request) return schema;
-      return await resolver({
-        commits: request.commits,
-        queries: queryMapper(request.queries, schema, { map }),
-      });
-    };
+const queryMapper = walker<
+  Promise<ResolveQuery[]>,
+  {
+    map: (
+      query: {
+        type: string;
+        filter?: any[];
+        fields: string[];
+      },
+      info: { schema: Obj<Obj<Field>>; context: Obj },
+    ) =>
+      | { filter?: any[]; fields: string[] }[]
+      | Promise<{ filter?: any[]; fields: string[] }[]>;
+    info: { schema: Obj<Obj<Field>>; context: Obj };
+  }
+>(async ({ root, args, fields, extra, trace }, relations, { map, info }) => {
+  const results = await map(
+    {
+      type: root.type || root.field,
+      filter: args.filter,
+      fields: Array.from(new Set([...fields, ...relations.map(r => r.name)])),
+    },
+    info,
+  );
+  const resultMap: Obj<any[][]> = {};
+  results.forEach(r => {
+    if (!r.fields.includes('id')) r.fields.push('id');
+    const key = r.fields.sort().join('-');
+    resultMap[key] = resultMap[key] || [];
+    if (r.filter) resultMap[key].push(r.filter);
+  });
+  const groupedResults = Object.keys(resultMap).map(key => ({
+    filter:
+      args.filter && resultMap[key].length > 0
+        ? ['and', args.filter, ['or', ...resultMap[key]]]
+        : args.filter || ['or', ...resultMap[key]],
+    fields: key.split('-'),
+  }));
+  const resultFields = Array.from(
+    new Set(
+      groupedResults.reduce((res, r) => [...res, ...r.fields], [] as string[]),
+    ),
+  );
+  const base = {
+    name: root.field,
+    alias: root.alias,
+    ...args,
+    extra,
+    trace,
+  };
+  const resultRelations = relations.filter(r => resultFields.includes(r.name));
+  const mappedRelations = await Promise.all(resultRelations.map(r => r.walk()));
+  const relationQueries: Obj<ResolveQuery[]> = {};
+  resultRelations.forEach((r, i) => {
+    relationQueries[r.name] = [
+      ...relationQueries[r.name],
+      ...mappedRelations[i],
+    ];
+  });
+  return groupedResults.map(r => ({
+    ...base,
+    filter: r.filter,
+    fields: r.fields.reduce(
+      (res, f) => [
+        ...res,
+        ...(fields.includes(f) ? [f] : []),
+        ...relationQueries[f],
+      ],
+      [] as (string | ResolveQuery)[],
+    ),
+  }));
+});
+
+export default function mapQueries(
+  map: (
+    query: {
+      type: string;
+      filter?: any[];
+      fields: string[];
+    },
+    info: { schema: Obj<Obj<Field>>; context: Obj },
+  ) =>
+    | { filter?: any[]; fields: string[] }[]
+    | Promise<{ filter?: any[]; fields: string[] }[]>,
+) {
+  return base(async (resolver, request, schema) => {
+    request.context = request.context || {};
+    return await resolver({
+      ...request,
+      queries: (await Promise.all(
+        queryMapper(request.queries || [], schema, {
+          map,
+          info: { schema, context: request.context },
+        }),
+      )).reduce((res, q) => [...res, ...q], []),
+    });
   }) as Enhancer;
 }

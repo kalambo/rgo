@@ -10,7 +10,7 @@ import {
   ScalarField,
   State,
 } from './typings';
-import { get, isEqual, newIdPrefix, noUndef } from './utils';
+import { get, isEqual, isNewId, noUndef } from './utils';
 
 const withoutNulls = (rec: Record): Obj<RecordValue> =>
   keysToObject(Object.keys(rec).filter(k => rec[k] !== null), k => rec[k]!);
@@ -61,7 +61,7 @@ export default function setState(
       for (const id of Object.keys(data[type])) {
         if (
           data[type][id] === undefined ||
-          (data[type][id] === null && id.startsWith(newIdPrefix))
+          (data[type][id] === null && isNewId(id))
         ) {
           if (store === 'client') {
             for (const field of Object.keys(state.client[type][id] || {})) {
@@ -166,7 +166,7 @@ export default function setState(
           if (get(state.client, [type, id]) === undefined) {
             delete state.diff[type][id];
           } else if (get(state.client, [type, id])) {
-            state.diff[type][id] = id.startsWith(newIdPrefix) ? 1 : 0;
+            state.diff[type][id] = isNewId(id) ? 1 : 0;
           }
         }
       }

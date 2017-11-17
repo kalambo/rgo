@@ -8,6 +8,8 @@ export {
   ForeignRelationField,
   Query,
   RelationField,
+  ResolveQuery,
+  Resolver,
   Rgo,
   Scalar,
   ScalarField,
@@ -26,7 +28,8 @@ import {
   DataChanges,
   FetchInfo,
   fieldIs,
-  FullQuery,
+  Record,
+  ResolveQuery,
   Obj,
   Query,
   QueryLayer,
@@ -36,10 +39,10 @@ import {
   State,
 } from './typings';
 import {
-  buildObject,
   createCompare,
   get,
   isEqual,
+  isNewId,
   mapArray,
   merge,
   newIdPrefix,
@@ -51,7 +54,7 @@ import {
 import walker from './walker';
 
 const addQueries = walker<void, { fetchInfo: FetchInfo }>(
-  ({ root, field, args, fields, path, key }, { fetchInfo }, walkRelations) => {
+  ({ root, field, args, fields, path, key }, relations, { fetchInfo }) => {
     const info = path.reduce((res, k) => res.relations[k], fetchInfo);
     info.relations[key] = info.relations[key] || {
       name: root.field,
@@ -70,14 +73,14 @@ const addQueries = walker<void, { fetchInfo: FetchInfo }>(
         (info.relations[key].fields[f] =
           (info.relations[key].fields[f] || 0) + 1),
     );
-    walkRelations();
+    relations.forEach(r => r.walk());
   },
 );
 
 const removeQueries = walker<void, { fetchInfo: FetchInfo }>(
-  ({ fields, path, key }, { fetchInfo }, walkRelations) => {
+  ({ fields, path, key }, relations, { fetchInfo }) => {
     const info = path.reduce((res, k) => res.relations[k], fetchInfo);
-    walkRelations();
+    relations.forEach(r => r.walk());
     fields.forEach(f => {
       info.relations[key].fields[f]--;
       if (info.relations[key].fields[f] === 0) {
@@ -94,14 +97,14 @@ const removeQueries = walker<void, { fetchInfo: FetchInfo }>(
 );
 
 const queriesChanging = walker<boolean, { fetchInfo: FetchInfo }>(
-  ({ fields, path, key }, { fetchInfo }, walkRelations) => {
+  ({ fields, path, key }, relations, { fetchInfo }) => {
     const info = path.reduce((res, k) => res.relations[k], fetchInfo);
     const changing = Object.keys(info.relations[key].active || {}).reduce(
       (res, k) => [...res, ...info.relations[key].active[k]],
       info.relations[key].pending ? info.relations[key].pending!.changing : [],
     );
     return (
-      fields.some(f => changing.includes(f)) || walkRelations().some(r => r)
+      fields.some(f => changing.includes(f)) || relations.some(r => r.walk())
     );
   },
 );
@@ -125,7 +128,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     active: {},
   };
   const listeners: ((changes?: DataChanges) => void)[] = [];
-  let queries: FullQuery[];
+  let queries: ResolveQuery[];
   let commits: {
     values: {
       key: [string, string] | [string, string, string];
@@ -136,14 +139,14 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
 
   const getQueries = () => {
     queries = Object.keys(fetchInfo.relations)
-      .reduce<(FullQuery | null)[]>((res, k) => {
+      .reduce<(ResolveQuery | null)[]>((res, k) => {
         const { idQueries, newFields, trace } = getRequests(
           state,
           fetchInfo.relations[k],
         );
         return [...res, ...idQueries, newFields, trace];
       }, [])
-      .filter(s => s) as FullQuery[];
+      .filter(s => s) as ResolveQuery[];
     if (queries.length > 0) {
       listeners.forEach(l => l());
       process();
@@ -173,14 +176,18 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     async () => {
       const fetchIndex = ++fetchCounter;
       const request = {
-        commits: commits.map(c =>
-          buildObject(
-            c.values.filter(
-              ({ key, value }) => !isEqual(value, get(state.server, key)),
-            ),
-          ),
+        commits: commits.map(
+          c =>
+            keysToObject(
+              c.values.filter(
+                ({ key, value }) => !isEqual(value, get(state.server, key)),
+              ),
+              ({ value }) => value,
+              ({ key }) => key,
+            ) as Obj<Obj<Record | null>>,
         ),
         queries,
+        context: {},
       };
       const processCommits = commits;
       commits = [];
@@ -239,25 +246,23 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           }
         }
         for (const { values } of processCommits) {
-          buildObject(
-            values.map(({ key }) => ({ key, value: undefined })),
-            data.client,
-          );
+          keysToObject(values, undefined, ({ key }) => key, data.client);
           if (fetchIndex > flushFetch) {
-            buildObject(
-              values.map(({ key, value }) => {
+            keysToObject(
+              values,
+              ({ key, value }) => {
+                if (key.length === 2) return value;
+                const field = rgo.schema[key[0]][key[2]];
+                if (fieldIs.relation(field) && newIds[key[0]]) {
+                  return mapArray(value, v => getId(key[0], v));
+                }
+                return value;
+              },
+              ({ key }) => {
                 const k = [...key];
                 k[1] = (newIds[k[0]] && newIds[k[0]][k[1]]) || k[1];
-                if (key.length === 2) return { key: k, value };
-                const field = rgo.schema[k[0]][k[2]];
-                if (fieldIs.relation(field) && newIds[k[0]]) {
-                  return {
-                    key: k,
-                    value: mapArray(value, v => getId(k[0], v)),
-                  };
-                }
-                return { key: k, value };
-              }),
+                return k;
+              },
               data.server,
             );
           }
@@ -389,7 +394,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
       const baseQueries: Query[] = onLoad ? args.slice(0, -1) : args;
 
       return promisifyEmitter(innerListener => {
-        let serverQueries: FullQuery[];
+        let serverQueries: ResolveQuery[];
         let listener: (changes?: DataChanges) => void;
         schemaPromise.then(() => {
           if (baseQueries.length === 0) {
@@ -401,7 +406,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
                 !(
                   query.filter &&
                   query.filter[0] === 'id' &&
-                  query.filter[query.filter.length - 1].startsWith(newIdPrefix)
+                  isNewId(query.filter[query.filter.length - 1])
                 ),
             );
             addQueries(serverQueries, rgo.schema, { fetchInfo });
@@ -453,7 +458,15 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     },
 
     set(...values) {
-      if (values.length !== 0) set({ client: buildObject(values) });
+      if (values.length !== 0) {
+        set({
+          client: keysToObject(
+            values,
+            ({ value }) => value,
+            ({ key }) => key,
+          ) as Obj<Obj<Obj<RecordValue | null | undefined> | null | undefined>>,
+        });
+      }
     },
 
     async commit(...keys) {

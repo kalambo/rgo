@@ -1,15 +1,15 @@
-import { Args, FetchInfo, fieldIs, FullQuery, State } from './typings';
+import { FetchInfo, fieldIs, ResolveQuery, State } from './typings';
 import {
   getFilterFields,
   isEqual,
-  newIdPrefix,
+  isNewId,
   noUndef,
   runFilter,
   undefOr,
 } from './utils';
 
-const getFields = (fields: (string | FullQuery | null)[]) => {
-  const filtered = fields.filter(s => s) as (string | FullQuery)[];
+const getFields = (fields: (string | ResolveQuery | null)[]) => {
+  const filtered = fields.filter(s => s) as (string | ResolveQuery)[];
   if (filtered.length === 0) return null;
   if (!filtered.includes('id')) filtered.push('id');
   return filtered;
@@ -19,10 +19,10 @@ export default function getRequests(
   state: State,
   info: FetchInfo,
 ): {
-  idQueries: FullQuery[];
-  allFields: FullQuery;
-  newFields: FullQuery | null;
-  trace: FullQuery | null;
+  idQueries: ResolveQuery[];
+  allFields: ResolveQuery;
+  newFields: ResolveQuery | null;
+  trace: ResolveQuery | null;
 } {
   const filterFields = info.args.filter
     ? getFilterFields(info.args.filter).filter(f => f !== 'id')
@@ -49,7 +49,7 @@ export default function getRequests(
 
   const idQueries = relations.reduce(
     (res, r) => [...res, ...r.idQueries],
-    [] as FullQuery[],
+    [] as ResolveQuery[],
   );
   const innerAll = getFields([
     ...allFields,
@@ -59,14 +59,13 @@ export default function getRequests(
     ...fields.new,
     ...relations.map(r => r.newFields),
   ]);
-  const args = {
-    base: {} as Args & { offset?: number },
-    trace: { start: 0 } as { start: number; end?: number },
-    traceIsFull:
+  const extra = { start: 0, end: 0 };
+  const trace: { slice: { start: number; end?: number }; full: boolean } = {
+    slice: { start: 0 },
+    full:
       (info.complete.data.slice.start || info.complete.data.slice.end) !== 0,
   };
   if (fieldIs.foreignRelation(info.field) || info.field.isList) {
-    const extra = { start: 0, end: 0 };
     const allIds: string[] = [];
     for (const id of Object.keys(state.diff[info.field.type] || {})) {
       const server =
@@ -79,7 +78,7 @@ export default function getRequests(
       const combined =
         state.combined[info.field.type] && state.combined[info.field.type][id];
       const combinedStatus =
-        id.startsWith(newIdPrefix) ||
+        isNewId(id) ||
         (combined && filterFields.every(f => combined[f] !== undefined))
           ? runFilter(info.args.filter, id, combined)
           : null;
@@ -120,27 +119,21 @@ export default function getRequests(
       old: allIds.filter(id => info.complete.data.ids.includes(id)),
       new: allIds.filter(id => !info.complete.data.ids.includes(id)),
     };
-    args.base = {
-      ...info.args,
+    const slice = {
       start: (info.args.start || 0) - extra.start,
       end: undefOr(info.args.end, info.args.end! + extra.end),
-      offset: extra.start,
     };
-    args.trace = info.complete.data.slice;
-    args.traceIsFull =
-      info.complete.data.slice.start <= args.base.start! &&
+    trace.slice = info.complete.data.slice;
+    trace.full =
+      info.complete.data.slice.start <= slice.start &&
       (info.complete.data.slice.end === undefined ||
-        (args.base.end !== undefined &&
-          info.complete.data.slice.end >= args.base.end));
+        (slice.end !== undefined && info.complete.data.slice.end >= slice.end));
 
     info.pending = {
       changing: fields.new,
       data: {
         fields: allFields,
-        slice: {
-          start: args.base.start!,
-          end: args.base.end,
-        },
+        slice,
         ids: allIds,
       },
     };
@@ -172,23 +165,25 @@ export default function getRequests(
   }
 
   const innerTrace = getFields([
-    ...(args.traceIsFull ? [] : fields.old),
+    ...(trace.full ? [] : fields.old),
     ...relations.map(r => r.trace),
   ]);
   if (idQueries.length === 0 && !innerNew && !innerTrace) delete info.pending;
   else if (innerTrace) info.pending.changing = allFields;
   return {
     idQueries,
-    allFields: { name: info.name, ...args.base, fields: innerAll },
+    allFields: { name: info.name, ...info.args, extra, fields: innerAll },
     newFields: innerNew && {
       name: info.name,
-      ...args.base,
+      ...info.args,
+      extra,
       fields: innerNew,
     },
     trace: innerTrace && {
       name: info.name,
-      ...args.base,
-      trace: args.trace,
+      ...info.args,
+      extra,
+      trace: trace.slice,
       fields: innerTrace,
     },
   };

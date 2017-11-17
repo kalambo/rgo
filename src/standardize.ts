@@ -2,18 +2,18 @@ import {
   Field,
   fieldIs,
   ForeignRelationField,
-  FullQuery,
+  ResolveQuery,
   Obj,
   Query,
   RelationField,
 } from './typings';
 
 const standardizeQuery = (
-  { filter, sort, fields, ...query }: FullQuery | Query,
+  { filter, sort, fields, ...query }: ResolveQuery | Query,
   schema: Obj<Obj<Field>>,
   field?: ForeignRelationField | RelationField,
 ) => {
-  const result: FullQuery = {
+  const result: ResolveQuery = {
     ...query,
     filter:
       filter && !Array.isArray(filter)
@@ -21,7 +21,7 @@ const standardizeQuery = (
         : (filter as any[] | undefined),
     sort:
       sort && !Array.isArray(sort) ? [sort] : (sort as string[] | undefined),
-    fields: (fields as (string | FullQuery | Query)[]).map(
+    fields: (fields as (string | ResolveQuery | Query)[]).map(
       f =>
         typeof f === 'string'
           ? f
@@ -41,9 +41,9 @@ const standardizeQuery = (
   return result;
 };
 export const standardizeQueries = (
-  queries: FullQuery[] | Query[],
+  queries: ResolveQuery[] | Query[],
   schema: Obj<Obj<Field>>,
 ) =>
-  (queries as (FullQuery | Query)[]).map(query =>
+  (queries as (ResolveQuery | Query)[]).map(query =>
     standardizeQuery(query, schema),
   );

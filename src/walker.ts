@@ -2,7 +2,7 @@ import {
   Field,
   fieldIs,
   ForeignRelationField,
-  FullQuery,
+  ResolveQuery,
   Obj,
   QueryLayer,
   RelationField,
@@ -17,65 +17,78 @@ const sortedStringify = (obj: Obj) =>
 
 const walkQueryLayer = <T, U>(
   layer: QueryLayer,
-  relations: FullQuery[],
+  relations: ResolveQuery[],
   schema: Obj<Obj<Field>>,
   context: U,
-  func: (layer: QueryLayer, context: U, walkRelations: () => T[]) => T,
+  func: (
+    layer: QueryLayer,
+    relations: {
+      name: string;
+      alias?: string;
+      foreign: boolean;
+      walk: () => T;
+    }[],
+    context: U,
+  ) => T,
 ): T =>
-  func(layer, context, () =>
-    relations.map(({ name, alias, fields, offset, trace, ...args }) => {
+  func(
+    layer,
+    relations.map(({ name, alias, fields, extra, trace, ...args }) => {
       const field = schema[layer.field.type][name] as
         | ForeignRelationField
         | RelationField;
-      return walkQueryLayer(
-        {
-          root: { type: layer.field.type, field: name, alias },
-          field,
-          args,
-          fields: fields.filter(f => typeof f === 'string') as string[],
-          offset: offset || 0,
-          trace,
-          relations: fields
-            .filter(
-              f =>
-                typeof f !== 'string' &&
-                fieldIs.relation(schema[field.type][f.name]),
-            )
-            .map(f => (f as FullQuery).name) as string[],
-          path: [...layer.path, layer.key],
-          key: `${name}~${sortedStringify(args)}`,
-        },
-        fields.filter(f => typeof f !== 'string') as FullQuery[],
-        schema,
-        context,
-        func,
-      );
+      return {
+        name,
+        alias,
+        foreign: fieldIs.foreignRelation(field),
+        walk: () =>
+          walkQueryLayer(
+            {
+              root: { type: layer.field.type, field: name, alias },
+              field,
+              args,
+              fields: fields.filter(f => typeof f === 'string') as string[],
+              extra,
+              trace,
+              path: [...layer.path, layer.key],
+              key: `${name}~${sortedStringify(args)}`,
+            },
+            fields.filter(f => typeof f !== 'string') as ResolveQuery[],
+            schema,
+            context,
+            func,
+          ),
+      };
     }),
+    context,
   );
 
 export default function walker<T, U>(
-  func: (layer: QueryLayer, context: U, walkRelations: () => T[]) => T,
+  func: (
+    layer: QueryLayer,
+    relations: {
+      name: string;
+      alias?: string;
+      foreign: boolean;
+      walk: () => T;
+    }[],
+    context: U,
+  ) => T,
 ) {
-  return (queries: FullQuery[], schema: Obj<Obj<Field>>, context: U) =>
-    queries.map(({ name, alias, fields, offset, trace, ...args }) =>
+  return (queries: ResolveQuery[], schema: Obj<Obj<Field>>, context: U) =>
+    queries.map(({ name, alias, fields, extra, trace, ...args }) =>
       walkQueryLayer(
         {
           root: { field: name, alias },
           field: { type: name, isList: true },
           args,
           fields: fields.filter(f => typeof f === 'string') as string[],
-          offset: offset || 0,
+          extra,
           trace,
-          relations: fields
-            .filter(
-              f =>
-                typeof f !== 'string' && fieldIs.relation(schema[name][f.name]),
-            )
-            .map(f => (f as FullQuery).name) as string[],
           path: [],
           key: `${name}~${sortedStringify(args)}`,
         },
-        fields.filter(f => typeof f !== 'string') as FullQuery[],
+        fields.filter(f => typeof f !== 'string') as ResolveQuery[],
         schema,
         context,
         func,

@@ -4,6 +4,7 @@ import keysToObject from 'keys-to-object';
 import { Args, Enhancer, Obj } from './typings';
 
 export const newIdPrefix = 'LOCAL__RECORD__';
+export const isNewId = (id: string) => id.startsWith(newIdPrefix);
 
 export const isEqual = (v1: any, v2: any) =>
   deepEqual(v1, v2, { strict: true });
@@ -36,19 +37,6 @@ const mergeTwo = (target: any, source: Obj) => {
 };
 export const merge = (...args: Obj[]) =>
   args.reduce((res, obj) => mergeTwo(res, obj), {});
-
-export const buildObject = (
-  values: { key: string[]; value: any }[],
-  initial = {},
-) =>
-  values.reduce((res, { key, value }) => {
-    key.reduce((r, k, i) => {
-      if (i === key.length - 1) r[k] = value;
-      else r[k] = r[k] || {};
-      return r[k];
-    }, res);
-    return res;
-  }, initial);
 
 const binarySearch = <T>(
   element: T,
