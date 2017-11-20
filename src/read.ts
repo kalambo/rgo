@@ -28,13 +28,10 @@ const reader = walker<
   {
     schema: Schema;
     data: Data<Record>;
-    records: Data<Record>;
     getStart: GetStart;
   }
->((layer: QueryLayer, relations, { schema, data, records, getStart }) => {
-  const { root, field, args, fields, path, key } = layer;
-  const rootPath = path.join('_');
-  const fieldPath = [...path, key].join('_');
+>((layer: QueryLayer, relations, { schema, data, getStart }, rootRecords) => {
+  const { root, field, args, fields } = layer;
 
   const structuralFields = Array.from(
     new Set<string>([
@@ -51,9 +48,9 @@ const reader = walker<
     args.sort,
   );
 
-  const rootIds = Object.keys(records[rootPath]);
+  const rootIds = Object.keys(rootRecords);
   const rootRecordIds = {} as Obj<(string | null)[]>;
-  records[fieldPath] = {};
+  const records = {};
 
   const getValue = (id: string, f: string) => {
     if (f === 'id') return id;
@@ -64,10 +61,8 @@ const reader = walker<
   };
   const getRecord = (id: string | null) => {
     if (!id) return null;
-    if (records[fieldPath][id]) return records[fieldPath][id];
-    return (records[fieldPath][id] = keysToObject(fields, f =>
-      getValue(id, f),
-    ));
+    if (records[id]) return records[id];
+    return (records[id] = keysToObject(fields, f => getValue(id, f)));
   };
 
   const allIds = Object.keys(data[field.type] || {});
@@ -103,28 +98,26 @@ const reader = walker<
     }
 
     if (rootRecordIds[rootId].length === 0) {
-      records[rootPath][rootId][root.alias || root.field] =
+      rootRecords[rootId][root.alias || root.field] =
         fieldIs.foreignRelation(field) || field.isList ? [] : null;
     } else if (fieldIs.relation(field) && field.isList && !args.sort) {
-      records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
-        rootId
-      ].map(getRecord);
+      rootRecords[rootId][root.alias || root.field] = rootRecordIds[rootId].map(
+        getRecord,
+      );
     } else if (fieldIs.foreignRelation(field) || field.isList) {
       const start = getStart(layer, rootId, rootRecordIds[rootId]);
-      records[rootPath][rootId][root.alias || root.field] = rootRecordIds[
-        rootId
-      ]
+      rootRecords[rootId][root.alias || root.field] = rootRecordIds[rootId]
         .slice(start, undefOr(args.end, start - (args.start || 0) + args.end!))
         .map(getRecord);
     } else {
-      records[rootPath][rootId][root.alias || root.field] = getRecord(
+      rootRecords[rootId][root.alias || root.field] = getRecord(
         rootRecordIds[rootId][0] || null,
       );
     }
   };
   rootIds.forEach(initRootRecords);
 
-  const updaters = relations.map(r => r.walk());
+  const updaters = relations.map(r => r.walk(records));
 
   return (changes: DataChanges) => {
     if (Object.keys(changes).length === 0) return 0;
@@ -149,7 +142,7 @@ const reader = walker<
 
     if (root.type) {
       for (const id of Object.keys(changes[root.type] || {})) {
-        if (records[rootPath][id]) {
+        if (rootRecords[id]) {
           if ((changes[root.type][id] || {})[root.field]) return 2;
         }
       }
@@ -157,12 +150,12 @@ const reader = walker<
 
     let changed = false;
     for (const id of Object.keys(changes[field.type] || {})) {
-      if (records[fieldPath][id]) {
+      if (records[id]) {
         for (const f of Object.keys(changes[field.type][id] || {})) {
           if (fields.includes(f)) {
-            const prev = records[fieldPath][id][f];
-            records[fieldPath][id][f] = getValue(id, f);
-            if (!isEqual(records[fieldPath][id][f], prev)) changed = true;
+            const prev = records[id][f];
+            records[id][f] = getValue(id, f);
+            if (!isEqual(records[id][f], prev)) changed = true;
           }
         }
       }
@@ -195,12 +188,12 @@ export default function read(
             0
           );
         };
-  const updaters = reader(standardizeQueries(queries, schema), schema, {
-    schema: schema,
-    records: { '': { '': result } },
-    data,
-    getStart,
-  });
+  const updaters = reader(
+    standardizeQueries(queries, schema),
+    schema,
+    { schema, data, getStart },
+    { '': result },
+  );
   return { result, updaters };
 }
 

@@ -3,7 +3,7 @@ import { mapData, merge } from '../utils';
 
 import base from './base';
 
-export default function mapUpdates(
+export default function alterUpdates(
   map: (
     commit: Data,
     index: number,

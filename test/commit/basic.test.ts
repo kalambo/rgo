@@ -1,8 +1,8 @@
-import { clear, rgo, setup } from '../setup';
+import { rgo, setup } from '../setup';
+
 import { newIdPrefix } from '../../src/utils';
 
 beforeEach(setup);
-afterEach(clear);
 
 describe('commit: basic', () => {
   test('insert', async () => {

@@ -1,5 +1,7 @@
 export type Obj<T = any> = { [key: string]: T };
 
+export type Falsy = false | null | undefined | void;
+
 export type Scalar = 'boolean' | 'int' | 'float' | 'string' | 'date' | 'json';
 
 export interface ScalarField {
@@ -58,6 +60,8 @@ export type Data<T = Record | null> = Obj<Obj<T>>;
 export type ClientData = Data<
   Obj<RecordValue | null | undefined> | null | undefined
 >;
+
+export type FilterOp = '=' | '!=' | '<' | '<=' | '>' | '>=' | 'in';
 
 export interface Args<T = undefined> {
   filter?: T | any[];

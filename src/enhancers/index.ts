@@ -1,5 +1,5 @@
 export { default as base } from './base';
 export { default as decode } from './decode';
-export { default as mapCommits } from './mapCommits';
-export { default as mapQueries } from './mapQueries';
-export { default as mapUpdates } from './mapUpdates';
+export { default as limitQueries } from './limitQueries';
+export { default as onCommit } from './onCommit';
+export { default as onUpdate } from './onUpdate';

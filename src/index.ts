@@ -56,9 +56,8 @@ import {
 } from './utils';
 import walker from './walker';
 
-const addQueries = walker<void, { fetchInfo: FetchInfo }>(
-  ({ root, field, args, fields, path, key }, relations, { fetchInfo }) => {
-    const info = path.reduce((res, k) => res.relations[k], fetchInfo);
+const addQueries = walker(
+  ({ root, field, args, fields, key }, relations, {}, info: FetchInfo) => {
     info.relations[key] = info.relations[key] || {
       name: root.field,
       field: field,
@@ -76,14 +75,13 @@ const addQueries = walker<void, { fetchInfo: FetchInfo }>(
         (info.relations[key].fields[f] =
           (info.relations[key].fields[f] || 0) + 1),
     );
-    relations.forEach(r => r.walk());
+    relations.forEach(r => r.walk(info.relations[key]));
   },
 );
 
-const removeQueries = walker<void, { fetchInfo: FetchInfo }>(
-  ({ fields, path, key }, relations, { fetchInfo }) => {
-    const info = path.reduce((res, k) => res.relations[k], fetchInfo);
-    relations.forEach(r => r.walk());
+const removeQueries = walker(
+  ({ fields, key }, relations, {}, info: FetchInfo) => {
+    relations.forEach(r => r.walk(info.relations[key]));
     fields.forEach(f => {
       info.relations[key].fields[f]--;
       if (info.relations[key].fields[f] === 0) {
@@ -99,15 +97,15 @@ const removeQueries = walker<void, { fetchInfo: FetchInfo }>(
   },
 );
 
-const queriesChanging = walker<boolean, { fetchInfo: FetchInfo }>(
-  ({ fields, path, key }, relations, { fetchInfo }) => {
-    const info = path.reduce((res, k) => res.relations[k], fetchInfo);
+const queriesChanging = walker<boolean>(
+  ({ fields, key }, relations, {}, info: FetchInfo) => {
     const changing = Object.keys(info.relations[key].active || {}).reduce(
       (res, k) => [...res, ...info.relations[key].active[k]],
       info.relations[key].pending ? info.relations[key].pending!.changing : [],
     );
     return (
-      fields.some(f => changing.includes(f)) || relations.some(r => r.walk())
+      fields.some(f => changing.includes(f)) ||
+      relations.some(r => r.walk(info.relations[key]))
     );
   },
 );
@@ -401,7 +399,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
                   isNewId(query.filter[query.filter.length - 1])
                 ),
             );
-            addQueries(serverQueries, rgo.schema, { fetchInfo });
+            addQueries(serverQueries, rgo.schema, {}, fetchInfo);
 
             let first = true;
             let current: {
@@ -410,9 +408,9 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
             } | null = null;
             listener = changes => {
               if (
-                queriesChanging(serverQueries, rgo.schema, {
-                  fetchInfo,
-                }).some(c => c)
+                queriesChanging(serverQueries, rgo.schema, {}, fetchInfo).some(
+                  c => c,
+                )
               ) {
                 if (first || current) {
                   first = false;
@@ -443,7 +441,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           const index = listeners.indexOf(listener);
           if (index !== -1) {
             listeners.splice(index, 1);
-            removeQueries(serverQueries, rgo.schema, { fetchInfo });
+            removeQueries(serverQueries, rgo.schema, {}, fetchInfo);
           }
         };
       }, onLoad) as any;

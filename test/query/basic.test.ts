@@ -1,7 +1,6 @@
-import { clear, rgo, setup } from '../setup';
+import { rgo, setup } from '../setup';
 
 beforeEach(setup);
-afterEach(clear);
 
 describe('query: basic', () => {
   test('simple', async () => {

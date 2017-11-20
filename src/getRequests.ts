@@ -36,6 +36,7 @@ export default function getRequests(
       ...Object.keys(info.fields),
       ...filterFields,
       ...sortFields,
+      ...(fieldIs.foreignRelation(info.field) ? [info.field.foreign] : []),
     ]),
   );
   const fields = {

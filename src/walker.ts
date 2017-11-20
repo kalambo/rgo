@@ -23,15 +23,17 @@ const walkQueryLayer = <T, U>(
   relations: ResolveQuery[],
   schema: Schema,
   context: U,
+  params: any[],
   func: (
     layer: QueryLayer,
     relations: {
       name: string;
       alias?: string;
       foreign: boolean;
-      walk: () => T;
+      walk: (...params: any[]) => T;
     }[],
     context: U,
+    ...params: any[]
   ) => T,
 ): T =>
   func(
@@ -44,7 +46,7 @@ const walkQueryLayer = <T, U>(
         name,
         alias,
         foreign: fieldIs.foreignRelation(field),
-        walk: () =>
+        walk: (...params: any[]) =>
           walkQueryLayer(
             {
               root: { type: layer.field.type, field: name, alias },
@@ -59,26 +61,34 @@ const walkQueryLayer = <T, U>(
             fields.filter(f => typeof f !== 'string') as ResolveQuery[],
             schema,
             context,
+            params,
             func,
           ),
       };
     }),
     context,
+    ...params,
   );
 
-export default function walker<T, U>(
+export default function walker<T = void, U = {}>(
   func: (
     layer: QueryLayer,
     relations: {
       name: string;
       alias?: string;
       foreign: boolean;
-      walk: () => T;
+      walk: (...params: any[]) => T;
     }[],
     context: U,
+    ...params: any[]
   ) => T,
 ) {
-  return (queries: ResolveQuery[], schema: Schema, context: U) =>
+  return (
+    queries: ResolveQuery[],
+    schema: Schema,
+    context: U,
+    ...params: any[]
+  ) =>
     queries.map(({ name, alias, fields, extra, trace, key, ...args }) =>
       walkQueryLayer(
         {
@@ -94,6 +104,7 @@ export default function walker<T, U>(
         fields.filter(f => typeof f !== 'string') as ResolveQuery[],
         schema,
         context,
+        params,
         func,
       ),
     );

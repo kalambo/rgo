@@ -11,7 +11,15 @@ import {
   ResolveRequest,
   Schema,
 } from '../typings';
-import { isEqual, isNewId, mapArray, mapDataAsync, undefOr } from '../utils';
+import {
+  createCompare,
+  isEqual,
+  isNewId,
+  mapArray,
+  mapDataAsync,
+  noUndef,
+  undefOr,
+} from '../utils';
 import walker from '../walker';
 
 export interface IdRecord {
@@ -32,18 +40,13 @@ export interface Db {
 
 const runner = walker<
   Promise<void>,
-  {
-    db: Db;
-    data: Data<Record>;
-    firstIds: Data<string | null>;
-    records: Obj<IdRecord[]>;
-  }
+  { db: Db; data: Data<Record>; firstIds: Data<string | null> }
 >(
   async (
     {
       root,
       field,
-      args,
+      args: queryArgs,
       fields,
       extra = { start: 0, end: 0 },
       trace,
@@ -51,118 +54,135 @@ const runner = walker<
       key,
     },
     relations,
-    { db, data, firstIds, records },
+    { db, data, firstIds },
+    rootRecords: IdRecord[],
+    records: Obj<Obj<Obj<Record>>>,
+    querying: boolean,
   ) => {
-    const rootPath = path.join('_');
-    const fieldPath = [...path, key].join('_');
-
+    const args = { ...queryArgs };
     if (!root.type || fieldIs.foreignRelation(field)) {
       args.sort = args.sort || [];
-    }
-    const relationFields = relations.filter(r => !r.foreign).map(r => r.name);
-    const allFields = Array.from(new Set(['id', ...fields, ...relationFields]));
-    if (root.type) {
-      const rootField = fieldIs.relation(field) ? root.field : 'id';
-      const relField = fieldIs.relation(field) ? 'id' : field.foreign;
-      const relFilter = [
-        relField,
-        'in',
-        records[rootPath].reduce(
-          (res, root) => res.concat((root[rootField] as string[]) || []),
-          [] as string[],
-        ),
-      ];
-      args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
-      if (!allFields.includes(relField)) allFields.push(relField);
     }
     const slice = {
       start: (args.start || 0) - extra.start,
       end: undefOr(args.end, args.end! + extra.end) as number | undefined,
     };
-    records[fieldPath] = await db.find(
-      field.type,
-      {
-        ...args,
-        start: 0,
-        end: undefOr(
-          slice.end,
-          (slice.start || 0) + slice.end! * (records[rootPath] || [{}]).length,
-        ),
-      },
-      allFields,
-    );
-
-    const dataIndices: Obj<1 | 2> = {};
-    const setDataRecords = (filter?: (record: IdRecord) => boolean) => {
-      let counter = 0;
-      let result: string | null = null;
-      records[fieldPath].forEach((record, i) => {
-        if (!filter || filter(record)) {
-          if (
-            counter >= slice.start &&
-            (slice.end === undefined || counter < slice.end)
-          ) {
-            if (
-              trace &&
-              counter >= trace.start &&
-              (trace.end === undefined || counter < trace.end)
-            ) {
-              dataIndices[i] = dataIndices[i] || 1;
-            } else {
-              dataIndices[i] = 2;
-            }
-          }
-          if (counter === (args.start || 0)) result = record.id;
-          counter++;
-        }
-      });
-      return result;
-    };
-
-    if (!root.type) {
-      firstIds[fieldPath] = { '': setDataRecords() };
-    } else {
-      firstIds[fieldPath] = firstIds[fieldPath] || {};
-      records[rootPath].forEach(rootRecord => {
-        if (fieldIs.relation(field)) {
-          if (!rootRecord[root.field]) {
-            if (field.isList && args.sort) {
-              firstIds[fieldPath][rootRecord.id] = null;
-            }
-          } else if (field.isList) {
-            const value = rootRecord[root.field] as (string | null)[];
-            const firstId = setDataRecords(r => value.includes(r.id));
-            if (args.sort) firstIds[fieldPath][rootRecord.id] = firstId;
-          } else {
-            const value = rootRecord[root.field] as string;
-            setDataRecords(r => r.id === value);
-          }
-        } else {
-          firstIds[fieldPath][rootRecord.id] = setDataRecords(r => {
-            const value = r[field.foreign] as string[] | string | null;
-            return Array.isArray(value)
-              ? value.includes(rootRecord.id)
-              : value === rootRecord.id;
-          });
-        }
-      });
-    }
-
-    data[field.type] = data[field.type] || {};
-    records[fieldPath].forEach(({ id, ...record }, i) => {
-      if (dataIndices[i] === 2) {
-        data[field.type][id] = data[field.type][id]
-          ? { ...data[field.type][id], ...record }
-          : record;
-      } else if (dataIndices[i] === 1 && relationFields.length > 0) {
-        const filtered = keysToObject(relationFields, f => record[f]);
-        data[field.type][id] = data[field.type][id]
-          ? { ...data[field.type][id], ...filtered }
-          : filtered;
+    const relationFields = relations.filter(r => !r.foreign).map(r => r.name);
+    if (querying) {
+      const allFields = Array.from(
+        new Set(['id', ...fields, ...relationFields]),
+      );
+      if (root.type) {
+        const rootField = fieldIs.relation(field) ? root.field : 'id';
+        const relField = fieldIs.relation(field) ? 'id' : field.foreign;
+        const relFilter = [
+          relField,
+          'in',
+          rootRecords.reduce(
+            (res, root) => res.concat((root[rootField] as string[]) || []),
+            [] as string[],
+          ),
+        ];
+        args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
       }
-    });
-
-    await Promise.all(relations.map(r => r.walk()));
+      const queryRecords = await db.find(
+        field.type,
+        {
+          ...args,
+          start: 0,
+          end: undefOr(
+            slice.end,
+            (slice.start || 0) + slice.end! * rootRecords.length,
+          ),
+        },
+        allFields,
+      );
+      records[key] = records[key] || {};
+      const setRecords = (
+        rootId: string,
+        filter: ((record: IdRecord) => boolean) | boolean,
+      ) => {
+        records[key][rootId] = records[key][rootId] || {};
+        queryRecords.forEach(idRecord => {
+          if (typeof filter === 'function' ? filter(idRecord) : filter) {
+            const { id, ...record } = idRecord;
+            records[key][rootId][id] = records[key][rootId][id]
+              ? { ...records[key][rootId][id], ...record }
+              : record;
+          }
+        });
+      };
+      if (!root.type) {
+        setRecords('', true);
+      } else {
+        rootRecords.forEach(rootRecord => {
+          if (fieldIs.relation(field)) {
+            if (!rootRecord[root.field]) {
+              setRecords(rootRecord.id, false);
+            } else if (field.isList) {
+              setRecords(rootRecord.id, r =>
+                (rootRecord[root.field] as (string | null)[]).includes(r.id),
+              );
+            } else {
+              setRecords(
+                rootRecord.id,
+                r => r.id === (rootRecord[root.field] as string),
+              );
+            }
+          } else {
+            setRecords(rootRecord.id, r => {
+              const value = r[field.foreign] as string[] | string | null;
+              return Array.isArray(value)
+                ? value.includes(rootRecord.id)
+                : value === rootRecord.id;
+            });
+          }
+        });
+      }
+      const newRecords = {};
+      await Promise.all(
+        relations.map(r => r.walk(queryRecords, newRecords, true)),
+      );
+      await Promise.all(
+        relations.map(r => r.walk(queryRecords, newRecords, false)),
+      );
+    } else {
+      data[field.type] = data[field.type] || {};
+      const fieldPath = [...path, key].join('_');
+      if (!firstIds[fieldPath]) {
+        firstIds[fieldPath] = {};
+        Object.keys(records[key]).forEach(rootId => {
+          const sorted = Object.keys(records[key][rootId]).sort(
+            createCompare(
+              (id, k) =>
+                k === 'id' ? id : noUndef(records[key][rootId][id][k]),
+              args.sort,
+            ),
+          );
+          sorted.forEach((id, i) => {
+            if (
+              i >= slice.start &&
+              (slice.end === undefined || i < slice.end)
+            ) {
+              const record =
+                trace &&
+                i >= trace.start &&
+                (trace.end === undefined || i < trace.end)
+                  ? keysToObject(relationFields, f =>
+                      noUndef(records[key][rootId][id][f]),
+                    )
+                  : records[key][rootId][id];
+              data[field.type][id] = data[field.type][id]
+                ? { ...data[field.type][id], ...record }
+                : record;
+            }
+          });
+          if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
+            firstIds[fieldPath][rootId] = sorted[args.start || 0] || null;
+          }
+        });
+      }
+    }
   },
 );
 
@@ -200,16 +220,14 @@ export default function dbResolver(schema: Schema, db: Db) {
   return (async (request?: ResolveRequest) => {
     if (!request) return schema;
     const newIds = await commit(request.commits, schema, db);
-    const data = {};
-    const firstIds = {} as Data<string | null>;
+    const records: Obj<Obj<Obj<Record>>> = {};
+    const context = { db, data: {}, firstIds: {} };
     await Promise.all(
-      runner(request.queries || [], schema, {
-        db,
-        data,
-        firstIds,
-        records: {},
-      }),
+      runner(request.queries || [], schema, context, [{}], records, true),
     );
-    return { newIds, data, firstIds };
+    await Promise.all(
+      runner(request.queries || [], schema, context, [{}], records, false),
+    );
+    return { newIds, data: context.data, firstIds: context.firstIds };
   }) as Resolver;
 }

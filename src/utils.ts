@@ -1,7 +1,7 @@
 import * as deepEqual from 'deep-equal';
 import keysToObject from 'keys-to-object';
 
-import { Args, Data, Enhancer, Obj } from './typings';
+import { Args, Data, Enhancer, FilterOp, Obj } from './typings';
 
 export const newIdPrefix = 'NEW__RECORD__';
 export const isNewId = (id: string) => id.startsWith(newIdPrefix);
@@ -132,6 +132,17 @@ export const createCompare = <T>(
   return 0;
 };
 
+export const runFilterValue = (value: any, op: FilterOp, filterValue: any) => {
+  if (op === '=') return isEqual(value, filterValue);
+  if (op === '!=') return !isEqual(value, filterValue);
+  if (op === '<') return value < filterValue;
+  if (op === '<=') return value <= filterValue;
+  if (op === '>') return value > filterValue;
+  if (op === '>=') return value >= filterValue;
+  return Array.isArray(value)
+    ? value.some(x => filterValue.includes(x))
+    : filterValue.includes(value);
+};
 export const runFilter = (
   filter: any[] | undefined,
   id: string,
@@ -139,7 +150,6 @@ export const runFilter = (
 ): boolean => {
   if (!record) return false;
   if (!filter) return true;
-
   if (['AND', 'OR'].includes(filter[0])) {
     if (filter[0] === 'AND') {
       return filter.slice(1).every(b => runFilter(b, id, record));
@@ -147,24 +157,11 @@ export const runFilter = (
       return filter.slice(1).some(b => runFilter(b, id, record));
     }
   }
-
-  const op = filter.length === 3 ? filter[1] : '=';
-  const value = filter[filter.length - 1];
-
-  const v = filter[0] === 'id' ? id : noUndef(record[filter[0]]);
-  if (op === '=') return isEqual(v, value);
-  if (op === '!=') return !isEqual(v, value);
-  if (op === '<') return v < value;
-  if (op === '<=') return v <= value;
-  if (op === '>') return v > value;
-  if (op === '>=') return v >= value;
-  if (op === 'in') {
-    return Array.isArray(v)
-      ? v.some(x => value.includes(x))
-      : value.includes(v);
-  }
-
-  return false;
+  return runFilterValue(
+    filter[0] === 'id' ? id : noUndef(record[filter[0]]),
+    filter.length === 3 ? filter[1] : '=',
+    filter[filter.length - 1],
+  );
 };
 
 export const find = (

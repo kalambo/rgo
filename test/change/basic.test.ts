@@ -1,9 +1,8 @@
+import { rgo, setup } from '../setup';
+
 import { newIdPrefix } from '../../src/utils';
 
-import { clear, rgo, setup } from '../setup';
-
 beforeEach(setup);
-afterEach(clear);
 
 describe('change: root', () => {
   test('test', async done => {
