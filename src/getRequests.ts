@@ -75,7 +75,6 @@ export default function getRequests(
         server && filterFields.every(f => server[f] !== undefined)
           ? runFilter(info.args.filter, id, server)
           : null;
-
       const combined =
         state.combined[info.field.type] && state.combined[info.field.type][id];
       const combinedStatus =

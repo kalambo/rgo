@@ -1,7 +1,7 @@
 import * as deepEqual from 'deep-equal';
 import keysToObject from 'keys-to-object';
 
-import { Args, Data, Enhancer, FilterOp, Obj } from './typings';
+import { Args, Data, Enhancer, FilterOp, Obj, Record } from './typings';
 
 export const newIdPrefix = 'NEW__RECORD__';
 export const isNewId = (id: string) => id.startsWith(newIdPrefix);
@@ -37,6 +37,14 @@ const mergeTwo = (target: any, source: Obj) => {
 };
 export const merge = (...args: Obj[]) =>
   args.reduce((res, obj) => mergeTwo(res, obj), {});
+
+export const mergeRecord = (
+  records: Obj<Record>,
+  key: string,
+  record: Record,
+) => {
+  records[key] = records[key] ? { ...records[key], ...record } : record;
+};
 
 export const mapData = <T1, T2 = T1>(
   data: Data<T1>,

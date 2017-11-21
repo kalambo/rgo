@@ -1,5 +1,5 @@
 import { Data, Enhancer, Obj, Schema } from '../typings';
-import { mapData, merge } from '../utils';
+import { mapData, merge, mergeRecord } from '../utils';
 
 import base from './base';
 
@@ -37,13 +37,14 @@ export default function alterUpdates(
     (mapped.filter(u => typeof u !== 'string') as Data[]).forEach(
       (records, i) => {
         mapData(records, (record, type, id) => {
-          const newId =
-            (response.newIds[i][type] && response.newIds[i][type][id]) || id;
-          response.data[type] = response.data[type] || {};
-          response.data[type][newId] = {
-            ...response.data[type][newId],
-            ...record,
-          };
+          if (record) {
+            response.data[type] = response.data[type] || {};
+            mergeRecord(
+              response.data[type],
+              (response.newIds[i][type] && response.newIds[i][type][id]) || id,
+              record,
+            );
+          }
         });
       },
     );

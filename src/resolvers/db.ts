@@ -17,6 +17,7 @@ import {
   isNewId,
   mapArray,
   mapDataAsync,
+  mergeRecord,
   noUndef,
   undefOr,
 } from '../utils';
@@ -46,7 +47,7 @@ const runner = walker<
     {
       root,
       field,
-      args: queryArgs,
+      args,
       fields,
       extra = { start: 0, end: 0 },
       trace,
@@ -59,19 +60,20 @@ const runner = walker<
     records: Obj<Obj<Obj<Record>>>,
     querying: boolean,
   ) => {
-    const args = { ...queryArgs };
-    if (!root.type || fieldIs.foreignRelation(field)) {
-      args.sort = args.sort || [];
-    }
     const slice = {
       start: (args.start || 0) - extra.start,
       end: undefOr(args.end, args.end! + extra.end) as number | undefined,
     };
     const relationFields = relations.filter(r => !r.foreign).map(r => r.name);
     if (querying) {
-      const allFields = Array.from(
-        new Set(['id', ...fields, ...relationFields]),
-      );
+      const dbQuery = {
+        ...args,
+        start: 0,
+        end: undefOr(
+          slice.end,
+          (slice.start || 0) + slice.end! * rootRecords.length,
+        ),
+      };
       if (root.type) {
         const rootField = fieldIs.relation(field) ? root.field : 'id';
         const relField = fieldIs.relation(field) ? 'id' : field.foreign;
@@ -83,43 +85,41 @@ const runner = walker<
             [] as string[],
           ),
         ];
-        args.filter = args.filter ? ['AND', args.filter, relFilter] : relFilter;
+        dbQuery.filter = dbQuery.filter
+          ? ['AND', dbQuery.filter, relFilter]
+          : relFilter;
       }
       const queryRecords = await db.find(
         field.type,
-        {
-          ...args,
-          start: 0,
-          end: undefOr(
-            slice.end,
-            (slice.start || 0) + slice.end! * rootRecords.length,
-          ),
-        },
-        allFields,
+        dbQuery,
+        Array.from(new Set(['id', ...fields, ...relationFields])),
       );
       records[key] = records[key] || {};
       const setRecords = (
         rootId: string,
-        filter: ((record: IdRecord) => boolean) | boolean,
+        filter?: (record: IdRecord) => boolean,
       ) => {
         records[key][rootId] = records[key][rootId] || {};
         queryRecords.forEach(idRecord => {
-          if (typeof filter === 'function' ? filter(idRecord) : filter) {
+          if (!filter || filter(idRecord)) {
             const { id, ...record } = idRecord;
-            records[key][rootId][id] = records[key][rootId][id]
-              ? { ...records[key][rootId][id], ...record }
-              : record;
+            mergeRecord(records[key][rootId], id, record);
           }
         });
       };
       if (!root.type) {
-        setRecords('', true);
+        setRecords('');
       } else {
         rootRecords.forEach(rootRecord => {
-          if (fieldIs.relation(field)) {
-            if (!rootRecord[root.field]) {
-              setRecords(rootRecord.id, false);
-            } else if (field.isList) {
+          if (fieldIs.foreignRelation(field)) {
+            setRecords(rootRecord.id, r => {
+              const value = r[field.foreign] as string[] | string | null;
+              return Array.isArray(value)
+                ? value.includes(rootRecord.id)
+                : value === rootRecord.id;
+            });
+          } else if (rootRecord[root.field]) {
+            if (field.isList) {
               setRecords(rootRecord.id, r =>
                 (rootRecord[root.field] as (string | null)[]).includes(r.id),
               );
@@ -129,13 +129,6 @@ const runner = walker<
                 r => r.id === (rootRecord[root.field] as string),
               );
             }
-          } else {
-            setRecords(rootRecord.id, r => {
-              const value = r[field.foreign] as string[] | string | null;
-              return Array.isArray(value)
-                ? value.includes(rootRecord.id)
-                : value === rootRecord.id;
-            });
           }
         });
       }
@@ -172,9 +165,7 @@ const runner = walker<
                       noUndef(records[key][rootId][id][f]),
                     )
                   : records[key][rootId][id];
-              data[field.type][id] = data[field.type][id]
-                ? { ...data[field.type][id], ...record }
-                : record;
+              mergeRecord(data[field.type], id, record);
             }
           });
           if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {

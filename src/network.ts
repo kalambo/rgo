@@ -22,7 +22,6 @@ const codeFilter = (
   filter?: any[],
 ) => {
   if (!filter) return filter;
-  if (typeof filter === 'string') return filter;
   if (['AND', 'OR'].includes(filter[0])) {
     return [filter[0], ...filter.slice(1).map(f => codeFilter(map, fields, f))];
   }

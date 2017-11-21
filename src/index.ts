@@ -238,7 +238,6 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
             }
           }
         });
-
         for (const { values } of processCommits) {
           keysToObject(values, undefined, ({ key }) => key, data.client);
           if (fetchIndex > flushFetch) {
@@ -298,7 +297,6 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     if (!info || !info.complete.firstIds[rootId]) {
       return args.start || 0;
     }
-
     const compareRecords = createCompare(
       (record: Obj, key) => record[key],
       args.sort,
@@ -315,7 +313,6 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           args.sort,
         ),
       );
-
     const queryFirst = {
       id: info.complete.firstIds[rootId],
       ...state.server[field.type][info.complete.firstIds[rootId]!],
