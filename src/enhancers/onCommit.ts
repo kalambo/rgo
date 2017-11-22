@@ -28,7 +28,7 @@ export default function alterUpdates(
       mapData(records, (record, type, id) => {
         if (!record) delete records[type][id];
       });
-      return merge(request.commits![i], records);
+      return merge([request.commits![i], records], 2);
     });
     const response = await resolver({
       ...request,

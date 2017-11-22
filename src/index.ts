@@ -138,7 +138,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     resolve: (response: Data<string> | string) => void;
   }[] = [];
 
-  const getQueries = () => {
+  const getQueries = (changes?: DataChanges) => {
     queries = Object.keys(fetchInfo.relations)
       .reduce<(ResolveQuery | null)[]>((res, k) => {
         const { idQueries, newFields, trace } = getRequests(
@@ -149,7 +149,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
       }, [])
       .filter(s => s) as ResolveQuery[];
     if (queries.length > 0) {
-      listeners.forEach(l => l());
+      listeners.forEach(l => l(changes));
       process();
       return true;
     }
@@ -160,9 +160,8 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     const changes: DataChanges = {};
     if (server) setState('server', state, server, rgo.schema, changes);
     if (client) setState('client', state, client, rgo.schema, changes);
-    if (log) console.log(clone(state));
-    getQueries();
-    listeners.forEach(l => l(changes));
+    if (log && Object.keys(changes).length > 0) console.log(clone(state));
+    if (!getQueries(changes)) listeners.forEach(l => l(changes));
   };
 
   let fetchCounter: number = 0;
@@ -218,9 +217,9 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           updateInfo(fetchInfo, '');
         }
         const data = { server: {}, client: {} };
-        const newIds = merge(
-          ...(response.newIds.filter(n => typeof n !== 'string') as Obj[]),
-        );
+        const newIds = merge(response.newIds.filter(
+          n => typeof n !== 'string',
+        ) as Obj[]);
         const getId = (type: string, id: string | null) =>
           (id && newIds[type] && newIds[type][id]) || id;
         mapData(state.client, (record, type, id) => {
@@ -261,7 +260,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           }
         }
         if (fetchIndex > flushFetch) {
-          data.server = merge(data.server, response.data);
+          data.server = merge([data.server, response.data], 2);
         }
         set(data);
         processCommits.forEach(({ resolve }, i) => resolve(response.newIds[i]));
@@ -365,7 +364,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
     create(type) {
       localCounters[type] = localCounters[type] || 0;
       const id = `${newIdPrefix}${localCounters[type]++}`;
-      set({ client: { [type]: { [id]: {} } } });
+      schemaPromise.then(() => set({ client: { [type]: { [id]: {} } } }));
       return id;
     },
 
@@ -446,7 +445,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
 
     set(...values) {
       if (values.length !== 0) {
-        schemaPromise.then(() => {
+        const doSet = () => {
           set({
             client: keysToObject(
               values,
@@ -454,7 +453,8 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
               ({ key }) => key,
             ) as ClientData,
           });
-        });
+        };
+        rgo.schema ? doSet() : schemaPromise.then(doSet);
       }
     },
 
