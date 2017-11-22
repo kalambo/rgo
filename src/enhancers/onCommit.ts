@@ -1,61 +1,59 @@
-import { Data, Enhancer, Obj, Schema } from '../typings';
-import { mapData, merge, mergeRecord } from '../utils';
+import { Data, Enhancer, Obj, Record, Schema } from '../typings';
+import { getId, mapData, merge, mergeRecord } from '../utils';
 
 import base from './base';
 
 export default function alterUpdates(
   map: (
     commit: Data,
-    index: number,
     info: { schema: Schema; context: Obj },
-  ) => Data | Promise<Data>,
+  ) => Data | void | Promise<Data | void>,
 ) {
   return base(async (resolver, request, schema) => {
     if (!request.commits) return await resolver(request);
     request.context = request.context || {};
     const info = { schema, context: request.context };
-    const mapped = await Promise.all(
-      request.commits.map(async (commit, i) => {
+    const mapped: Data<Record>[] = [];
+    const commits: Data[] = [];
+    const errors: (string | null)[] = await Promise.all(
+      request.commits.map(async commit => {
         try {
-          return await map(commit, i, info);
+          const result = await map(commit, info);
+          if (result) {
+            mapData(result, (record, type, id) => {
+              if (!record) delete result[type][id];
+            });
+            mapped.push(result as Data<Record>);
+            // mapped = merge([mapped, result], 2);
+            commits.push(merge([commit, result], 2));
+          } else {
+            commits.push(commit);
+          }
+          return null;
         } catch (error) {
-          return error.message as string;
+          return error.message;
         }
       }),
     );
-    const commits = mapped.map((records, i) => {
-      if (typeof records === 'string') return records;
-      mapData(records, (record, type, id) => {
-        if (!record) delete records[type][id];
-      });
-      return merge([request.commits![i], records], 2);
-    });
-    const response = await resolver({
-      ...request,
-      commits: commits.filter(u => typeof u !== 'string') as Data[],
-    });
-    (mapped.filter(u => typeof u !== 'string') as Data[]).forEach(
-      (records, i) => {
+    const response = await resolver({ ...request, commits });
+    mapped.forEach((records, i) => {
+      if (!response.errors[i]) {
         mapData(records, (record, type, id) => {
-          if (record) {
-            response.data[type] = response.data[type] || {};
-            mergeRecord(
-              response.data[type],
-              (response.newIds[i][type] && response.newIds[i][type][id]) || id,
-              record,
-            );
-          }
+          response.data[type] = response.data[type] || {};
+          mergeRecord(
+            response.data[type],
+            getId(id, response.newIds[type])!,
+            record,
+          );
         });
-      },
-    );
+      }
+    });
     let counter = 0;
     return {
       ...response,
-      newIds: commits.map(
-        commit =>
-          typeof commit === 'string'
-            ? (commit as string)
-            : response.newIds[counter++],
+      errors: errors.map(
+        error =>
+          typeof error === 'string' ? error : response.errors[counter++],
       ),
     };
   }) as Enhancer;

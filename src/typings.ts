@@ -143,8 +143,9 @@ export interface ResolveRequest {
 }
 
 export interface ResolveResponse {
-  newIds: (Data<string> | string)[];
   data: Data<Record>;
+  newIds: Data<string>;
+  errors: (string | null)[];
   firstIds: Data<string | null>;
 }
 

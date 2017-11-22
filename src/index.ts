@@ -15,7 +15,7 @@ export {
   Scalar,
   ScalarField,
 } from './typings';
-export { compose } from './utils';
+export { compose, getId } from './utils';
 
 import * as clone from 'clone';
 import * as throttle from 'lodash.throttle';
@@ -43,6 +43,7 @@ import {
 import {
   createCompare,
   get,
+  getId,
   isEqual,
   isNewId,
   mapArray,
@@ -217,17 +218,15 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           updateInfo(fetchInfo, '');
         }
         const data = { server: {}, client: {} };
-        const newIds = merge(response.newIds.filter(
-          n => typeof n !== 'string',
-        ) as Obj[]);
-        const getId = (type: string, id: string | null) =>
-          (id && newIds[type] && newIds[type][id]) || id;
         mapData(state.client, (record, type, id) => {
           if (record) {
             for (const f of Object.keys(record)) {
               const field = rgo.schema[type][f];
-              if (fieldIs.relation(field) && newIds[field.type]) {
-                const mapped = mapArray(record[f], id => getId(field.type, id));
+              if (fieldIs.relation(field) && response.newIds[field.type]) {
+                const mapped = mapArray(
+                  record[f],
+                  id => getId(id, response.newIds[field.type]) || id,
+                );
                 if (!isEqual(mapped, record[f])) {
                   data.client[type] = data.client[type] || {};
                   data.client[type][id] = data.client[type][id] || {};
@@ -245,14 +244,17 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
               ({ key, value }) => {
                 if (key.length === 2) return value;
                 const field = rgo.schema[key[0]][key[2]];
-                if (fieldIs.relation(field) && newIds[key[0]]) {
-                  return mapArray(value, v => getId(key[0], v));
+                if (fieldIs.relation(field) && response.newIds[key[0]]) {
+                  return mapArray(
+                    value,
+                    v => getId(v, response.newIds[key[0]]) || v,
+                  );
                 }
                 return value;
               },
               ({ key }) => {
                 const k = [...key];
-                k[1] = (newIds[k[0]] && newIds[k[0]][k[1]]) || k[1];
+                k[1] = getId(k[1], response.newIds[k[0]]) || k[1];
                 return k;
               },
               data.server,
@@ -263,7 +265,9 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           data.server = merge([data.server, response.data], 2);
         }
         set(data);
-        processCommits.forEach(({ resolve }, i) => resolve(response.newIds[i]));
+        processCommits.forEach(({ resolve }, i) =>
+          resolve(response.errors[i] || response.newIds),
+        );
       } else {
         processCommits.forEach(({ resolve }) => resolve({}));
       }

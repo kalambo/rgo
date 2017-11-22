@@ -13,7 +13,7 @@ export default function alterUpdates(
     info: { schema: Schema; context: Obj },
   ) => Record | void | Promise<Record | void>,
 ) {
-  return onCommit(async (commit, _, info) => {
+  return onCommit(async (commit, info) => {
     return mapDataAsync(commit, async (record, type, id) => {
       const mapped = await map(
         { type, id: isNewId(id) ? null : id, record },

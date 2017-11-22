@@ -4,7 +4,11 @@ import keysToObject from 'keys-to-object';
 import { Args, Data, Enhancer, FilterOp, Obj, Record } from './typings';
 
 export const newIdPrefix = 'NEW__RECORD__';
+
 export const isNewId = (id: string) => id.startsWith(newIdPrefix);
+
+export const getId = (id: string | null, newIds?: Obj<string>) =>
+  id && isNewId(id) ? (newIds && newIds[id]) || null : id;
 
 export const isEqual = (v1: any, v2: any) =>
   deepEqual(v1, v2, { strict: true });

@@ -13,6 +13,7 @@ import {
 } from '../typings';
 import {
   createCompare,
+  getId,
   isEqual,
   isNewId,
   mapArray,
@@ -177,12 +178,15 @@ const runner = walker<
   },
 );
 
-const commit = async (commits: Data[] = [], schema: Schema, db: Db) => {
-  const result: Data<string>[] = [];
+const commit = async (
+  commits: Data[] = [],
+  schema: Schema,
+  db: Db,
+  newIds: Data<string>,
+) => {
   for (const records of commits) {
-    const newIds = keysToObject<Obj<string>>(Object.keys(records), () => ({}));
-    const getId = (type: string, id: string) => (newIds[type] || {})[id] || id;
     await mapDataAsync(records, async (record, type, id) => {
+      newIds[type] = newIds[type] || {};
       if (!record) await db.delete(type, id);
       else if (isNewId(id)) newIds[type][id] = await db.insert(type, record);
       else await db.update(type, id, record);
@@ -195,22 +199,23 @@ const commit = async (commits: Data[] = [], schema: Schema, db: Db) => {
           const field = schema[type][f];
           if (fieldIs.relation(field) && newIds[field.type]) {
             const prev = record[f];
-            record[f] = mapArray(record[f], id => getId(field.type, id));
+            record[f] = mapArray(record[f], id =>
+              getId(id, newIds[field.type]),
+            );
             if (!isEqual(record[f], prev)) hasNewIds = true;
           }
         }
-        if (hasNewIds) await db.update(type, getId(type, id), record);
+        if (hasNewIds) await db.update(type, getId(id, newIds[type])!, record);
       }
     });
-    result.push(newIds);
   }
-  return result;
 };
 
 export default function dbResolver(schema: Schema, db: Db) {
   return (async (request?: ResolveRequest) => {
     if (!request) return schema;
-    const newIds = await commit(request.commits, schema, db);
+    const newIds: Data<string> = {};
+    await commit(request.commits, schema, db, newIds);
     const records: Obj<Obj<Obj<Record>>> = {};
     const context = { db, data: {}, firstIds: {} };
     await Promise.all(
@@ -219,6 +224,11 @@ export default function dbResolver(schema: Schema, db: Db) {
     await Promise.all(
       runner(request.queries || [], schema, context, [{}], records, false),
     );
-    return { newIds, data: context.data, firstIds: context.firstIds };
+    return {
+      data: context.data,
+      newIds,
+      errors: [],
+      firstIds: context.firstIds,
+    };
   }) as Resolver;
 }
