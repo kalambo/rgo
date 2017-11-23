@@ -248,4 +248,22 @@ describe('query: basic', () => {
       ],
     });
   });
+
+  test('duplicate fields', async () => {
+    expect(
+      await rgo.query({
+        name: 'people',
+        sort: 'firstname',
+        fields: ['firstname', 'firstname'],
+      }),
+    ).toEqual({
+      people: [
+        { firstname: 'Delphia' },
+        { firstname: 'Ena' },
+        { firstname: 'Esperanza' },
+        { firstname: 'Griffin' },
+        { firstname: null },
+      ],
+    });
+  });
 });

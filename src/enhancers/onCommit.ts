@@ -24,7 +24,6 @@ export default function alterUpdates(
               if (!record) delete result[type][id];
             });
             mapped.push(result as Data<Record>);
-            // mapped = merge([mapped, result], 2);
             commits.push(merge([commit, result], 2));
           } else {
             commits.push(commit);
