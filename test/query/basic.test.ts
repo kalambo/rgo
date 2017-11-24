@@ -266,4 +266,16 @@ describe('query: basic', () => {
       ],
     });
   });
+
+  test('null filter', async () => {
+    expect(
+      await rgo.query({
+        name: 'people',
+        filter: null,
+        fields: ['firstname', 'firstname'],
+      }),
+    ).toEqual({
+      people: [],
+    });
+  });
 });

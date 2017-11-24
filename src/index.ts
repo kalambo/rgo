@@ -14,6 +14,7 @@ export {
   Rgo,
   Scalar,
   ScalarField,
+  Schema,
 } from './typings';
 export { compose, getId } from './utils';
 
@@ -396,7 +397,8 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
                 !(
                   query.filter &&
                   query.filter[0] === 'id' &&
-                  isNewId(query.filter[query.filter.length - 1])
+                  (!query.filter[query.filter.length - 1] ||
+                    isNewId(query.filter[query.filter.length - 1]))
                 ),
             );
             addQueries(serverQueries, rgo.schema, {}, fetchInfo);

@@ -63,20 +63,20 @@ export type ClientData = Data<
 
 export type FilterOp = '=' | '!=' | '<' | '<=' | '>' | '>=' | 'in';
 
-export interface Args<T = undefined> {
-  filter?: T | any[];
-  sort?: T | string[];
+export interface Args<F = undefined, S = undefined> {
+  filter?: F | any[];
+  sort?: S | string[];
   start?: number;
   end?: number;
 }
 
-export interface Query extends Args<string> {
+export interface Query extends Args<string | null, string> {
   name: string;
   alias?: string;
   fields: (string | Query)[];
 }
 
-export interface ResolveQuery extends Args<undefined> {
+export interface ResolveQuery extends Args {
   name: string;
   alias?: string;
   fields: (string | ResolveQuery)[];

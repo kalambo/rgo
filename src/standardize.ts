@@ -8,6 +8,7 @@ import {
   RelationField,
   Schema,
 } from './typings';
+import { undefOr } from './utils';
 
 x => x as Field | Obj;
 
@@ -18,10 +19,7 @@ const standardizeQuery = (
 ) => {
   const result: ResolveQuery = {
     ...query,
-    filter:
-      filter && !Array.isArray(filter)
-        ? ['id', filter]
-        : (filter as any[] | undefined),
+    filter: undefOr(filter, Array.isArray(filter) ? filter : ['id', filter]),
     sort:
       sort && !Array.isArray(sort) ? [sort] : (sort as string[] | undefined),
     fields: (fields as (string | ResolveQuery | Query)[]).map(
