@@ -4,7 +4,7 @@ import { newIdPrefix } from '../../src/utils';
 
 beforeEach(setup);
 
-describe('change: root', () => {
+describe('change: basic', () => {
   test('test', async done => {
     const results: any[] = [];
     const updates: { func: () => void; load?: true }[] = [];

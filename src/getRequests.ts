@@ -1,12 +1,5 @@
 import { FetchInfo, fieldIs, ResolveQuery, State } from './typings';
-import {
-  getFilterFields,
-  isEqual,
-  isNewId,
-  noUndef,
-  runFilter,
-  undefOr,
-} from './utils';
+import { getFilterFields, isEqual, isNewId, runFilter, undefOr } from './utils';
 
 const getFields = (fields: (string | ResolveQuery | null)[]) => {
   const filtered = fields.filter(s => s) as (string | ResolveQuery)[];
@@ -98,7 +91,7 @@ export default function getRequests(
             f =>
               server[f] === undefined ||
               (combined[f] || server[f]) === undefined ||
-              !isEqual(noUndef(server[f]), noUndef(combined[f])),
+              !isEqual(server[f], combined[f]),
           )
         ) {
           extra.start += 1;

@@ -66,6 +66,7 @@ const runner = walker<
       end: undefOr(args.end, args.end! + extra.end) as number | undefined,
     };
     const relationFields = relations.filter(r => !r.foreign).map(r => r.name);
+    const allFields = Array.from(new Set(['id', ...fields, ...relationFields]));
     if (querying) {
       const dbQuery = {
         ...args,
@@ -90,11 +91,7 @@ const runner = walker<
           ? ['AND', dbQuery.filter, relFilter]
           : relFilter;
       }
-      const queryRecords = await db.find(
-        field.type,
-        dbQuery,
-        Array.from(new Set(['id', ...fields, ...relationFields])),
-      );
+      const queryRecords = await db.find(field.type, dbQuery, allFields);
       records[key] = records[key] || {};
       const setRecords = (
         rootId: string,
@@ -158,14 +155,15 @@ const runner = walker<
               i >= slice.start &&
               (slice.end === undefined || i < slice.end)
             ) {
-              const record =
+              const record = keysToObject(
                 trace &&
                 i >= trace.start &&
                 (trace.end === undefined || i < trace.end)
-                  ? keysToObject(relationFields, f =>
-                      noUndef(records[key][rootId][id][f]),
-                    )
-                  : records[key][rootId][id];
+                  ? relationFields
+                  : allFields,
+                f => noUndef(records[key][rootId][id][f]),
+              );
+              delete record.id;
               mergeRecord(data[field.type], id, record);
             }
           });

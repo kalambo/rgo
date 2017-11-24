@@ -43,8 +43,7 @@ const reader = walker<
   const filter = (id: string) =>
     runFilter(args.filter, id, data[field.type][id]);
   const compare = createCompare(
-    (id: string, key) =>
-      key === 'id' ? id : noUndef(data[field.type][id][key]),
+    (id: string, key) => (key === 'id' ? id : data[field.type][id][key]),
     args.sort,
   );
 
@@ -73,9 +72,12 @@ const reader = walker<
     if (!root.type) {
       rootRecordIds[rootId] = filteredIds;
     } else {
-      const value = noUndef(data[root.type][rootId][root.field]);
       if (fieldIs.relation(field)) {
         if (field.isList) {
+          const value = data[root.type][rootId][root.field] as
+            | string[]
+            | null
+            | undefined;
           if (!args.sort) {
             rootRecordIds[rootId] = ((value || []) as string[]).map(
               id => (filteredIds.includes(id) ? id : null),
@@ -86,13 +88,19 @@ const reader = walker<
             );
           }
         } else {
+          const value = data[root.type][rootId][root.field] as
+            | string
+            | null
+            | undefined;
           rootRecordIds[rootId] =
-            value && filteredIds.includes(value) ? [value as string] : [];
+            value && filteredIds.includes(value) ? [value] : [];
         }
       } else {
         rootRecordIds[rootId] = filteredIds.filter(id => {
-          const v = noUndef(data[field.type][id][field.foreign]);
-          return Array.isArray(v) ? v.includes(rootId) : v === rootId;
+          const v = data[field.type][id][field.foreign];
+          return Array.isArray(v)
+            ? (v as string[]).includes(rootId)
+            : v === rootId;
         });
       }
     }

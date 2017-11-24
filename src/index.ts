@@ -18,7 +18,6 @@ export {
 } from './typings';
 export { compose, getId } from './utils';
 
-import * as clone from 'clone';
 import * as throttle from 'lodash.throttle';
 import keysToObject from 'keys-to-object';
 
@@ -42,6 +41,7 @@ import {
   State,
 } from './typings';
 import {
+  clone,
   createCompare,
   get,
   getId,
@@ -313,7 +313,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           (id: string | null, key) =>
             key === 'id'
               ? id || record.id
-              : noUndef(id ? state.combined[field.type][id][key] : record[key]),
+              : id ? state.combined[field.type][id][key] : record[key],
           args.sort,
         ),
       );

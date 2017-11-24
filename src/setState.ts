@@ -1,20 +1,12 @@
-import keysToObject from 'keys-to-object';
-
 import {
   ClientData,
   DataChanges,
-  Obj,
-  Record,
-  RecordValue,
   RelationField,
   ScalarField,
   Schema,
   State,
 } from './typings';
-import { get, isEqual, isNewId, noUndef } from './utils';
-
-const withoutNulls = (rec: Record): Obj<RecordValue> =>
-  keysToObject(Object.keys(rec).filter(k => rec[k] !== null), k => rec[k]!);
+import { clone, get, isEqual, isNewId } from './utils';
 
 export default function setState(
   store: 'server' | 'client',
@@ -36,8 +28,8 @@ export default function setState(
           for (const field of Object.keys(state.client[type][id] || {})) {
             if (
               !isEqual(
-                noUndef(get(state.combined, [type, id, field])),
-                noUndef(get(state.server, [type, id, field])),
+                get(state.combined, [type, id, field]),
+                get(state.server, [type, id, field]),
               )
             ) {
               setChanged(type, id, field);
@@ -45,14 +37,8 @@ export default function setState(
           }
         }
         delete state.client[type];
-        if (state.server[type]) {
-          state.combined[type] = keysToObject(
-            Object.keys(state.server[type]),
-            id => withoutNulls(state.server[type][id]),
-          );
-        } else {
-          delete state.combined[type];
-        }
+        if (!state.server[type]) delete state.combined[type];
+        else state.combined[type] = clone(state.server[type], 1);
         delete state.diff[type];
       }
     } else {
@@ -68,19 +54,16 @@ export default function setState(
             for (const field of Object.keys(state.client[type][id] || {})) {
               if (
                 !isEqual(
-                  noUndef(get(state.combined, [type, id, field])),
-                  noUndef(get(state.server, [type, id, field])),
+                  get(state.combined, [type, id, field]),
+                  get(state.server, [type, id, field]),
                 )
               ) {
                 setChanged(type, id, field);
               }
             }
             delete state.client[type][id];
-            if (get(state.server, [type, id])) {
-              state.combined[type][id] = withoutNulls(state.server[type][id]);
-            } else {
-              delete state.combined[type][id];
-            }
+            if (!get(state.server, [type, id])) delete state.combined[type][id];
+            else state.combined[type][id] = clone(state.server[type][id], 0);
             delete state.diff[type][id];
           }
         } else if (data[type][id] === null) {
@@ -95,19 +78,19 @@ export default function setState(
             for (const field of Object.keys(state.combined[type][id] || {})) {
               if (
                 !isEqual(
-                  noUndef(get(state.combined, [type, id, field])),
-                  noUndef(get(state.client, [type, id, field])),
+                  get(state.combined, [type, id, field]),
+                  get(state.client, [type, id, field]),
                 )
               ) {
                 setChanged(type, id, field);
               }
             }
             delete state.server[type][id];
-            if (get(state.client, [type, id])) {
-              state.combined[type][id] = withoutNulls(state.client[type][id]!);
-              state.diff[type][id] = 0;
-            } else {
+            if (!get(state.client, [type, id])) {
               delete state.combined[type][id];
+            } else {
+              state.combined[type][id] = clone(state.client[type][id], 0);
+              state.diff[type][id] = 0;
             }
           }
         } else {
@@ -116,18 +99,16 @@ export default function setState(
             state.combined[type][id] = state.combined[type][id] || {};
           }
           for (const field of Object.keys(data[type][id]!)) {
-            const prev = noUndef(get(state.combined, [type, id, field]));
+            const prev = get(state.combined, [type, id, field]);
             let value = data[type][id]![field];
             const f = schema![type][field] as RelationField | ScalarField;
-            if (f.isList && value && (value as any[]).length === 0) {
-              value = null;
-            }
+            if (f.isList && value && (value as any).length === 0) value = null;
             if (store === 'client') {
               state[store][type][id] = state[store][type][id] || {};
               state.combined[type][id] = state.combined[type][id] || {};
               if (data[type][id]![field] === undefined) {
                 delete state.client[type][id]![field];
-                if (noUndef(get(state.server, [type, id, field])) !== null) {
+                if (get(state.server, [type, id, field]) !== undefined) {
                   state.combined[type][id][field] = state.server[type][id][
                     field
                   ]!;
@@ -142,25 +123,18 @@ export default function setState(
                 }
               } else {
                 state.client[type][id]![field] = data[type][id]![field]!;
-                if (data[type][id]![field] === null) {
-                  delete state.combined[type][id][field];
-                } else {
-                  state.combined[type][id][field] = data[type][id]![field]!;
-                }
+                state.combined[type][id][field] = data[type][id]![field]!;
               }
             } else {
               if (
                 get(state.client, [type, id]) !== null &&
                 get(state.client, [type, id, field]) === undefined
               ) {
-                if (value === null) delete state.combined[type][id][field];
-                else state.combined[type][id][field] = value!;
+                state.combined[type][id][field] = value!;
               }
               state.server[type][id][field] = value!;
             }
-            if (
-              !isEqual(noUndef(get(state.combined, [type, id, field])), prev)
-            ) {
+            if (!isEqual(get(state.combined, [type, id, field]), prev)) {
               setChanged(type, id, field);
             }
           }

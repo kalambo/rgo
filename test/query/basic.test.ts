@@ -278,4 +278,31 @@ describe('query: basic', () => {
       people: [],
     });
   });
+
+  test('null filter ignore undef', async () => {
+    expect(
+      await rgo.query(
+        {
+          name: 'people',
+          alias: 'p1',
+          filter: ['firstname', null],
+          fields: ['firstname', 'lastname'],
+        },
+        {
+          name: 'people',
+          alias: 'p2',
+          fields: ['lastname'],
+        },
+      ),
+    ).toEqual({
+      p1: [{ firstname: null, lastname: 'Hansen' }],
+      p2: [
+        { lastname: 'Boyle' },
+        { lastname: 'Cole' },
+        { lastname: 'Cartwright' },
+        { lastname: 'Farrell' },
+        { lastname: 'Hansen' },
+      ],
+    });
+  });
 });

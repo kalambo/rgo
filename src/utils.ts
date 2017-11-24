@@ -27,7 +27,6 @@ export const get = (obj: any, key: string[]) =>
 
 const isObject = (v: any) =>
   Object.prototype.toString.call(v) === '[object Object]';
-const clone = v => (isObject(v) ? mergeTwo({}, v, -1) : v);
 const mergeTwo = (target: any, source: Obj, depth: number) => {
   const result = {};
   if (isObject(target)) {
@@ -42,6 +41,8 @@ const mergeTwo = (target: any, source: Obj, depth: number) => {
   });
   return result;
 };
+export const clone = (obj: any, depth = -1) =>
+  isObject(obj) ? mergeTwo({}, obj, depth) : obj;
 export const merge = (objs: Obj[], depth = -1) =>
   objs.reduce((res, obj) => mergeTwo(res, obj, depth), {});
 
@@ -122,6 +123,7 @@ export const promisifyEmitter = <T>(
   });
 };
 
+const isNullUndef = (v: any) => v === null || v === undefined;
 const compareValues = (a, b) => {
   if (isEqual(a, b)) return 0;
   if (typeof a === 'string' && typeof b === 'string') {
@@ -137,10 +139,10 @@ export const createCompare = <T>(
   for (const s of sort) {
     const key = s.replace('-', '');
     const dir = s[0] === '-' ? 'desc' : 'asc';
-    const v1 = noUndef(get(value1, key));
-    const v2 = noUndef(get(value2, key));
-    if (v1 === null && v2 !== null) return 1;
-    if (v1 !== null && v2 === null) return -1;
+    const v1 = get(value1, key);
+    const v2 = get(value2, key);
+    if (isNullUndef(v1) && !isNullUndef(v2)) return 1;
+    if (!isNullUndef(v1) && isNullUndef(v2)) return -1;
     const comp = compareValues(v1, v2);
     if (comp) return dir === 'asc' ? comp : (-comp as 1 | -1);
   }
@@ -148,6 +150,7 @@ export const createCompare = <T>(
 };
 
 export const runFilterValue = (value: any, op: FilterOp, filterValue: any) => {
+  if (value === undefined) return false;
   if (op === '=') return isEqual(value, filterValue);
   if (op === '!=') return !isEqual(value, filterValue);
   if (op === '<') return value < filterValue;
@@ -173,7 +176,7 @@ export const runFilter = (
     }
   }
   return runFilterValue(
-    filter[0] === 'id' ? id : noUndef(record[filter[0]]),
+    filter[0] === 'id' ? id : record[filter[0]],
     filter.length === 3 ? filter[1] : '=',
     filter[filter.length - 1],
   );
@@ -191,7 +194,7 @@ export const find = (
     .filter(filterFunc)
     .sort(compareFunc)
     .slice(start, end)
-    .map(record => keysToObject(fields, f => noUndef(record[f])));
+    .map(record => keysToObject(fields, f => record[f]));
 };
 
 export const getFilterFields = (filter: any[]): string[] => {

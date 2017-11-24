@@ -107,7 +107,7 @@ export type DataChanges = Data<Obj<true>>;
 export interface State {
   server: Data<Record>;
   client: Data;
-  combined: Data<Obj<RecordValue>>;
+  combined: Data<Record>;
   diff: Data<1 | -1 | 0>;
 }
 
