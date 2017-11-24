@@ -140,38 +140,32 @@ const runner = walker<
     } else {
       data[field.type] = data[field.type] || {};
       const fieldPath = [...path, key].join('_');
-      if (!firstIds[fieldPath]) {
-        firstIds[fieldPath] = {};
-        Object.keys(records[key]).forEach(rootId => {
-          const sorted = Object.keys(records[key][rootId]).sort(
-            createCompare(
-              (id, k) =>
-                k === 'id' ? id : noUndef(records[key][rootId][id][k]),
-              args.sort,
-            ),
-          );
-          sorted.forEach((id, i) => {
-            if (
-              i >= slice.start &&
-              (slice.end === undefined || i < slice.end)
-            ) {
-              const record = keysToObject(
-                trace &&
-                i >= trace.start &&
-                (trace.end === undefined || i < trace.end)
-                  ? relationFields
-                  : allFields,
-                f => noUndef(records[key][rootId][id][f]),
-              );
-              delete record.id;
-              mergeRecord(data[field.type], id, record);
-            }
-          });
-          if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
-            firstIds[fieldPath][rootId] = sorted[args.start || 0] || null;
+      firstIds[fieldPath] = firstIds[fieldPath] || {};
+      Object.keys(records[key]).forEach(rootId => {
+        const sorted = Object.keys(records[key][rootId]).sort(
+          createCompare(
+            (id, k) => (k === 'id' ? id : noUndef(records[key][rootId][id][k])),
+            args.sort,
+          ),
+        );
+        sorted.forEach((id, i) => {
+          if (i >= slice.start && (slice.end === undefined || i < slice.end)) {
+            const record = keysToObject(
+              trace &&
+              i >= trace.start &&
+              (trace.end === undefined || i < trace.end)
+                ? relationFields
+                : allFields,
+              f => noUndef(records[key][rootId][id][f]),
+            );
+            delete record.id;
+            mergeRecord(data[field.type], id, record);
           }
         });
-      }
+        if (fieldIs.foreignRelation(field) || (field.isList && args.sort)) {
+          firstIds[fieldPath][rootId] = sorted[args.start || 0] || null;
+        }
+      });
     }
   },
 );
