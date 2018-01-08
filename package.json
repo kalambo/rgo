@@ -7,8 +7,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "prettier":
-      "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.ts\"",
+    "prettier": "prettier --single-quote --trailing-comma all --write \"{src,test}/**/*.ts\"",
     "clean": "rimraf lib/*",
     "build": "yarn run clean && tsc",
     "test": "jest",
@@ -19,15 +18,19 @@
       ".(ts|tsx)": "<rootDir>/node_modules/ts-jest/preprocessor.js"
     },
     "testRegex": "(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$",
-    "moduleFileExtensions": ["ts", "tsx", "js"]
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
+    ]
   },
   "devDependencies": {
-    "@types/jest": "^21.1.8",
-    "jest": "^21.2.1",
-    "prettier": "^1.8.2",
+    "@types/jest": "^22.0.1",
+    "jest": "^22.0.4",
+    "prettier": "^1.9.2",
     "rimraf": "^2.6.2",
-    "ts-jest": "^21.2.3",
-    "typescript": "^2.6.1"
+    "ts-jest": "^22.0.1",
+    "typescript": "^2.6.2"
   },
   "dependencies": {
     "deep-equal": "^1.0.1",
