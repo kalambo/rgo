@@ -11,9 +11,9 @@ export default function fetchResolver(
       method: 'POST',
       headers: new Headers({
         'Content-Type': request ? 'application/json' : 'text/plain',
-        ...getHeaders ? getHeaders() : {},
+        ...(getHeaders ? getHeaders() : {}),
       }),
-      ...request ? { body: JSON.stringify(request) } : {},
+      ...(request ? { body: JSON.stringify(request) } : {}),
     });
     if (!response.ok) throw new Error();
     return await response.json();
