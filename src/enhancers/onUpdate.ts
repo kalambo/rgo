@@ -3,7 +3,7 @@ import { isNewId, mapDataAsync } from '../utils';
 
 import onCommit from './onCommit';
 
-export default function alterUpdates(
+export default function onUpdate(
   map: (
     update: {
       type: string;

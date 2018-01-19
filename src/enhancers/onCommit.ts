@@ -3,7 +3,7 @@ import { getId, mapData, merge, mergeRecord } from '../utils';
 
 import base from './base';
 
-export default function alterUpdates(
+export default function onCommit(
   map: (
     commit: Data,
     info: { schema: Schema; context: Obj },
