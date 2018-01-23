@@ -151,8 +151,18 @@ export const createCompare = <T>(
 
 export const runFilterValue = (value: any, op: FilterOp, filterValue: any) => {
   if (value === undefined) return false;
-  if (op === '=') return isEqual(value, filterValue);
-  if (op === '!=') return !isEqual(value, filterValue);
+  if (op === '=') {
+    return (
+      isEqual(value, filterValue) ||
+      (Array.isArray(value) && value.some(v => isEqual(v, filterValue)))
+    );
+  }
+  if (op === '!=') {
+    return (
+      !isEqual(value, filterValue) &&
+      (!Array.isArray(value) || value.every(v => !isEqual(v, filterValue)))
+    );
+  }
   if (op === '<') return value < filterValue;
   if (op === '<=') return value <= filterValue;
   if (op === '>') return value > filterValue;
