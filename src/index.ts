@@ -378,19 +378,26 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
 
       const onLoad =
         typeof args[args.length - 1] === 'function'
-          ? (args[args.length - 1] as ((
-              data: Obj | { data: Obj; spans: Obj } | null,
-            ) => void))
+          ? (args[args.length - 1] as ((data: Obj | null) => void))
           : undefined;
       const baseQueries: Query[] = onLoad ? args.slice(0, -1) : args;
 
       return promisifyEmitter(innerListener => {
+        if (baseQueries.length === 0) {
+          innerListener({});
+          return () => {};
+        }
+
+        let running = true;
+        let first = true;
+        if (!rgo.schema) {
+          first = false;
+          innerListener(null);
+        }
         let serverQueries: ResolveQuery[];
         let listener: (changes?: DataChanges) => void;
         schemaPromise.then(() => {
-          if (baseQueries.length === 0) {
-            innerListener({});
-          } else {
+          if (running) {
             const allQueries = standardizeQueries(baseQueries, rgo.schema);
             serverQueries = allQueries.filter(
               query =>
@@ -403,7 +410,6 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
             );
             addQueries(serverQueries, rgo.schema, {}, fetchInfo);
 
-            let first = true;
             let current: {
               result: Obj;
               updaters: ((changes: DataChanges) => number)[];
@@ -440,6 +446,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           }
         });
         return () => {
+          running = false;
           const index = listeners.indexOf(listener);
           if (index !== -1) {
             listeners.splice(index, 1);

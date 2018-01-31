@@ -116,7 +116,7 @@ export const promisifyEmitter = <T>(
     const unlisten = emitter(value => {
       if (value !== null) {
         if (unlisten) unlisten();
-        else setTimeout(() => unlisten());
+        else setTimeout(() => (unlisten as any)());
         resolve(value);
       }
     });

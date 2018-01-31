@@ -161,7 +161,7 @@ export interface Rgo {
   create(type: string): string;
 
   query(): Promise<void>;
-  query(...queries: Query[]): Promise<Obj>;
+  query(...queries: (Query | ((data: Obj | null) => void))[]): Promise<Obj>;
   query(query: Query, onLoad: (data: Obj | null) => void): () => void;
   query(
     query1: Query,
