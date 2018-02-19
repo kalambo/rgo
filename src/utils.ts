@@ -27,7 +27,7 @@ export const get = (obj: any, key: string[]) =>
 
 const isObject = (v: any) =>
   Object.prototype.toString.call(v) === '[object Object]';
-const mergeTwo = (target: any, source: Obj, depth: number) => {
+export const merge = (target: any, source: Obj, depth: number = -1) => {
   const result = {};
   if (isObject(target)) {
     Object.keys(target).forEach(k => (result[k] = clone(target[k])));
@@ -36,15 +36,13 @@ const mergeTwo = (target: any, source: Obj, depth: number) => {
     if (!isObject(source[k]) || !target[k] || depth === 0) {
       result[k] = clone(source[k]);
     } else {
-      result[k] = mergeTwo(target[k], source[k], depth - 1);
+      result[k] = merge(target[k], source[k], depth - 1);
     }
   });
   return result;
 };
 export const clone = (obj: any, depth = -1) =>
-  isObject(obj) ? mergeTwo({}, obj, depth) : obj;
-export const merge = (objs: Obj[], depth = -1) =>
-  objs.reduce((res, obj) => mergeTwo(res, obj, depth), {});
+  isObject(obj) ? merge({}, obj, depth) : obj;
 
 export const mergeRecord = (
   records: Obj<Record>,

@@ -24,7 +24,7 @@ export default function onCommit(
               if (!record) delete result[type][id];
             });
             mapped.push(result as Data<Record>);
-            commits.push(merge([commit, result], 2));
+            commits.push(merge(commit, result, 2));
           } else {
             commits.push(commit);
           }

@@ -88,6 +88,10 @@ const removeQueries = walker(
       info.relations[key].fields[f]--;
       if (info.relations[key].fields[f] === 0) {
         delete info.relations[key].fields[f];
+        info.relations[key].complete.data.fields.splice(
+          info.relations[key].complete.data.fields.indexOf(f),
+          1,
+        );
       }
     });
     if (
@@ -263,7 +267,7 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           }
         }
         if (fetchIndex > flushFetch) {
-          data.server = merge([data.server, response.data], 2);
+          data.server = merge(data.server, response.data, 2);
         }
         set(data);
         processCommits.forEach(({ resolve }, i) =>
@@ -450,7 +454,9 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           const index = listeners.indexOf(listener);
           if (index !== -1) {
             listeners.splice(index, 1);
-            removeQueries(serverQueries, rgo.schema, {}, fetchInfo);
+            setTimeout(() =>
+              removeQueries(serverQueries, rgo.schema, {}, fetchInfo),
+            );
           }
         };
       }, onLoad) as any;
@@ -490,7 +496,13 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
   };
 
   (async () => {
-    rgo.schema = await resolver();
+    const baseSchema = await resolver();
+    rgo.schema = keysToObject(Object.keys(baseSchema), type =>
+      keysToObject(Object.keys(baseSchema[type]), f => ({
+        meta: {},
+        ...baseSchema[type][f],
+      })),
+    );
     schemaResolve({});
   })();
 

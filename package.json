@@ -1,6 +1,6 @@
 {
   "name": "rgo",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Realtime graph orchestrator",
   "author": "Jon Whitehead",
   "license": "MIT",
@@ -22,12 +22,12 @@
     "moduleFileExtensions": ["ts", "tsx", "js"]
   },
   "devDependencies": {
-    "@types/jest": "^22.1.1",
-    "jest": "^22.1.4",
+    "@types/jest": "^22.1.3",
+    "jest": "^22.3.0",
     "prettier": "^1.10.2",
     "rimraf": "^2.6.2",
-    "ts-jest": "^22.0.2",
-    "typescript": "^2.7.1"
+    "ts-jest": "^22.0.4",
+    "typescript": "^2.7.2"
   },
   "dependencies": {
     "deep-equal": "^1.0.1",
