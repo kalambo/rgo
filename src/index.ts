@@ -241,31 +241,33 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
             }
           }
         });
-        for (const { values } of processCommits) {
-          keysToObject(values, undefined, ({ key }) => key, data.client);
-          if (fetchIndex > flushFetch) {
-            keysToObject(
-              values,
-              ({ key, value }) => {
-                if (key.length === 2) return value;
-                const field = rgo.schema[key[0]][key[2]];
-                if (fieldIs.relation(field) && response.newIds[key[0]]) {
-                  return mapArray(
-                    value,
-                    v => getId(v, response.newIds[key[0]]) || v,
-                  );
-                }
-                return value;
-              },
-              ({ key }) => {
-                const k = [...key];
-                k[1] = getId(k[1], response.newIds[k[0]]) || k[1];
-                return k;
-              },
-              data.server,
-            );
+        processCommits.forEach(({ values }, i) => {
+          if (!response.errors[i]) {
+            keysToObject(values, undefined, ({ key }) => key, data.client);
+            if (fetchIndex > flushFetch) {
+              keysToObject(
+                values,
+                ({ key, value }) => {
+                  if (key.length === 2) return value;
+                  const field = rgo.schema[key[0]][key[2]];
+                  if (fieldIs.relation(field) && response.newIds[key[0]]) {
+                    return mapArray(
+                      value,
+                      v => getId(v, response.newIds[key[0]]) || v,
+                    );
+                  }
+                  return value;
+                },
+                ({ key }) => {
+                  const k = [...key];
+                  k[1] = getId(k[1], response.newIds[k[0]]) || k[1];
+                  return k;
+                },
+                data.server,
+              );
+            }
           }
-        }
+        });
         if (fetchIndex > flushFetch) {
           data.server = merge(data.server, response.data, 2);
         }

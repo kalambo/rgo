@@ -21,7 +21,13 @@ export default function onCommit(
           const result = await map(commit, info);
           if (result) {
             mapData(result, (record, type, id) => {
-              if (!record) delete result[type][id];
+              if (!record) {
+                delete result[type][id];
+              } else {
+                Object.keys(record).forEach(f => {
+                  if (record[f] === undefined) delete record[f];
+                });
+              }
             });
             mapped.push(result as Data<Record>);
             commits.push(merge(commit, result, 2));

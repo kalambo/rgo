@@ -66,7 +66,14 @@ const runner = walker<
       end: undefOr(args.end, args.end! + extra.end) as number | undefined,
     };
     const relationFields = relations.filter(r => !r.foreign).map(r => r.name);
-    const allFields = Array.from(new Set(['id', ...fields, ...relationFields]));
+    const allFields = Array.from(
+      new Set([
+        'id',
+        ...fields,
+        ...relationFields,
+        ...(args.sort || []).map(s => s.replace('-', '')),
+      ]),
+    );
     if (querying) {
       const dbQuery = {
         ...args,
