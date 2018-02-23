@@ -83,6 +83,7 @@ const runner = walker<
           (slice.start || 0) + slice.end! * rootRecords.length,
         ),
       };
+      let queryFields = allFields;
       if (root.type) {
         const rootField = fieldIs.relation(field) ? root.field : 'id';
         const relField = fieldIs.relation(field) ? 'id' : field.foreign;
@@ -97,8 +98,9 @@ const runner = walker<
         dbQuery.filter = dbQuery.filter
           ? ['AND', dbQuery.filter, relFilter]
           : relFilter;
+        queryFields = Array.from(new Set([...queryFields, relField]));
       }
-      const queryRecords = await db.find(field.type, dbQuery, allFields);
+      const queryRecords = await db.find(field.type, dbQuery, queryFields);
       records[key] = records[key] || {};
       const setRecords = (
         rootId: string,

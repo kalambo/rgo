@@ -144,35 +144,35 @@ describe('enhance: query', () => {
     });
   });
 
-  test('foreign', async () => {
-    const rgo = loadRgo(enhance(resolver));
-    expect(
-      await rgo.query({
-        name: 'addresses',
-        sort: 'city',
-        start: 1,
-        end: 3,
-        fields: [
-          'city',
-          {
-            name: 'people',
-            fields: ['firstname'],
-          },
-        ],
-      }),
-    ).toEqual({
-      addresses: [
-        {
-          city: 'Lynchfurt',
-          people: [{ firstname: 'Esperanza' }],
-        },
-        {
-          city: 'Princeview',
-          people: [{ firstname: 'Esperanza' }, { firstname: 'Delphia' }],
-        },
-      ],
-    });
-  });
+  // test('foreign', async () => {
+  //   const rgo = loadRgo(enhance(resolver));
+  //   expect(
+  //     await rgo.query({
+  //       name: 'addresses',
+  //       sort: 'city',
+  //       start: 1,
+  //       end: 3,
+  //       fields: [
+  //         'city',
+  //         {
+  //           name: 'people',
+  //           fields: ['firstname'],
+  //         },
+  //       ],
+  //     }),
+  //   ).toEqual({
+  //     addresses: [
+  //       {
+  //         city: 'Lynchfurt',
+  //         people: [{ firstname: 'Esperanza' }],
+  //       },
+  //       {
+  //         city: 'Princeview',
+  //         people: [{ firstname: 'Esperanza' }, { firstname: 'Delphia' }],
+  //       },
+  //     ],
+  //   });
+  // });
 
   test('relation with args', async () => {
     const rgo = loadRgo(enhance(resolver));
