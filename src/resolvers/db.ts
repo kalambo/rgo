@@ -75,76 +75,55 @@ const runner = walker<
       ]),
     );
     if (querying) {
-      const dbQuery = {
-        ...args,
-        start: 0,
-        end: undefOr(
-          slice.end,
-          (slice.start || 0) + slice.end! * rootRecords.length,
-        ),
-      };
-      let queryFields = allFields;
-      if (root.type) {
-        const rootField = fieldIs.relation(field) ? root.field : 'id';
-        const relField = fieldIs.relation(field) ? 'id' : field.foreign;
-        const relFilter = [
-          relField,
-          'in',
-          rootRecords.reduce(
-            (res, root) => res.concat((root[rootField] as string[]) || []),
-            [] as string[],
-          ),
-        ];
-        dbQuery.filter = dbQuery.filter
-          ? ['AND', dbQuery.filter, relFilter]
-          : relFilter;
-        queryFields = Array.from(new Set([...queryFields, relField]));
-      }
-      const queryRecords = await db.find(field.type, dbQuery, queryFields);
       records[key] = records[key] || {};
-      const setRecords = (
+      const results = {} as Obj<IdRecord>;
+      const doSingleQuery = async (
         rootId: string,
-        filter?: (record: IdRecord) => boolean,
+        fields: string[],
+        filter?: any[],
       ) => {
         records[key][rootId] = records[key][rootId] || {};
-        queryRecords.forEach(idRecord => {
-          if (!filter || filter(idRecord)) {
-            const { id, ...record } = idRecord;
-            mergeRecord(records[key][rootId], id, record);
-          }
+        (await db.find(
+          field.type,
+          {
+            ...args,
+            start: 0,
+            end: slice.end,
+            filter:
+              args.filter && filter
+                ? ['AND', args.filter, filter]
+                : args.filter || filter,
+          },
+          fields,
+        )).forEach(idRecord => {
+          const { id, ...record } = idRecord;
+          results[id] = idRecord;
+          mergeRecord(records[key][rootId], id, record);
         });
       };
       if (!root.type) {
-        setRecords('');
+        await doSingleQuery('', allFields);
       } else {
-        rootRecords.forEach(rootRecord => {
-          if (fieldIs.foreignRelation(field)) {
-            setRecords(rootRecord.id, r => {
-              const value = r[field.foreign] as string[] | string | null;
-              return Array.isArray(value)
-                ? value.includes(rootRecord.id)
-                : value === rootRecord.id;
-            });
-          } else if (rootRecord[root.field]) {
-            if (field.isList) {
-              setRecords(rootRecord.id, r =>
-                (rootRecord[root.field] as (string | null)[]).includes(r.id),
-              );
-            } else {
-              setRecords(
-                rootRecord.id,
-                r => r.id === (rootRecord[root.field] as string),
-              );
-            }
-          }
-        });
+        const rootField = fieldIs.relation(field) ? root.field : 'id';
+        const relField = fieldIs.relation(field) ? 'id' : field.foreign;
+        const queryFields = Array.from(new Set([...allFields, relField]));
+        await Promise.all(
+          rootRecords.map(rootRecord => {
+            doSingleQuery(rootRecord.id, queryFields, [
+              relField,
+              'in',
+              [].concat(rootRecord[rootField] as any),
+            ]);
+          }),
+        );
       }
+      const resultsArray = Object.keys(results).map(id => results[id]);
       const newRecords = {};
       await Promise.all(
-        relations.map(r => r.walk(queryRecords, newRecords, true)),
+        relations.map(r => r.walk(resultsArray, newRecords, true)),
       );
       await Promise.all(
-        relations.map(r => r.walk(queryRecords, newRecords, false)),
+        relations.map(r => r.walk(resultsArray, newRecords, false)),
       );
     } else {
       data[field.type] = data[field.type] || {};
