@@ -18,14 +18,12 @@ const standardizeQuery = (
   field?: ForeignRelationField | RelationField,
 ) => {
   const mappedFields = (fields as (string | ResolveQuery | Query)[])
-    .map(
-      f =>
-        typeof f === 'string'
-          ? f
-          : standardizeQuery(f, schema, schema[field ? field.type : query.name][
-              f.name
-            ] as ForeignRelationField | RelationField),
-    )
+    .map(f => {
+      if (typeof f === 'string') return f;
+      return standardizeQuery(f, schema, schema[
+        field ? field.type : query.name
+      ][f.name] as ForeignRelationField | RelationField);
+    })
     .filter(f => f) as (string | ResolveQuery)[];
   if (mappedFields.length === 0) return null;
   const result: ResolveQuery = {

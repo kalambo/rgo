@@ -1,4 +1,13 @@
-import { Enhancer, Falsy, ResolveQuery, Obj, Schema } from '../typings';
+import {
+  Enhancer,
+  Falsy,
+  fieldIs,
+  ForeignRelationField,
+  Obj,
+  RelationField,
+  ResolveQuery,
+  Schema,
+} from '../typings';
 import walker from '../walker';
 import { runFilterValue } from '../utils';
 
@@ -8,6 +17,26 @@ export interface QueryLimit {
   filter?: any[];
   fields?: string[];
 }
+
+const addExtraFields = (
+  query: ResolveQuery,
+  schema: Schema,
+  field?: ForeignRelationField | RelationField,
+) => ({
+  ...query,
+  fields: Array.from(
+    new Set([
+      ...query.fields.map(f => {
+        if (typeof f === 'string') return f;
+        return addExtraFields(f, schema, schema[
+          field ? field.type : query.name
+        ][f.name] as ForeignRelationField | RelationField);
+      }),
+      ...(field && fieldIs.foreignRelation(field) ? [field.foreign] : []),
+      ...(query.sort || []).map(s => s.replace('-', '')),
+    ]),
+  ),
+});
 
 const reduceFilter = (filter: any[], fields: string[]): any[] | false => {
   if (['AND', 'OR'].includes(filter[0])) {
@@ -130,13 +159,18 @@ export default function limitQueries(
 ) {
   return base(async (resolver, request, schema) => {
     request.context = request.context || {};
+    request.context.noExtraFields = true;
     return await resolver({
       ...request,
       queries: (await Promise.all(
-        getQueries(request.queries || [], schema, {
-          map,
-          info: { schema, context: request.context },
-        }),
+        getQueries(
+          (request.queries || []).map(query => addExtraFields(query, schema)),
+          schema,
+          {
+            map,
+            info: { schema, context: request.context },
+          },
+        ),
       )).reduce((res, q) => [...res, ...q], []),
     });
   }) as Enhancer;

@@ -60,7 +60,11 @@ const runner = walker<
     rootRecords: IdRecord[],
     records: Obj<Obj<Obj<Record>>>,
     querying: boolean,
+    noExtraFields?: boolean,
   ) => {
+    const idFields = Array.from(new Set(['id', ...fields]));
+    const sort =
+      args.sort && args.sort.filter(s => idFields.includes(s.replace('-', '')));
     const slice = {
       start: (args.start || 0) - extra.start,
       end: undefOr(args.end, args.end! + extra.end) as number | undefined,
@@ -68,10 +72,11 @@ const runner = walker<
     const relationFields = relations.filter(r => !r.foreign).map(r => r.name);
     const allFields = Array.from(
       new Set([
-        'id',
-        ...fields,
+        ...idFields,
         ...relationFields,
-        ...(args.sort || []).map(s => s.replace('-', '')),
+        ...(!noExtraFields
+          ? (args.sort || []).map(s => s.replace('-', ''))
+          : []),
       ]),
     );
     if (querying) {
@@ -87,6 +92,7 @@ const runner = walker<
           field.type,
           {
             ...args,
+            sort,
             start: 0,
             end: slice.end,
             filter:
@@ -106,20 +112,27 @@ const runner = walker<
       } else {
         const rootField = fieldIs.relation(field) ? root.field : 'id';
         const relField = fieldIs.relation(field) ? 'id' : field.foreign;
-        await Promise.all(
-          rootRecords.map(rootRecord =>
-            doSingleQuery(rootRecord.id, allFields, [
-              relField,
-              'in',
-              [].concat(rootRecord[rootField] as any),
-            ]),
-          ),
-        );
+        if (!noExtraFields || allFields.includes(relField)) {
+          await Promise.all(
+            rootRecords.map(
+              rootRecord =>
+                rootRecord[rootField]
+                  ? doSingleQuery(rootRecord.id, allFields, [
+                      relField,
+                      'in',
+                      [].concat(rootRecord[rootField] as any),
+                    ])
+                  : Promise.resolve(),
+            ),
+          );
+        }
       }
       const resultsArray = Object.keys(results).map(id => results[id]);
       const newRecords = {};
       await Promise.all(
-        relations.map(r => r.walk(resultsArray, newRecords, true)),
+        relations.map(r =>
+          r.walk(resultsArray, newRecords, true, noExtraFields),
+        ),
       );
       await Promise.all(
         relations.map(r => r.walk(resultsArray, newRecords, false)),
@@ -198,7 +211,15 @@ export default function dbResolver(schema: Schema, db: Db) {
     const records: Obj<Obj<Obj<Record>>> = {};
     const context = { db, data: {}, firstIds: {} };
     await Promise.all(
-      runner(request.queries || [], schema, context, [{}], records, true),
+      runner(
+        request.queries || [],
+        schema,
+        context,
+        [{}],
+        records,
+        true,
+        request.context && request.context.noExtraFields,
+      ),
     );
     await Promise.all(
       runner(request.queries || [], schema, context, [{}], records, false),
