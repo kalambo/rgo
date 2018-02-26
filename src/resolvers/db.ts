@@ -106,15 +106,14 @@ const runner = walker<
       } else {
         const rootField = fieldIs.relation(field) ? root.field : 'id';
         const relField = fieldIs.relation(field) ? 'id' : field.foreign;
-        const queryFields = Array.from(new Set([...allFields, relField]));
         await Promise.all(
-          rootRecords.map(rootRecord => {
-            doSingleQuery(rootRecord.id, queryFields, [
+          rootRecords.map(rootRecord =>
+            doSingleQuery(rootRecord.id, allFields, [
               relField,
               'in',
               [].concat(rootRecord[rootField] as any),
-            ]);
-          }),
+            ]),
+          ),
         );
       }
       const resultsArray = Object.keys(results).map(id => results[id]);
