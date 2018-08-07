@@ -32,7 +32,7 @@ export default function fetchResolver(
     try {
       return await resolve();
     } catch (error) {
-      if (!refresh || !await refresh()) throw error;
+      if (!refresh || !(await refresh())) throw error;
       return await resolve();
     }
   }) as Resolver;

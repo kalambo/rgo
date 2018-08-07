@@ -130,12 +130,6 @@ const reader = walker<
   return (changes: DataChanges) => {
     if (Object.keys(changes).length === 0) return 0;
 
-    const relationsChange = Math.max(
-      ...updaters.map(updater => updater(changes)),
-      0,
-    );
-    if (relationsChange === 2) return 2;
-
     for (const id of Object.keys(changes[field.type] || {})) {
       for (const f of structuralFields) {
         if ((changes[field.type][id] || {})[f]) return 2;
@@ -155,6 +149,12 @@ const reader = walker<
         }
       }
     }
+
+    const relationsChange = Math.max(
+      ...updaters.map(updater => updater(changes)),
+      0,
+    );
+    if (relationsChange === 2) return 2;
 
     let changed = false;
     for (const id of Object.keys(changes[field.type] || {})) {

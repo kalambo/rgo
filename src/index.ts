@@ -319,7 +319,9 @@ export default function rgo(resolver: Resolver, log?: boolean): Rgo {
           (id: string | null, key) =>
             key === 'id'
               ? id || record.id
-              : id ? state.combined[field.type][id][key] : record[key],
+              : id
+                ? state.combined[field.type][id][key]
+                : record[key],
           args.sort,
         ),
       );

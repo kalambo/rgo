@@ -1,5 +1,4 @@
 import loadRgo, { Rgo, Resolver, resolvers } from '../src';
-import network from '../src/network';
 import { find } from '../src/utils';
 
 export let resolver: Resolver;

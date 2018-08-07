@@ -8,11 +8,10 @@ yarn add rgo
 
 ## Features
 
-* **Efficient, realtime graph queries** for any connected data source
-* **Filter, sort and paginate** data at every nested level of a query
-* **Make local changes** and see all live queries 'preview' update accordingly (including across relations)
-* **Enhance with authentication, validation** and much more with a composable plugin system
-* _**Combine multiple data sources** into a single api (In progress)_
+- **Efficient, realtime graph queries** for any connected data source
+- **Filter, sort and paginate** data at every nested level of a query
+- **Make local changes** and see all live queries 'preview' update accordingly (including across relations)
+- **Enhance with authentication, validation** and much more with a composable plugin system
 
 ## Overview
 
@@ -36,17 +35,17 @@ const client = rgo(resolvers.db(schema, { find, insert, update, delete }));
 
 A resolver is an async function with a specific signature and certain rules of behaviour. The `resolvers` export provides two helper constructors to simplify creating common types of resolver:
 
-* `resolvers.fetch(url, getHeaders?, refresh?)`: resolve over a network, passing requests on to another resolver at the other end (e.g. a server endpoint)
-* `resolvers.db(schema, db)`: resolve directly from a database
+- `resolvers.fetch(url, getHeaders?, refresh?)`: resolve over a network, passing requests on to another resolver at the other end (e.g. a server endpoint)
+- `resolvers.db(schema, db)`: resolve directly from a database
 
 **Enhancers:**
 
 As they are just functions, resolvers can be easily enhanced with suitable higher-order functions, a number of which are also provided via helper constructors:
 
-* `enhancers.decode`: decode incoming server requests (`resolvers.fetch` encodes dates for transferring as JSON)
-* `enhancers.limitQueries(map: (type, info) => limits)`: restrict incoming queries, primarily for authentication
-* `enhancers.onCommit(map: (commit, info) => data)`: map all incoming commits, and/or trigger side-effects (such as email notifications)
-* `enhancers.onUpdate(map: (update, info) => record)`: like `onCommit`, but mapping individual updates within each commit
+- `enhancers.decode`: decode incoming server requests (`resolvers.fetch` encodes dates for transferring as JSON)
+- `enhancers.limitQueries(map: (type, info) => limits)`: restrict incoming queries, primarily for authentication
+- `enhancers.onCommit(map: (commit, info) => data)`: map all incoming commits, and/or trigger side-effects (such as email notifications)
+- `enhancers.onUpdate(map: (update, info) => record)`: like `onCommit`, but mapping individual updates within each commit
 
 **Data schema:**
 
@@ -65,9 +64,9 @@ As well as processing requests, a resolver also provides a **schema** to the cli
 
 Fields can be
 
-* Scalars: `{ scalar: 'boolean' | 'int' | 'float' | 'date' | 'string' | 'json', isList?: boolean }`
-* Relations: `{ type: string, isList?: boolean }`
-* Foreign relations: `{ type: string, foreign: string }`
+- Scalars: `{ scalar: 'boolean' | 'int' | 'float' | 'date' | 'string' | 'json', isList?: boolean }`
+- Relations: `{ type: string, isList?: boolean }`
+- Foreign relations: `{ type: string, foreign: string }`
 
 All fields have an optional `meta` property too, which can hold additional information about the field for use outside of RGO.
 
@@ -89,15 +88,15 @@ A query is made up of field references, which are either strings (for scalar fie
 }
 ```
 
-* `alias`: returns a field under a different name, which is necessary when using the same field twice in a single query
-* `filter`: one or multiple triplets of `[fieldname, operator, value]` (available operators are `'=' | '!=' | '<' | '<=' | '>' | '>=' | 'in'`), combined in the form `['AND' | 'OR', filter1, filter2, ...]` (can be nested)
-* `sort`: one or multiple strings of the form `(-)fieldname`, with the optional `-` determining the sort order for that field
-* `start`, `end`: for pagination
+- `alias`: returns a field under a different name, which is necessary when using the same field twice in a single query
+- `filter`: one or multiple triplets of `[fieldname, operator, value]` (available operators are `'=' | '!=' | '<' | '<=' | '>' | '>=' | 'in'`), combined in the form `['AND' | 'OR', filter1, filter2, ...]` (can be nested)
+- `sort`: one or multiple strings of the form `(-)fieldname`, with the optional `-` determining the sort order for that field
+- `start`, `end`: for pagination
 
 Queries can be passed to RGO in two ways:
 
-* **Without callback**: The query runs once, and returns a promise which resolves to the result.
-* **With callback**: The query runs continually, updating whenever affected by local or remote changes, and returns an `unsubscribe` function which can be called to stop the query.
+- **Without callback**: The query runs once, and returns a promise which resolves to the result.
+- **With callback**: The query runs continually, updating whenever affected by local or remote changes, and returns an `unsubscribe` function which can be called to stop the query.
 
 **Example:**
 
