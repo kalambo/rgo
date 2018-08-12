@@ -15,7 +15,7 @@ type recordValue =
   | LinkSingle(option(string))
   | LinkList(list(string));
 
-type record = Map.String.t(value);
+type record = Map.String.t(recordValue);
 
 type data = Map.String.t(Map.String.t(record));
 
@@ -56,6 +56,8 @@ and field =
   | Field(fieldPath)
   | Search(string, search);
 
+type query = list((string, search));
+
 type nestedValue =
   | NestSingle(option(value))
   | NestList(list(value))
@@ -69,7 +71,7 @@ type modifyChanges =
 type changes =
   | ReplaceSingle(nestedValue)
   | ModifyList(list(modifyChanges))
-  | Changes(Map.String.t(changes));
+  | Changes(list((string, changes)));
 
 module FieldCmp =
   Id.MakeComparable({
@@ -124,7 +126,7 @@ type selectionField =
   | Leaf
   | Node(list((string, selectionField)));
 
-type ledger = {
+type selection = {
   store: string,
   all: FilterSetCmp.t,
   pages:
@@ -138,7 +140,7 @@ type ledger = {
       FilterSetCmp.identity,
     ),
   fields: selectionField,
-  searches: list(ledger),
+  searches: list(selection),
 };
 /*
  type idChanges = {
