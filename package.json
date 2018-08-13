@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@types/diff": "^3.5.1",
-    "diff": "^3.5.0"
+    "diff": "^3.5.0",
+    "keys-to-object": "^0.2.0"
   }
 }

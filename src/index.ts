@@ -1,7 +1,6 @@
 import { emitChanges } from './changes';
+import { getSearchesRequest } from './ledger';
 import { Data, Search, State } from './typings';
-
-const getSearchesRequest = (state: State, searches: Search[]) => {};
 
 const getUpdateRequest = (state: State, update: Data) => {};
 

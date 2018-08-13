@@ -8,9 +8,7 @@ import {
   State,
   Value,
 } from './typings';
-
-const flatten = <T = any>(arrays: T[][]) =>
-  arrays.reduce((res, a) => res.concat(a), []);
+import { flatten } from './utils';
 
 export const mergeData = (data1: Data, data2: Data): Data => ({});
 
@@ -68,7 +66,7 @@ export const getFilterIds = (
   return ids.filter(id => idInFilter(schema, data, store, id, filter));
 };
 
-const compareValues = (values1, values2) => {
+export const compareValues = (values1, values2) => {
   for (const i of Array.from({
     length: Math.max(values1.length, values2.length),
   }).map((_, i) => i)) {
@@ -95,6 +93,6 @@ export const sortIds = (
           if (!v1.length && !v2.length) return 0;
           if (!v1.length) return 1;
           if (!v2.length) return -1;
-          return (direction === 'Asc' ? 1 : -1) * compareValues(v1, v2);
+          return (direction === 'ASC' ? 1 : -1) * compareValues(v1, v2);
         }, 0),
       );

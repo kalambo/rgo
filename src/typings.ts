@@ -15,7 +15,7 @@ export type FilterUnit = { field: FieldPath } & (
     }
   | {
       operation: 'in';
-      value: Value[];
+      value: (Value | null)[];
     });
 export interface FilterArray
   extends Array<'AND' | 'OR' | FilterUnit | FilterArray> {
@@ -27,7 +27,7 @@ export type Filter = FilterUnit | FilterArray;
 export const isFilterArray = (filter: Filter): filter is FilterArray =>
   Array.isArray(filter);
 
-export type Sort = { field: FieldPath; direction: 'Asc' | 'Desc' }[];
+export type Sort = { field: FieldPath; direction: 'ASC' | 'DESC' }[];
 
 export type Slice = { start: number; end?: number };
 
@@ -41,22 +41,20 @@ export interface Search {
 }
 
 export interface FilterRange {
-  start?: Value;
-  end?: Value;
+  start?: Value | null;
+  end?: Value | null;
 }
 
-export type FilterBox = Map<FieldPath, FilterRange>;
-
-export interface SelectionFields {
-  [key: string]: null | SelectionFields;
+export interface LedgerFields {
+  [key: string]: null | LedgerFields;
 }
 
-export interface Selection {
+export interface Ledger {
   store: string;
-  all: Set<FilterBox>;
-  pages: Map<FilterBox, Map<Sort, Set<Slice>>>;
-  fields: SelectionFields;
-  searches: Selection[];
+  all: Obj<FilterRange>[];
+  pages: [Obj<FilterRange>[], [Sort, Slice[]][]][];
+  fields: LedgerFields;
+  ledgers: Ledger[];
 }
 
 export type Record = Obj<null | Value | Value[]>;
