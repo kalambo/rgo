@@ -4,6 +4,7 @@
     "lib": ["dom", "esnext"],
     "module": "commonjs",
     "declaration": true,
+    "sourceMap": true,
     "rootDir": "src",
     "outDir": "lib",
     "strict": true,

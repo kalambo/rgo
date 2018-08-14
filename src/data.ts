@@ -1,3 +1,5 @@
+import keysToObject from 'keys-to-object';
+
 import {
   Data,
   DataState,
@@ -13,9 +15,22 @@ import {
 } from './typings';
 import { flatten } from './utils';
 
-const mergeData = (data1: Data, data2: Data): Data => ({});
+const uniqueKeys = (obj1: Obj, obj2: Obj) =>
+  Array.from(new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]));
 
-const getCombinedData = (data: DataState): Data => ({});
+const mergeData = (data1: Data, data2: Data): Data =>
+  keysToObject(uniqueKeys(data1, data2), store =>
+    keysToObject(uniqueKeys(data1[store], data2[store]), id =>
+      keysToObject(uniqueKeys(data1[store][id], data2[store][id]), field => {
+        const v1 = data1[store][id][field];
+        const v2 = data2[store][id][field];
+        return v2 === undefined ? v1 : v2;
+      }),
+    ),
+  );
+
+const getCombinedData = (data: DataState): Data =>
+  mergeData(data.server, data.client);
 
 const getDataRecordValue = (
   data: Data,
@@ -61,17 +76,16 @@ const idInFilter = (
       idInFilter(schema, data, store, id, f as Filter),
     );
   }
-  return getValues(schema, getCombinedData(data), store, id, filter.field).some(
-    v => {
-      if (filter.operation === '=') return v === filter.value;
-      if (filter.operation === '!=') return v !== filter.value;
-      if (filter.operation === '<') return v < filter.value;
-      if (filter.operation === '>') return v > filter.value;
-      if (filter.operation === '<=') return v <= filter.value;
-      if (filter.operation === '>=') return v >= filter.value;
-      return (filter.value as Value[]).includes(v);
-    },
-  );
+  const [field, op, value] = filter;
+  return getValues(schema, getCombinedData(data), store, id, field).some(v => {
+    if (op === '=') return v === value;
+    if (op === '!=') return v !== value;
+    if (op === '<') return v < value!;
+    if (op === '>') return v > value!;
+    if (op === '<=') return v <= value!;
+    if (op === '>=') return v >= value!;
+    return (value as (Value | null)[]).includes(v);
+  });
 };
 
 const compareValues = (values1, values2) => {
@@ -108,6 +122,7 @@ const sortIds = (
 export const getSearchIds = (
   schema: Schema,
   data: DataState,
+  path: (string | number)[],
   { store, filter, sort, slice = { start: 0 } }: Search,
 ) => {
   const combined = getCombinedData(data);
@@ -115,9 +130,12 @@ export const getSearchIds = (
   const ids = !filter
     ? allIds
     : allIds.filter(id => idInFilter(schema, data, store, id, filter));
-  return sortIds(schema, combined, store, ids, sort).slice(
-    slice.start,
-    slice.end,
+  const sortedIds = sortIds(schema, combined, store, ids, sort);
+  const markId = path.reduce((res, p) => res && res[p], data.marks);
+  const start = sortedIds.indexOf(markId);
+  return sortedIds.slice(
+    sortedIds.indexOf(markId),
+    slice.end === undefined ? undefined : start + slice.end - slice.start,
   );
 };
 

@@ -4,19 +4,11 @@ export type FieldPath = string[];
 
 export type Value = boolean | number | string | Date;
 
-export type FilterUnit = { field: FieldPath } & (
-  | {
-      operation: '=' | '!=';
-      value: Value | null;
-    }
-  | {
-      operation: '<' | '>' | '<=' | '>=';
-      value: Value;
-    }
-  | {
-      operation: 'in';
-      value: (Value | null)[];
-    });
+export type FilterUnit =
+  | [FieldPath, '=' | '!=', Value | null]
+  | [FieldPath, '<' | '>' | '<=' | '>=', Value]
+  | [FieldPath, 'in', (Value | null)[]];
+
 export interface FilterArray
   extends Array<'AND' | 'OR' | FilterUnit | FilterArray> {
   [0]: 'AND' | 'OR';
@@ -25,7 +17,7 @@ export interface FilterArray
 export type Filter = FilterUnit | FilterArray;
 
 export const isFilterArray = (filter: Filter): filter is FilterArray =>
-  Array.isArray(filter);
+  filter[0] === 'AND' || filter[0] === 'OR';
 
 export type Sort = { field: FieldPath; direction: 'ASC' | 'DESC' }[];
 
@@ -49,12 +41,12 @@ export interface NestedFields {
   [key: string]: null | NestedFields;
 }
 
-export interface Ledger {
+export interface Request {
   store: string;
   all: Obj<FilterRange>[];
   pages: [Obj<FilterRange>[], [Sort, Slice[]][]][];
   fields: NestedFields;
-  ledgers: Ledger[];
+  requests: Request[];
 }
 
 export type Record = Obj<null | Value | Value[]>;
@@ -67,7 +59,7 @@ export type DataState = {
   marks: any;
 };
 
-export type Query = { searches: Search[]; onChange: (changes: any) => {} };
+export type Query = { searches: Search[]; onChange: (changes: any) => void };
 
 export type Schema = Obj<Obj<string>>;
 
