@@ -1,3 +1,5 @@
+import { FieldPath, NestedFields } from './typings';
+
 export const flatten = <T = any>(arrays: T[][]) =>
   arrays.reduce((res, a) => res.concat(a), []);
 
@@ -22,3 +24,14 @@ export const hash = (obj: any): string => {
   }
   return hashPart(obj);
 };
+
+export const getNestedFields = (fields: FieldPath[]): NestedFields =>
+  fields.reduce(
+    (result, field) =>
+      field.reduce((res, f, i) => {
+        if (i === field.length - 1) res[f] = null;
+        res[f] = res[f] || {};
+        return res;
+      }, result),
+    {} as NestedFields,
+  );

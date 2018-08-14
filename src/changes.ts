@@ -1,7 +1,17 @@
 import { diffArrays } from 'diff';
+import keysToObject from 'keys-to-object';
 
-import { getCombinedData, getFilterIds, mergeData, sortIds } from './data';
-import { Data, Obj, Schema, Search, State, Value } from './typings';
+import { getRecordValue, getSearchIds } from './data';
+import {
+  DataState,
+  FieldPath,
+  NestedFields,
+  Schema,
+  Search,
+  State,
+  Value,
+} from './typings';
+import { getNestedFields } from './utils';
 
 type Change<T> = { index: number; added?: T[]; removed?: number; value?: any };
 
@@ -44,20 +54,20 @@ const getArrayChanges = <T = any>(
   return { changes, unchanged };
 };
 
-const getNestedRecord = (
+const getFieldsValue = (
   schema: Schema,
-  data: Data,
+  data: DataState,
   store: string,
   id: string,
-  fields: Obj<true | Obj>,
+  fields: NestedFields,
 ) =>
-  Object.keys(fields).map(field => {
-    const value = data[store][id][field];
+  keysToObject(Object.keys(fields), field => {
+    const value = getRecordValue(data, store, id, field);
     const nextFields = fields[field];
-    if (nextFields === true) return value;
+    if (nextFields === null) return value;
     if (Array.isArray(value)) {
       return value.map(id =>
-        getNestedRecord(
+        getFieldsValue(
           schema,
           data,
           schema[store][field],
@@ -66,7 +76,7 @@ const getNestedRecord = (
         ),
       );
     }
-    return getNestedRecord(
+    return getFieldsValue(
       schema,
       data,
       schema[store][field],
@@ -75,31 +85,31 @@ const getNestedRecord = (
     );
   });
 
-const getChanges = (
+const getFieldsChanges = (
   schema: Schema,
-  data1: Data,
-  data2: Data,
+  data: DataState,
+  newData: DataState,
   store: string,
   id: string,
-  fields: Obj<true | Obj>,
+  fields: NestedFields,
 ) =>
-  Object.keys(fields).map(field => {
-    const v1 = data1[store][id][field];
-    const v2 = data1[store][id][field];
+  keysToObject(Object.keys(fields), field => {
+    const v1 = getRecordValue(data, store, id, field);
+    const v2 = getRecordValue(newData, store, id, field);
     const nextFields = fields[field];
     if (Array.isArray(v1)) {
-      if (nextFields === true) {
+      if (nextFields === null) {
         return getArrayChanges(v1, v2 as Value[]).changes;
       }
       const { changes, unchanged } = getArrayChanges(
         v1,
         v2 as Value[],
-        id => getNestedRecord(schema, data2, store, id as string, nextFields),
+        id => getFieldsValue(schema, newData, store, id as string, nextFields),
         id =>
-          getChanges(
+          getFieldsChanges(
             schema,
-            data1,
-            data2,
+            data,
+            newData,
             schema[store][field],
             id as string,
             nextFields,
@@ -108,71 +118,84 @@ const getChanges = (
       return [...changes, ...unchanged];
     }
     if (v1 !== v2) {
-      if (nextFields === true) return v2;
-      return getNestedRecord(schema, data2, store, v2 as string, nextFields);
+      if (nextFields === null) return v2;
+      return getFieldsValue(schema, newData, store, v2 as string, nextFields);
     }
-    if (nextFields === true) return undefined;
-    return getChanges(
+    if (nextFields === null) return undefined;
+    return getFieldsChanges(
       schema,
-      data1,
-      data2,
+      data,
+      newData,
       schema[store][field],
       v2 as string,
       nextFields,
     );
   });
 
-const getSearchIds = (
+const getSearchesValue = (
   schema: Schema,
-  data: Data,
-  { store, filter, sort, slice = { start: 0 } }: Search,
+  data: DataState,
+  searches: Search[],
 ) =>
-  sortIds(
-    schema,
-    data,
-    store,
-    getFilterIds(schema, data, store, filter),
-    sort,
-  ).slice(slice.start, slice.end);
+  searches.reduce((res, search) => {
+    const ids = getSearchIds(schema, data, search);
+    const nestedFields = getNestedFields(search.fields.filter(f =>
+      Array.isArray(f),
+    ) as FieldPath[]);
+    const nextSearches = search.fields.filter(
+      f => !Array.isArray(f),
+    ) as Search[];
+    return {
+      ...res,
+      [search.name]: ids.map(id => ({
+        ...getFieldsValue(schema, data, search.store, id, nestedFields),
+        ...getSearchesValue(schema, data, nextSearches),
+      })),
+    };
+  }, {});
 
 const getSearchesChanges = (
-  state: State,
+  schema: Schema,
+  data: DataState,
+  newData: DataState,
   searches: Search[],
-  dataChanges: Data,
-) => {
-  const data = getCombinedData(state);
-  const updated = mergeData(data, dataChanges);
+) =>
   searches.reduce((res, search) => {
-    const ids = getSearchIds(state.schema, data, search);
-    const newIds = getSearchIds(state.schema, updated, search);
-
-    const nestedFields = (search.fields.filter(f =>
+    const ids = getSearchIds(schema, data, search);
+    const newIds = getSearchIds(schema, data, search);
+    const nestedFields = getNestedFields(search.fields.filter(f =>
       Array.isArray(f),
-    ) as string[][]).reduce(
-      (result, field) =>
-        field.reduce((res, f, i) => {
-          if (i === field.length - 1) res[f] = true;
-          res[f] = res[f] || {};
-          return res;
-        }, result),
-      {} as Obj<true | Obj>,
-    );
-
+    ) as FieldPath[]);
+    const nextSearches = search.fields.filter(
+      f => !Array.isArray(f),
+    ) as Search[];
     const { changes, unchanged } = getArrayChanges(
       ids,
       newIds,
-      id =>
-        getNestedRecord(state.schema, updated, search.store, id, nestedFields),
-      id =>
-        getChanges(state.schema, data, updated, search.store, id, nestedFields),
+      id => ({
+        ...getFieldsValue(schema, newData, search.store, id, nestedFields),
+        ...getSearchesValue(schema, newData, nextSearches),
+      }),
+      id => ({
+        ...getFieldsChanges(
+          schema,
+          data,
+          newData,
+          search.store,
+          id,
+          nestedFields,
+        ),
+        ...getSearchesChanges(schema, data, newData, nextSearches),
+      }),
     );
-
-    return { ...res, [name]: [...changes, ...unchanged] };
+    return { ...res, [search.name]: [...changes, ...unchanged] };
   }, {});
-};
 
-export const emitChanges = (state: State, dataChanges: Data) => {
-  state.queries.forEach(({ searches, onChange }) => {
-    onChange(getSearchesChanges(state, searches, dataChanges));
+export const emitChanges = (
+  { schema, queries, data }: State,
+  newData: DataState,
+) => {
+  queries.forEach(({ searches, onChange }) => {
+    onChange(getSearchesChanges(schema, data, newData, searches));
   });
 };

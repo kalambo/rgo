@@ -1,20 +1,22 @@
 import keysToObject from 'keys-to-object';
 
+import { getSliceExtra } from './data';
 import {
+  DataState,
   FieldPath,
   Filter,
   FilterRange,
   isFilterArray,
   Ledger,
-  LedgerFields,
   Obj,
+  Schema,
   Search,
   Slice,
   Sort,
   State,
   Value,
 } from './typings';
-import { flatten, hash } from './utils';
+import { flatten, getNestedFields, hash } from './utils';
 
 const doRangesIntersect = (r1: FilterRange, r2: FilterRange) => {
   if (r1.start === null || r2.start === null) {
@@ -137,7 +139,7 @@ const splitFilterMap = (
     [filterMap],
   );
 
-const getGroups = (fieldsArray: (FieldPath | Ledger)[][]) => {
+const getFieldGroups = (fieldsArray: (FieldPath | Ledger)[][]) => {
   const hashMap: Obj<Ledger | FieldPath> = {};
   const indicesMap = fieldsArray.reduce(
     (result, fields, i) =>
@@ -168,7 +170,7 @@ const getGroups = (fieldsArray: (FieldPath | Ledger)[][]) => {
 const groupByFunc = <T, U, V>(
   items: T[],
   func: (item: T) => U,
-  map: (items: T[]) => V,
+  map: (items: T[], value: U) => V,
 ): [U, V][] => {
   const hashMap = {} as Obj<U>;
   const groups = items.reduce(
@@ -180,19 +182,36 @@ const groupByFunc = <T, U, V>(
     },
     {} as Obj<T[]>,
   );
-  return Object.keys(groups).map(h => [hashMap[h], map(groups[h])] as [U, V]);
+  return Object.keys(groups).map(
+    h => [hashMap[h], map(groups[h], hashMap[h])] as [U, V],
+  );
 };
 
-const combineSlices = (slices: Slice[]) => {
-  const sorted = slices.sort((s1, s2) => s1.start - s2.start);
+const combineSlices = (
+  schema: Schema,
+  data: DataState,
+  store: string,
+  filter: Obj<FilterRange>[],
+  sort: Sort,
+  slices: Slice[],
+) => {
+  const extra = getSliceExtra(schema, data, store, filter, sort);
+  const mappedSlices = slices.sort((s1, s2) => s1.start - s2.start).map(s => ({
+    start: s.start - extra.start,
+    end: s.end === undefined ? undefined : s.end + extra.end,
+  }));
   const result: Slice[] = [];
   let i = 0;
-  while (i < sorted.length) {
-    const start = sorted[i].start;
-    let end = sorted[i].end;
+  while (i < mappedSlices.length) {
+    const start = mappedSlices[i].start;
+    let end = mappedSlices[i].end;
     i++;
-    while (end !== undefined && sorted[i] && sorted[i].start < end) {
-      end = sorted[i].end;
+    while (
+      end !== undefined &&
+      mappedSlices[i] &&
+      mappedSlices[i].start < end
+    ) {
+      end = mappedSlices[i].end;
       i++;
     }
     result.push({ start, end });
@@ -203,6 +222,9 @@ const combineSlices = (slices: Slice[]) => {
 };
 
 const combineSelections = (
+  schema: Schema,
+  data: DataState,
+  store: string,
   selections: {
     filter: Obj<FilterRange>[];
     sort: Sort;
@@ -225,31 +247,24 @@ const combineSelections = (
     pages: groupByFunc(
       pageSelections,
       s => s.filter.sort((f1, f2) => hash(f1).localeCompare(hash(f2))),
-      pageSels =>
+      (pageSels, filter) =>
         groupByFunc(
           pageSels,
           s => s.sort,
-          sortSels => combineSlices(sortSels.map(s => s.slice) as Slice[]),
+          (sortSels, sort) =>
+            combineSlices(schema, data, store, filter, sort, sortSels.map(
+              s => s.slice,
+            ) as Slice[]),
         ),
     ),
   };
 };
 
-const getLedgerFields = (fields: FieldPath[]): LedgerFields => {
-  const fieldsMap = fields.reduce(
-    (res, [field, ...path]) => ({
-      ...res,
-      [field]: path.length === 0 ? null : [...(res[field] || []), path],
-    }),
-    {} as Obj<FieldPath[] | null>,
-  );
-  return keysToObject(
-    Object.keys(fieldsMap),
-    k => fieldsMap[k] && getLedgerFields(fieldsMap[k]!),
-  );
-};
-
-const getLedgers = (searchesArray: Search[][]): Ledger[][] => {
+const getLedgers = (
+  schema: Schema,
+  data: DataState,
+  searchesArray: Search[][],
+): Ledger[][] => {
   const indexedSearches = flatten(
     searchesArray.map((fields, index) =>
       fields.map(search => ({ index, search })),
@@ -266,13 +281,15 @@ const getLedgers = (searchesArray: Search[][]): Ledger[][] => {
     (result, store) => {
       const searches = storeSearches[store].map(s => s.search);
       const searchLedgers = getLedgers(
+        schema,
+        data,
         searches.map(s => s.fields.filter(f => !Array.isArray(f)) as Search[]),
       );
       const fieldsArray = searchLedgers.map((ledgers, i) => [
         ...(searches[i].fields.filter(f => Array.isArray(f)) as FieldPath[]),
         ...ledgers,
       ]);
-      const fieldGroups = getGroups(fieldsArray);
+      const fieldGroups = getFieldGroups(fieldsArray);
 
       const filterMaps = searches.map(s => s.filter && getFilterMaps(s.filter));
       const allFilterValues = getAllFilterValues(
@@ -289,6 +306,9 @@ const getLedgers = (searchesArray: Search[][]): Ledger[][] => {
             {
               store,
               ...combineSelections(
+                schema,
+                data,
+                store,
                 indices.map(i => ({
                   filter: splitFilters[i],
                   sort: searches[i].sort || [
@@ -297,7 +317,7 @@ const getLedgers = (searchesArray: Search[][]): Ledger[][] => {
                   slice: searches[i].slice,
                 })),
               ),
-              fields: getLedgerFields(fields),
+              fields: getNestedFields(fields),
               ledgers,
             },
           ];

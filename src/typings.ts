@@ -45,21 +45,27 @@ export interface FilterRange {
   end?: Value | null;
 }
 
-export interface LedgerFields {
-  [key: string]: null | LedgerFields;
+export interface NestedFields {
+  [key: string]: null | NestedFields;
 }
 
 export interface Ledger {
   store: string;
   all: Obj<FilterRange>[];
   pages: [Obj<FilterRange>[], [Sort, Slice[]][]][];
-  fields: LedgerFields;
+  fields: NestedFields;
   ledgers: Ledger[];
 }
 
 export type Record = Obj<null | Value | Value[]>;
 
 export type Data = Obj<Obj<Record>>;
+
+export type DataState = {
+  server: Data;
+  client: Data;
+  marks: any;
+};
 
 export type Query = { searches: Search[]; onChange: (changes: any) => {} };
 
@@ -68,6 +74,5 @@ export type Schema = Obj<Obj<string>>;
 export interface State {
   schema: Schema;
   queries: Query[];
-  server: Data;
-  client: Data;
+  data: DataState;
 }
