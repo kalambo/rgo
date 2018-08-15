@@ -46,6 +46,7 @@ export interface Request {
   selection: [Obj<FilterRange>[], Sort, Slice];
   fields: NestedFields;
   requests: Request[];
+  isNew: boolean;
 }
 
 export type Record = Obj<null | Value | Value[]>;

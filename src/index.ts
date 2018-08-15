@@ -1,46 +1,59 @@
-// import { emitChanges } from './changes';
-// import { getSearchesRequest } from './ledger';
-// import { Data, Search, State } from './typings';
+import { emitUpdateChanges, emitSearchesChanges } from './changes';
+import { mergeData } from './data';
+import { getSearchesRequests, getUpdateRequests } from './requests';
+import { Data, Search, State } from './typings';
 
-// const getUpdateRequest = (state: State, update: Data) => {};
+const combineData = (state: State, type: 'server' | 'client', update: Data) => {
+  return {
+    ...state.data,
+    ...(type === 'server'
+      ? { server: mergeData(state.data.server, update) }
+      : { client: mergeData(state.data.client, update) }),
+  };
+};
 
-// const combineData = (state: State, type: 'client' | 'server', update: Data) => {
-//   const newData = {} as any;
-//   const changes = {};
+export default () => {
+  let state: State = {
+    schema: {},
+    queries: [],
+    data: {
+      server: {},
+      client: {},
+      marks: [],
+    },
+  };
 
-//   return [newData, changes];
-// };
+  const fetchData = async request => {
+    // ASYNC LOAD
+    console.log(request);
+    const newData = combineData(state, 'server', {});
+    emitUpdateChanges(state, newData);
+    state = { ...state, data: newData };
+  };
 
-// export default () => {
-//   let state: State = {
-//     schema: {},
-//     queries: [],
-//     data: {
-//       server: {},
-//       client: {},
-//       marks: [],
-//     },
-//   };
+  return {
+    query(searches: Search[], onChange: () => {}) {
+      fetchData(getSearchesRequests(state, searches));
+      state = { ...state, queries: [...state.queries, { searches, onChange }] };
+      return (newSearches: Search[]) => {
+        const index = state.queries.findIndex(q => q.searches === searches);
+        emitSearchesChanges(state, index, newSearches);
+        state = {
+          ...state,
+          queries: [
+            ...state.queries.slice(0, index),
+            { searches: newSearches, onChange },
+            ...state.queries.slice(index + 1),
+          ],
+        };
+      };
+    },
 
-//   const fetchData = async request => {
-//     // ASYNC LOAD
-//     const [newData, changes] = combineData(state, 'server', {});
-//     state = { ...state, data: newData };
-//     emitChanges(state, changes);
-//   };
-
-//   return {
-//     query(searches: Search[], onChange: () => {}) {
-//       state = { ...state, queries: [...state.queries, { searches, onChange }] };
-//       fetchData(getSearchesRequest(state, searches));
-//     },
-
-//     set(update: Data) {
-//       const newRequest = getUpdateRequest(state, update);
-//       const [newData, changes] = combineData(state, 'client', update);
-//       state = { ...state, data: newData };
-//       emitChanges(state, changes);
-//       fetchData(newRequest);
-//     },
-//   };
-// };
+    set(update: Data) {
+      const newData = combineData(state, 'client', update);
+      emitUpdateChanges(state, newData);
+      fetchData(getUpdateRequests(state, newData));
+      state = { ...state, data: newData };
+    },
+  };
+};

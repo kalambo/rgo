@@ -18,14 +18,22 @@ import { flatten } from './utils';
 const uniqueKeys = (obj1: Obj, obj2: Obj) =>
   Array.from(new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]));
 
-const mergeData = (data1: Data, data2: Data): Data =>
+export const mergeData = (data1: Data, data2: Data): Data =>
   keysToObject(uniqueKeys(data1, data2), store =>
     keysToObject(uniqueKeys(data1[store], data2[store]), id =>
-      keysToObject(uniqueKeys(data1[store][id], data2[store][id]), field => {
-        const v1 = data1[store][id][field];
-        const v2 = data2[store][id][field];
-        return v2 === undefined ? v1 : v2;
-      }),
+      keysToObject(
+        uniqueKeys(
+          data1[store] && data1[store][id],
+          data2[store] && data2[store][id],
+        ),
+        field => {
+          const v1 =
+            data1[store] && data1[store][id] && data1[store][id][field];
+          const v2 =
+            data2[store] && data2[store][id] && data2[store][id][field];
+          return v2 === undefined ? v1 : v2;
+        },
+      ),
     ),
   );
 
@@ -37,7 +45,13 @@ const getDataRecordValue = (
   store: string,
   id: string,
   field: string,
-) => data[store][id][field];
+): null | Value | Value[] => {
+  const value = [store, id, field].reduce(
+    (res, k) => res && res[k],
+    data as any,
+  );
+  return value === undefined ? null : value;
+};
 
 export const getRecordValue = (
   data: DataState,
@@ -126,15 +140,15 @@ export const getSearchIds = (
   { store, filter, sort, slice = { start: 0 } }: Search,
 ) => {
   const combined = getCombinedData(data);
-  const allIds = Object.keys(combined);
+  const allIds = Object.keys(combined[store]);
   const ids = !filter
     ? allIds
     : allIds.filter(id => idInFilter(schema, data, store, id, filter));
   const sortedIds = sortIds(schema, combined, store, ids, sort);
   const markId = path.reduce((res, p) => res && res[p], data.marks);
-  const start = sortedIds.indexOf(markId);
+  const start = true ? 0 : sortedIds.indexOf(markId);
   return sortedIds.slice(
-    sortedIds.indexOf(markId),
+    start,
     slice.end === undefined ? undefined : start + slice.end - slice.start,
   );
 };

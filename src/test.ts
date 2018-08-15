@@ -1,4 +1,5 @@
-import { getSearchesRequests } from './requests';
+// import { getSearchesRequests } from './requests';
+import { emitUpdateChanges } from './changes';
 
 const state = {
   schema: {
@@ -12,7 +13,7 @@ const state = {
         {
           name: 'people',
           store: 'people',
-          filter: [['firstName'], '<', 'Dave'] as any,
+          filter: [['firstName'], '<', 'Jon'] as any,
           fields: [
             ['firstName'],
             ['lastName'],
@@ -26,7 +27,7 @@ const state = {
           ],
         },
       ],
-      onChange: () => {},
+      onChange: changes => console.log(JSON.stringify(changes, null, 2)),
     },
   ],
   data: {
@@ -55,26 +56,73 @@ const state = {
   },
 };
 
-console.log(
-  JSON.stringify(
-    getSearchesRequests(state, [
-      {
-        name: 'people',
-        store: 'people',
-        filter: [['firstName'], '<', 'Jon'],
-        fields: [
-          ['firstName'],
-          ['email'],
-          ['address', 'postcode'],
-          {
-            name: 'addresses',
-            store: 'addresses',
-            fields: [['postcode'], ['street']],
-          },
-        ],
+emitUpdateChanges(state, {
+  ...state.data,
+  server: {
+    ...state.data.server,
+    people: {
+      ...state.data.server.people,
+      A: {
+        ...state.data.server.people.A,
+        firstName: 'Bob',
       },
-    ]),
-    null,
-    2,
-  ),
-);
+      C: {
+        firstName: 'First C',
+        lastName: 'Last C',
+        email: 'Email C',
+        address: 'C',
+      },
+    },
+    addresses: {
+      ...state.data.server.addresses,
+      C: { city: 'City C', postcode: 'Postcode C' },
+    },
+  },
+});
+
+// console.log(
+//   JSON.stringify(
+//     getSearchesRequests(state, [
+//       {
+//         name: 'people',
+//         store: 'people',
+//         filter: [['firstName'], '<', 'Steve'] as any,
+//         fields: [
+//           ['firstName'],
+//           ['email'],
+//           ['address', 'postcode'],
+//           {
+//             name: 'addresses',
+//             store: 'addresses',
+//             fields: [['postcode'], ['street']],
+//           },
+//         ],
+//       },
+//     ]),
+//     null,
+//     2,
+//   ),
+// );
+
+// console.log(
+//   JSON.stringify(
+//     getUpdateRequests(state, {
+//       ...state.data,
+//       client: {
+//         people: {
+//           C: {
+//             firstName: 'First C',
+//             lastName: 'Last C',
+//             email: 'Email C',
+//             address: 'C',
+//           },
+//         },
+//         addresses: {
+//           C: { city: 'City C', postcode: 'Postcode C' },
+//         },
+//       },
+//     }),
+//     null,
+//     2,
+//   ),
+// );
