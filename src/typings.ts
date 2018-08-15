@@ -43,8 +43,7 @@ export interface NestedFields {
 
 export interface Request {
   store: string;
-  all: Obj<FilterRange>[];
-  pages: [Obj<FilterRange>[], [Sort, Slice[]][]][];
+  selection: [Obj<FilterRange>[], Sort, Slice];
   fields: NestedFields;
   requests: Request[];
 }

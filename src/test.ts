@@ -1,4 +1,4 @@
-import { getSearchesRequest } from './requests';
+import { getSearchesRequests } from './requests';
 
 const state = {
   schema: {
@@ -57,7 +57,7 @@ const state = {
 
 console.log(
   JSON.stringify(
-    getSearchesRequest(state, [
+    getSearchesRequests(state, [
       {
         name: 'people',
         store: 'people',

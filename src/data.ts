@@ -164,18 +164,15 @@ export const getSliceExtra = (
   { server, client }: DataState,
   store: string,
   filter: Obj<FilterRange>[],
-  sort: Sort,
 ) => {
-  const filterServerIds = Object.keys(server[store]).filter(id =>
+  const serverIds = Object.keys(server[store] || {}).filter(id =>
     filter.some(f => idInFilterBox(schema, server, store, id, f)),
   );
-  const clientFilterIds = Object.keys(client[store]).filter(id =>
+  const clientIds = Object.keys(client[store] || {}).filter(id =>
     filter.some(f => idInFilterBox(schema, client, store, id, f)),
   );
-  const serverIds = sortIds(schema, server, store, filterServerIds, sort);
-  const clientIds = sortIds(schema, client, store, clientFilterIds, sort);
   const extra = { start: 0, end: 0 };
-  Object.keys(clientIds).forEach(id => {
+  clientIds.forEach(id => {
     if (!serverIds.includes(id)) {
       extra.start++;
     } else if (client[store][id] === null) {

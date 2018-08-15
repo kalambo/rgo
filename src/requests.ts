@@ -8,8 +8,6 @@ import {
   Request,
   Schema,
   Search,
-  Slice,
-  Sort,
   State,
 } from './typings';
 import { flatten, getNestedFields, hash } from './utils';
@@ -41,159 +39,29 @@ const getFieldGroups = (fieldsArray: (FieldPath | Request)[][]) => {
 
 const groupByHash = <T, U, V>(
   items: T[],
-  newItems: T[],
-  func: (item: T) => U,
-  map: (items: T[], newItems: T[], value: U) => V,
-): [U, V][] => {
+  map: (item: T) => U,
+  func: (items: T[], value: U) => V,
+) => {
   const hashMap = {} as Obj<U>;
-  const groups: Obj<{ items: T[]; newItems: T[] }> = {};
-  for (const item of newItems) {
-    const value = func(item);
+  const groups: Obj<T[]> = {};
+  for (const item of items) {
+    const value = map(item);
     const h = hash(value);
     hashMap[h] = value;
-    groups[h] = groups[h] || { items: [], newItems: [] };
-    groups[h].newItems.push(item);
+    groups[h] = [...(groups[h] || []), item];
   }
-  for (const item of items) {
-    const value = func(item);
-    const h = hash(value);
-    if (hashMap[h]) groups[h].items.push(item);
-  }
-  return Object.keys(groups)
-    .map(h => {
-      const { items, newItems } = groups[h];
-      return [hashMap[h], map(items, newItems, hashMap[h])] as [U, V];
-    })
-    .filter(([_, v]) => (Array.isArray(v) ? v.length !== 0 : v));
-};
-
-const combineSlices = (
-  schema: Schema,
-  data: DataState,
-  store: string,
-  filter: Obj<FilterRange>[],
-  sort: Sort,
-  slices: Slice[],
-  newSlices: Slice[],
-) => {
-  const extra = getSliceExtra(schema, data, store, filter, sort);
-  const markers = [
-    ...flatten(
-      slices.map(s => [
-        { index: s.start - extra.start, type: 'exclude-start' },
-        {
-          index: s.end === undefined ? undefined : s.end + extra.end,
-          type: 'exclude-end',
-        },
-      ]),
-    ),
-    ...flatten(
-      newSlices.map(s => [
-        { index: s.start - extra.start, type: 'include-start' },
-        {
-          index: s.end === undefined ? undefined : s.end + extra.end,
-          type: 'include-end',
-        },
-      ]),
-    ),
-  ];
-  const result: Slice[] = [];
-  let include = 0;
-  let exclude = 0;
-  let current;
-  let i = 0;
-  while (i < markers.length) {
-    if (markers[i].type === 'include-start') {
-      if (include === 0 && exclude === 0) current = markers[i].index;
-      include++;
-    } else if (markers[i].type === 'include-end') {
-      if (include === 1 && exclude === 0) {
-        result.push({ start: current, end: markers[i].index });
-      }
-      include--;
-    } else if (markers[i].type === 'exclude-start') {
-      if (include !== 0 && exclude === 0) {
-        result.push({ start: current, end: markers[i].index });
-      }
-      exclude++;
-    } else if (markers[i].type === 'exclude-end') {
-      if (include !== 0 && exclude === 1) current = markers[i].index;
-      exclude--;
-    }
-    i++;
-  }
-  return result.filter(s => s.start !== s.end);
-};
-
-interface Selection {
-  filter: Obj<FilterRange>[];
-  sort: Sort | undefined;
-  slice: Slice | undefined;
-}
-
-const combineSelections = (
-  schema: Schema,
-  data: DataState,
-  store: string,
-  selections: Selection[],
-  newSelections: Selection[],
-) => {
-  const allHashMap: Obj<Obj<FilterRange>> = {};
-  for (const s of selections.filter(s => !s.slice)) {
-    for (const f of s.filter) {
-      const h = hash(f);
-      allHashMap[h] = f;
-    }
-  }
-  const allHashes = Object.keys(allHashMap);
-  const newAllHashMap: Obj<Obj<FilterRange>> = {};
-  for (const s of newSelections.filter(s => !s.slice)) {
-    for (const f of s.filter) {
-      const h = hash(f);
-      newAllHashMap[h] = f;
-    }
-  }
-  const newAllHashes = Object.keys(newAllHashMap);
-  return {
-    all: newAllHashes
-      .filter(h => !allHashes.includes(h))
-      .map(h => newAllHashMap[h]),
-    pages: groupByHash(
-      selections.filter(
-        s => s.slice && s.filter.some(f => !newAllHashes.includes(hash(f))),
-      ),
-      newSelections.filter(
-        s => s.slice && s.filter.some(f => !newAllHashes.includes(hash(f))),
-      ),
-      s => s.filter.sort((f1, f2) => hash(f1).localeCompare(hash(f2))),
-      (pageSels, newPageSels, filter) =>
-        groupByHash(
-          pageSels,
-          newPageSels,
-          s => s.sort || [{ field: ['id'], direction: 'ASC' as 'ASC' }],
-          (sortSels, newSortSels, sort) =>
-            combineSlices(
-              schema,
-              data,
-              store,
-              filter,
-              sort,
-              sortSels.map(s => s.slice) as Slice[],
-              newSortSels.map(s => s.slice) as Slice[],
-            ),
-        ),
-    ),
-  };
+  Object.keys(groups).forEach(h => func(groups[h], hashMap[h]));
 };
 
 const getRequests = (
   schema: Schema,
   data: DataState,
-  searchesArray: { searches: Search[]; isNew: boolean }[],
+  newData: DataState,
+  allSearches: Search[][],
 ): Request[][] => {
   const indexedSearches = flatten(
-    searchesArray.map(({ searches, isNew }, index) =>
-      searches.map(search => ({ index, search, isNew })),
+    allSearches.map((searches, index) =>
+      searches.map(search => ({ index, search })),
     ),
   );
   const storeSearches = indexedSearches.reduce(
@@ -201,7 +69,7 @@ const getRequests = (
       ...res,
       [s.search.store]: [...(res[s.search.store] || []), s],
     }),
-    {} as Obj<{ index: number; search: Search; isNew: boolean }[]>,
+    {} as Obj<{ index: number; search: Search }[]>,
   );
   const result: Request[][] = [];
   for (const store of Object.keys(storeSearches)) {
@@ -209,64 +77,121 @@ const getRequests = (
     const searchRequests = getRequests(
       schema,
       data,
-      storeSearches[store].map(s => ({
-        searches: s.search.fields.filter(f => !Array.isArray(f)) as Search[],
-        isNew: s.isNew,
-      })),
+      newData,
+      storeSearches[store].map(
+        s => s.search.fields.filter(f => !Array.isArray(f)) as Search[],
+      ),
     );
     const fieldGroups = getFieldGroups(
       searches.map((search, i) => [
         ...(search.fields.filter(f => Array.isArray(f)) as FieldPath[]),
         ...(searchRequests[i] || []),
       ]),
-    ).filter(g => g.indices.some(i => storeSearches[store][i].isNew));
-
-    const filterMaps = searches.map(s => s.filter && getFilterMaps(s.filter));
-    const allFilterValues = getFilterValues(
-      flatten(filterMaps.filter(f => f) as Obj<FilterRange>[][]),
-    );
-    const splitFilters = filterMaps.map(filter =>
-      flatten((filter || [{}]).map(f => splitFilterMap(f, allFilterValues))),
     );
 
     for (const { fields, requests, indices } of fieldGroups) {
-      const isNewArray = indices.map(i => storeSearches[store][i].isNew);
-      const selections = indices.map(i => ({
-        filter: splitFilters[i],
-        sort: searches[i].sort,
-        slice: searches[i].slice,
-      }));
-      const newSelections = selections.filter((_, i) => isNewArray[i]);
-      const combined = combineSelections(
-        schema,
-        data,
-        store,
-        selections.filter((_, i) => !isNewArray[i]),
-        newSelections,
+      const groupSearches = indices.map(i => storeSearches[store][i]);
+
+      const filterMaps = groupSearches.map(
+        s => s.search.filter && getFilterMaps(s.search.filter),
       );
-      if (combined.all.length !== 0 || combined.pages.length !== 0) {
-        for (const i of indices.map(i => storeSearches[store][i].index)) {
-          result[i] = [
-            ...(result[i] || []),
-            {
-              store,
-              ...combined,
-              fields: getNestedFields(fields),
-              requests,
-            },
+      const allFilterValues = getFilterValues(
+        flatten(filterMaps.filter(f => f) as Obj<FilterRange>[][]),
+      );
+      const splitFilters = filterMaps.map(filter =>
+        flatten((filter || [{}]).map(f => splitFilterMap(f, allFilterValues))),
+      );
+
+      const selections = flatten(
+        groupSearches.map(({ search, index }, i) => {
+          const slice = search.slice || { start: 0 };
+          const sort = search.sort || [
+            { field: ['id'], direction: 'ASC' as 'ASC' },
           ];
-        }
-      }
+          if (slice.start !== 0 || slice.end !== undefined) {
+            return [{ filter: splitFilters[i], sort, slice, index }];
+          }
+          return splitFilters[i].map(f => ({
+            filter: [f],
+            sort,
+            slice,
+            index,
+          }));
+        }),
+      );
+
+      groupByHash(
+        selections,
+        s => s.filter.sort((f1, f2) => hash(f1).localeCompare(hash(f2))),
+        (filterSelections, filter) => {
+          const extra = getSliceExtra(schema, data, store, filter);
+          groupByHash(
+            filterSelections.map(s => ({
+              ...s,
+              slice: {
+                start: s.slice.start - extra.start,
+                end:
+                  s.slice.end === undefined
+                    ? undefined
+                    : s.slice.end + extra.end,
+              },
+            })),
+            s => s.sort,
+            (sortSelections, sort) => {
+              const sliceValues = [
+                ...Array.from(
+                  new Set(
+                    flatten(
+                      sortSelections.map(({ slice }) => [
+                        slice.start,
+                        ...(slice.end !== undefined ? [slice.end] : []),
+                      ]),
+                    ),
+                  ),
+                ).sort((a, b) => a - b),
+                undefined,
+              ];
+              sortSelections.forEach(({ slice, index }) => {
+                const startIndex = sliceValues.indexOf(slice.start);
+                const endIndex =
+                  slice.end === undefined
+                    ? sliceValues.length - 1
+                    : sliceValues.indexOf(slice.end);
+                for (let i = startIndex; i < endIndex; i++) {
+                  result[index] = [
+                    ...(result[index] || []),
+                    {
+                      store,
+                      selection: [
+                        filter,
+                        sort,
+                        { start: sliceValues[i]!, end: sliceValues[i + 1] },
+                      ],
+                      fields: getNestedFields(fields),
+                      requests,
+                    },
+                  ];
+                }
+              });
+            },
+          );
+        },
+      );
     }
   }
   return result;
 };
 
-export const getSearchesRequest = (
+export const getSearchesRequests = (
   { schema, queries, data }: State,
   searches: Search[],
-) =>
-  getRequests(schema, data, [
-    { searches, isNew: true },
-    ...queries.map(q => ({ searches: q.searches, isNew: false })),
-  ])[0];
+) => {
+  const [newRequests, ...requestsArray] = getRequests(schema, data, data, [
+    searches,
+    ...queries.map(q => q.searches),
+  ]);
+  const hashes = flatten(
+    requestsArray.map(requests => requests.map(r => hash(r))),
+  );
+  return newRequests.filter(r => !hashes.includes(hash(r)));
+};
