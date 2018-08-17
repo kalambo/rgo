@@ -1,254 +1,380 @@
 import { getSliceExtra } from './data';
-import { getFilterMaps, getFilterValues, splitFilterMap } from './filter';
+import { getSplitFilters } from './filters';
 import {
   DataState,
   FieldPath,
   FilterRange,
+  NestedFields,
   Obj,
-  Request,
+  Requests,
   Schema,
   Search,
   Slice,
+  Sort,
   State,
 } from './typings';
-import { flatten, getNestedFields, hash } from './utils';
+import { flatten, getNestedFields, hash, merge } from './utils';
 
-const cleanRequest = ({ isNew, ...request }: Request) => ({
-  ...request,
-  requests: request.requests.map(cleanRequest),
-});
+type ChunkBase = {
+  name: string;
+  store: string;
+  filter: Obj<FilterRange>[];
+  sort: Sort;
+};
 
-const getFieldGroups = (fieldsArray: (FieldPath | Request)[][]) => {
-  const hashMap: Obj<Request | FieldPath> = {};
+type FieldsChunk = ChunkBase & {
+  slice: Slice[];
+  fields: NestedFields;
+  chunks: Chunk[];
+};
+
+type FirstIdChunk = ChunkBase & {
+  slice: {
+    key: string;
+    index: number;
+  };
+};
+
+type Chunk = FieldsChunk | FirstIdChunk;
+
+const mapFlattened = <T, U>(
+  itemsArray: T[][],
+  map: (items: T[]) => U[],
+): U[][] => {
+  const indexedItems = flatten(
+    itemsArray.map((items, index) => items.map(item => ({ item, index }))),
+  );
+  return map(indexedItems.map(({ item }) => item)).reduce(
+    (res, v, i) => {
+      res[indexedItems[i].index] = [...(res[indexedItems[i].index] || []), v];
+      return res;
+    },
+    [] as U[][],
+  );
+};
+
+const mapGroups = <T, U, V>(
+  items: T[],
+  groupBy: (item: T) => U,
+  map: (items: T[], value: U) => V[],
+): V[] => {
+  const hashMap = {} as Obj<U>;
+  const groups: Obj<{ item: T; index: number }[]> = {};
+  for (const [index, item] of items.entries()) {
+    const value = groupBy(item);
+    const h = hash(value);
+    hashMap[h] = value;
+    groups[h] = [...(groups[h] || []), { item, index }];
+  }
+  return flatten(
+    Object.keys(groups).map(h =>
+      map(groups[h].map(v => v.item), hashMap[h]).map((result, i) => ({
+        result,
+        index: groups[h][i].index,
+      })),
+    ),
+  ).reduce<V[]>((res, { result, index }) => {
+    res[index] = result;
+    return res;
+  }, []);
+};
+
+const mapSetGroups = <T, U, V>(
+  items: T[],
+  groupBy: (item: T) => U[],
+  map: (items: T[], values: U[]) => V[],
+): V[][] => {
+  const hashMap = {} as Obj<U>;
   const indicesMap: Obj<number[]> = {};
-  for (const [i, fields] of fieldsArray.entries()) {
-    for (const f of fields) {
-      const h = hash(Array.isArray(f) ? f : cleanRequest(f));
-      hashMap[h] = hashMap[h] || f;
-      if (!Array.isArray(hashMap[h])) {
-        (hashMap[h] as Request).isNew =
-          (hashMap[h] as Request).isNew && (f as Request).isNew;
-      }
-      indicesMap[h] = [...(indicesMap[h] || []), i];
+  for (const [index, item] of items.entries()) {
+    for (const value of groupBy(item)) {
+      const h = hash(value);
+      hashMap[h] = value;
+      indicesMap[h] = [...(indicesMap[h] || []), index];
     }
   }
-  const groupMap: Obj<string[]> = {};
+  const groups: Obj<U[]> = {};
   for (const h of Object.keys(indicesMap)) {
     const key = indicesMap[h].sort((a, b) => a - b).join('.');
-    groupMap[key] = [...(groupMap[key] || []), h];
+    groups[key] = [...(groups[key] || []), hashMap[h]];
   }
-  return Object.keys(groupMap).map(key => {
-    const allFields = groupMap[key].map(h => hashMap[h]);
-    return {
-      fields: allFields.filter(f => Array.isArray(f)) as FieldPath[],
-      requests: allFields.filter(f => !Array.isArray(f)) as Request[],
-      indices: key.split('.').map(i => parseInt(i, 10)),
-    };
+  return flatten(
+    Object.keys(groups).map(key => {
+      const indexedItems = key
+        .split('.')
+        .map(i => parseInt(i, 10))
+        .map(index => ({ item: items[index], index }));
+      return map(indexedItems.map(v => v.item), groups[key]).map(
+        (result, i) => ({
+          result,
+          index: indexedItems[i].index,
+        }),
+      );
+    }),
+  ).reduce<V[][]>((res, { result, index }) => {
+    res[index] = [...(res[index] || []), result];
+    return res;
+  }, []);
+};
+
+const getSplitSlices = (slices: Slice[]): Slice[][] => {
+  const sliceValues = [
+    ...Array.from(
+      new Set(
+        flatten(
+          slices.map(s => [s.start, ...(s.end !== undefined ? [s.end] : [])]),
+        ),
+      ),
+    ).sort((a, b) => a - b),
+    undefined,
+  ];
+  return slices.map(slice => {
+    const startIndex = sliceValues.indexOf(slice.start);
+    const endIndex =
+      slice.end === undefined
+        ? sliceValues.length - 1
+        : sliceValues.indexOf(slice.end);
+    return Array.from({ length: endIndex - startIndex }).map((_, i) => ({
+      start: sliceValues[i + startIndex]!,
+      end: sliceValues[i + startIndex + 1],
+    }));
   });
 };
 
-const forEachHashGroup = <T, U, V>(
+const getChunks = (
+  schema: Schema,
+  searchesArray: Search[][],
+  dataArray: DataState[] | null,
+): Chunk[][] =>
+  mapFlattened(
+    searchesArray.map((searches, i) =>
+      searches.map(search => ({ ...search, data: dataArray && dataArray[i] })),
+    ),
+    allSearches =>
+      mapGroups(
+        allSearches.map(s => ({
+          ...s,
+          sort: s.sort || [{ field: ['id'], direction: 'ASC' as 'ASC' }],
+          slice: s.slice || { start: 0 },
+        })),
+        s => s.store,
+        (storeSearches, store) => {
+          const chunks = getChunks(
+            schema,
+            storeSearches.map(
+              s => s.fields.filter(f => !Array.isArray(f)) as Search[],
+            ),
+            dataArray && storeSearches.map(s => s.data!),
+          );
+          return mapSetGroups(
+            storeSearches.map((s, i) => ({
+              ...s,
+              fields: [
+                ...(s.fields.filter(f => Array.isArray(f)) as FieldPath[]).map(
+                  f => f.join('.'),
+                ),
+                ...(chunks[i] || []),
+              ],
+            })),
+            s => s.fields,
+            (fieldSearches, allFields) => {
+              const fields = {
+                fields: getNestedFields(
+                  (allFields.filter(f => !Array.isArray(f)) as string[]).map(
+                    f => f.split('.'),
+                  ),
+                ),
+                chunks: allFields.filter(f => Array.isArray(f)) as Chunk[],
+              };
+              const splitFilters = getSplitFilters(
+                fieldSearches.map(s => s.filter),
+              );
+              return mapFlattened(
+                fieldSearches.map(
+                  (s, i) =>
+                    s.slice.start !== 0 || s.slice.end !== undefined
+                      ? [{ ...s, splitFilter: splitFilters[i] }]
+                      : splitFilters[i].map(f => ({ ...s, splitFilter: [f] })),
+                ),
+                allFilterSearches =>
+                  mapSetGroups(
+                    allFilterSearches,
+                    s => s.splitFilter,
+                    (filterSearches, filter) =>
+                      mapGroups(
+                        filterSearches,
+                        s => s.sort,
+                        (sortSearches, sort) => {
+                          const splitSlices = getSplitSlices(
+                            sortSearches.map(
+                              s =>
+                                s.data
+                                  ? getSliceExtra(
+                                      schema,
+                                      s.data,
+                                      store,
+                                      filter,
+                                      s.slice,
+                                    )
+                                  : s.slice,
+                            ),
+                          );
+                          return mapSetGroups(
+                            sortSearches.map((s, i) => ({
+                              ...s,
+                              slice: splitSlices[i],
+                            })),
+                            s => s.slice,
+                            (sliceSearches, slices) =>
+                              sliceSearches.map(() => ({
+                                store,
+                                filter,
+                                sort,
+                                slices,
+                                ...fields,
+                              })),
+                          ).map(
+                            (res, i) =>
+                              sortSearches[i].slice.start === 0
+                                ? res
+                                : [
+                                    ...res,
+                                    {
+                                      store,
+                                      filter,
+                                      sort,
+                                      slice: {
+                                        key: hash(
+                                          sortSearches[i].filter || null,
+                                        ),
+                                        index: sortSearches[i].slice.start,
+                                      },
+                                    },
+                                  ],
+                          );
+                        },
+                      ),
+                  ),
+              );
+            },
+          );
+        },
+      ).map((v, i) =>
+        flatten(flatten(flatten(v))).map(
+          x => ({ name: allSearches[i].name, ...x } as Chunk),
+        ),
+      ),
+  ).map(v => flatten(v));
+
+const nullIfEmpty = <T>(items: T[]) => (items.length === 0 ? null : items);
+
+const groupItems = <T, U, V>(
   items: T[],
-  map: (item: T) => U,
-  func: (items: T[], value: U) => V,
-) => {
+  groupBy: (item: T) => U,
+  map: (items: T[], value: U) => V | null,
+): [U, V][] | null => {
   const hashMap = {} as Obj<U>;
   const groups: Obj<T[]> = {};
   for (const item of items) {
-    const value = map(item);
+    const value = groupBy(item);
     const h = hash(value);
     hashMap[h] = value;
     groups[h] = [...(groups[h] || []), item];
   }
-  Object.keys(groups).forEach(h => func(groups[h], hashMap[h]));
+  return nullIfEmpty(Object.keys(groups)
+    .map(h => [hashMap[h], map(groups[h], hashMap[h])])
+    .filter(v => v[1] !== null) as [U, V][]);
 };
 
-const extendSlice = (slice: Slice, extra: { start: number; end: number }) => ({
-  start: slice.start - extra.start,
-  end: slice.end === undefined ? undefined : slice.end + extra.end,
-});
-
-const getRequests = (
-  schema: Schema,
-  data: DataState,
-  newData: DataState | null,
-  allSearches: { searches: Search[]; isNew: boolean }[],
-): Request[][] => {
-  const indexedSearches = flatten(
-    allSearches.map(({ searches, isNew }, index) =>
-      searches.map(search => ({ index, search, isNew })),
-    ),
-  );
-  const storeSearches = indexedSearches.reduce(
-    (res, s) => ({
-      ...res,
-      [s.search.store]: [...(res[s.search.store] || []), s],
-    }),
-    {} as Obj<{ index: number; search: Search; isNew: boolean }[]>,
-  );
-  const result: Request[][] = [];
-  for (const store of Object.keys(storeSearches)) {
-    const searches = storeSearches[store].map(s => s.search);
-    const searchRequests = getRequests(
-      schema,
-      data,
-      newData,
-      storeSearches[store].map(s => ({
-        searches: s.search.fields.filter(f => !Array.isArray(f)) as Search[],
-        isNew: s.isNew,
-      })),
-    );
-    const fieldGroups = getFieldGroups(
-      searches.map((search, i) => [
-        ...(search.fields.filter(f => Array.isArray(f)) as FieldPath[]),
-        ...(searchRequests[i] || []),
-      ]),
-    );
-
-    for (const { fields, requests, indices } of fieldGroups) {
-      const groupSearches = indices.map(i => storeSearches[store][i]);
-
-      const filterMaps = groupSearches.map(
-        s => s.search.filter && getFilterMaps(s.search.filter),
-      );
-      const allFilterValues = getFilterValues(
-        flatten(filterMaps.filter(f => f) as Obj<FilterRange>[][]),
-      );
-      const splitFilters = filterMaps.map(filter =>
-        flatten((filter || [{}]).map(f => splitFilterMap(f, allFilterValues))),
-      );
-
-      const selections = flatten(
-        groupSearches.map(({ search, index, isNew }, i) => {
-          const slice = search.slice || { start: 0 };
-          const sort = search.sort || [
-            { field: ['id'], direction: 'ASC' as 'ASC' },
-          ];
-          if (slice.start !== 0 || slice.end !== undefined) {
-            return [{ filter: splitFilters[i], sort, slice, index, isNew }];
-          }
-          return splitFilters[i].map(f => ({
-            filter: [f],
-            sort,
-            slice,
-            index,
-            isNew,
-          }));
-        }),
-      );
-
-      forEachHashGroup(
-        selections,
-        s => s.filter.sort((f1, f2) => hash(f1).localeCompare(hash(f2))),
-        (filterSelections, filter) => {
-          const extra = getSliceExtra(schema, data, store, filter);
-          const newExtra =
-            newData && getSliceExtra(schema, newData, store, filter);
-          forEachHashGroup(
-            filterSelections,
-            s => s.sort,
-            (sortSelections, sort) => {
-              const slices = sortSelections.map(s =>
-                extendSlice(s.slice, extra),
-              );
-              const newSlices =
-                newExtra &&
-                sortSelections.map(s => extendSlice(s.slice, newExtra));
-              const sliceValues = [
-                ...Array.from(
-                  new Set(
-                    flatten(
-                      [...slices, ...(newSlices || [])].map(s => [
-                        s.start,
-                        ...(s.end !== undefined ? [s.end] : []),
-                      ]),
+const getNewRequests = (chunks: Chunk[], newChunks: Chunk[]): Requests | null =>
+  groupItems(
+    [
+      ...chunks.map(chunk => ({ chunk, isNew: false })),
+      ...newChunks.map(chunk => ({ chunk, isNew: true })),
+    ],
+    s => s.chunk.store,
+    storeSearches =>
+      groupItems(
+        storeSearches,
+        s => s.chunk.filter,
+        filterSearches =>
+          groupItems(
+            filterSearches,
+            s => s.chunk.sort,
+            sortSearches => {
+              const slicePairs = groupItems(
+                sortSearches,
+                s => s.chunk.slice,
+                (sliceSearches, slices) => {
+                  if (!Array.isArray(slices)) {
+                    return sliceSearches.every(s => s.isNew) ? true : null;
+                  }
+                  const fields = groupItems(
+                    sliceSearches,
+                    s => ({
+                      fields: (s.chunk as any).fields as NestedFields,
+                      chunks: (s.chunk as any).chunks as Chunk[],
+                    }),
+                    fieldsSearches => fieldsSearches.every(s => s.isNew),
+                  )!;
+                  const result = {
+                    fields: fields.reduce<NestedFields>(
+                      (res, f) => (f[1] ? merge(res, f[0].fields) : res),
+                      {},
                     ),
-                  ),
-                ).sort((a, b) => a - b),
-                undefined,
-              ];
-              sortSelections.forEach(({ index }, i) => {
-                const startIndex = sliceValues.indexOf(slices[i].start);
-                const endIndex =
-                  slices[i].end === undefined
-                    ? sliceValues.length - 1
-                    : sliceValues.indexOf(slices[i].end);
-                const newStartIndex = newSlices
-                  ? sliceValues.indexOf(newSlices[i].start)
-                  : startIndex;
-                const newEndIndex = newSlices
-                  ? newSlices[i].end === undefined
-                    ? sliceValues.length - 1
-                    : sliceValues.indexOf(newSlices[i].end)
-                  : endIndex;
-
-                for (
-                  let j = Math.min(startIndex, newStartIndex);
-                  j < Math.max(endIndex, newEndIndex);
-                  j++
-                ) {
-                  result[index] = [
-                    ...(result[index] || []),
-                    {
-                      store,
-                      selection: [
-                        filter,
-                        sort,
-                        { start: sliceValues[j]!, end: sliceValues[j + 1] },
-                      ],
-                      fields: getNestedFields(fields),
-                      requests,
-                      isNew: newData
-                        ? j < startIndex || j > endIndex - 1
-                        : sortSelections.every(s => s.isNew),
-                    },
-                  ];
-                }
-              });
+                    requests:
+                      getNewRequests(
+                        flatten(
+                          fields.filter(f => !f[1]).map(f => f[0].chunks),
+                        ),
+                        flatten(fields.filter(f => f[1]).map(f => f[0].chunks)),
+                      ) || [],
+                  };
+                  return Object.keys(result.fields).length !== 0 ||
+                    result.requests.length !== 0
+                    ? result
+                    : null;
+                },
+              );
+              return (
+                slicePairs &&
+                slicePairs.map(
+                  ([key, values]) =>
+                    Array.isArray(key)
+                      ? ([key, values] as [
+                          Slice[],
+                          { fields: NestedFields; requests: Requests }
+                        ])
+                      : key,
+                )
+              );
             },
-          );
-        },
-      );
-    }
-  }
-  return result;
-};
-
-const filterNewRequests = (requests: Request[]) =>
-  requests
-    .map(request => {
-      if (request.isNew) return cleanRequest(request);
-      const { store, selection, requests } = request;
-      const subRequests = filterNewRequests(requests);
-      if (subRequests.length === 0) return null;
-      return { store, selection, fields: {}, requests: subRequests };
-    })
-    .filter(r => r);
+          ),
+      ),
+  );
 
 export const getSearchesRequests = (
   { schema, queries, data }: State,
-  searches: Search[],
-) =>
-  filterNewRequests(
-    flatten(
-      getRequests(schema, data, null, [
-        { searches, isNew: true },
-        ...queries.map(({ searches }) => ({ searches, isNew: false })),
-      ]),
-    ),
+  newSearches: Search[],
+) => {
+  const searches = flatten(queries.map(q => q.searches));
+  const [splitSearches, newSplitSearches] = getChunks(
+    schema,
+    [searches, newSearches],
+    [data, data],
   );
+  return getNewRequests(splitSearches, newSplitSearches);
+};
 
 export const getUpdateRequests = (
   { schema, queries, data }: State,
   newData: DataState,
-) =>
-  filterNewRequests(
-    flatten(
-      getRequests(
-        schema,
-        data,
-        newData,
-        queries.map(({ searches }) => ({ searches, isNew: false })),
-      ),
-    ),
+) => {
+  const searches = flatten(queries.map(q => q.searches));
+  const [splitSearches, newSplitSearches] = getChunks(
+    schema,
+    [searches, searches],
+    [data, newData],
   );
+  return getNewRequests(splitSearches, newSplitSearches);
+};

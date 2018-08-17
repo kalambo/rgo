@@ -10,13 +10,11 @@ import {
   Obj,
   Schema,
   Search,
+  Slice,
   Sort,
   Value,
 } from './typings';
-import { flatten } from './utils';
-
-const uniqueKeys = (obj1: Obj, obj2: Obj) =>
-  Array.from(new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]));
+import { flatten, hash, uniqueKeys } from './utils';
 
 export const mergeData = (data1: Data, data2: Data): Data =>
   keysToObject(uniqueKeys(data1, data2), store =>
@@ -40,7 +38,7 @@ export const mergeData = (data1: Data, data2: Data): Data =>
 const getCombinedData = (data: DataState): Data =>
   mergeData(data.server, data.client);
 
-const getDataRecordValue = (
+export const getDataRecordValue = (
   data: Data,
   store: string,
   id: string,
@@ -83,15 +81,27 @@ const idInFilter = (
   store: string,
   id: string,
   filter: Filter,
+  prevStore: string | null,
+  prevId: string | null,
 ) => {
   if (isFilterArray(filter)) {
     const [type, ...filterParts] = filter;
     return (type === 'AND' ? filterParts.every : filterParts.some)(f =>
-      idInFilter(schema, data, store, id, f as Filter),
+      idInFilter(schema, data, store, id, f as Filter, prevStore, prevId),
     );
   }
   const [field, op, value] = filter;
-  return getValues(schema, getCombinedData(data), store, id, field).some(v => {
+
+  return (field[0] === '~'
+    ? getValues(
+        schema,
+        getCombinedData(data),
+        prevStore!,
+        prevId!,
+        field.slice(1),
+      )
+    : getValues(schema, getCombinedData(data), store, id, field)
+  ).some(v => {
     if (op === '=') return v === value;
     if (op === '!=') return v !== value;
     if (op === '<') return v < value!;
@@ -101,7 +111,6 @@ const idInFilter = (
     return (value as (Value | null)[]).includes(v);
   });
 };
-
 const compareValues = (values1, values2) => {
   for (const i of Array.from({
     length: Math.max(values1.length, values2.length),
@@ -112,15 +121,14 @@ const compareValues = (values1, values2) => {
   return 0;
 };
 
-const sortIds = (
+export const sortIds = (
   schema: Schema,
   data: Data,
   store: string,
   ids: string[],
-  sort?: Sort,
-) => {
-  if (!sort) return ids;
-  return ids.sort((id1, id2) =>
+  sort: Sort,
+) =>
+  ids.sort((id1, id2) =>
     sort.reduce((res, { field, direction }) => {
       if (res !== 0) return res;
       const v1 = getValues(schema, data, store, id1, field);
@@ -131,59 +139,77 @@ const sortIds = (
       return (direction === 'ASC' ? 1 : -1) * compareValues(v1, v2);
     }, 0),
   );
-};
 
 export const getSearchIds = (
   schema: Schema,
   data: DataState,
-  path: (string | number)[],
-  { store, filter, sort, slice = { start: 0 } }: Search,
+  {
+    store,
+    filter,
+    sort = [{ field: ['id'], direction: 'ASC' }],
+    slice = { start: 0 },
+  }: Search,
+  prevStore: string | null,
+  prevId: string | null,
 ) => {
   const combined = getCombinedData(data);
   const allIds = Object.keys(combined[store]);
   const ids = !filter
     ? allIds
-    : allIds.filter(id => idInFilter(schema, data, store, id, filter));
+    : allIds.filter(id =>
+        idInFilter(schema, data, store, id, filter, prevStore, prevId),
+      );
   const sortedIds = sortIds(schema, combined, store, ids, sort);
-  const markId = path.reduce((res, p) => res && res[p], data.marks);
-  const start = true ? 0 : sortedIds.indexOf(markId);
+  const firstId =
+    data.firstIds[prevStore || ''][
+      [store, filter, sort, slice].map(hash).join('.')
+    ][prevId || ''];
+  const start = sortedIds.indexOf(firstId);
   return sortedIds.slice(
     start,
     slice.end === undefined ? undefined : start + slice.end - slice.start,
   );
 };
 
-const idInFilterBox = (
+export const idInFilterBox = (
   schema: Schema,
   data: Data,
   store: string,
   id: string,
-  filter: Obj<FilterRange>,
+  filter: Obj<FilterRange>[],
+  prevStore?: string,
+  prevId?: string,
 ) =>
-  Object.keys(filter).every(k => {
-    const path = k.split('.');
-    return getValues(schema, data, store, id, path).some(v => {
-      if (filter[k].start !== undefined && filter[k].start === filter[k].end) {
-        return v === filter[k].start;
-      }
-      return (
-        (filter[k].start === undefined || filter[k].start! < v) &&
-        (filter[k].end === undefined || v < filter[k].end!)
-      );
-    });
-  });
+  filter.some(f =>
+    Object.keys(f).every(k => {
+      const path = k.split('.');
+      return (path[0] === '~'
+        ? getValues(schema, data, prevStore!, prevId!, path.slice(1))
+        : getValues(schema, data, store, id, path)
+      ).some(v => {
+        if (f[k].start !== undefined && f[k].start === f[k].end) {
+          return v === f[k].start;
+        }
+        return (
+          (f[k].start === undefined || f[k].start! < v) &&
+          (f[k].end === undefined || v < f[k].end!)
+        );
+      });
+    }),
+  );
 
 export const getSliceExtra = (
   schema: Schema,
   { server, client }: DataState,
   store: string,
   filter: Obj<FilterRange>[],
+  slice: Slice,
 ) => {
   const serverIds = Object.keys(server[store] || {}).filter(id =>
-    filter.some(f => idInFilterBox(schema, server, store, id, f)),
+    idInFilterBox(schema, server, store, id, filter),
   );
   const clientIds = Object.keys(client[store] || {}).filter(id =>
-    filter.some(f => idInFilterBox(schema, client, store, id, f)),
+    idInFilterBox(schema, client, store, id, filter),
   );
   const extra = { start: 0, end: 0 };
   clientIds.forEach(id => {
@@ -196,5 +222,8 @@ export const getSliceExtra = (
       extra.end++;
     }
   });
-  return extra;
+  return {
+    start: slice.start - extra.start,
+    end: slice.end === undefined ? undefined : slice.end + extra.end,
+  };
 };

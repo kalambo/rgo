@@ -1,7 +1,7 @@
 import keysToObject from 'keys-to-object';
 
 import { Filter, FilterRange, isFilterArray, Obj, Value } from './typings';
-import { flatten } from './utils';
+import { flatten, hash } from './utils';
 
 const doRangesIntersect = (r1: FilterRange, r2: FilterRange) => {
   if (r1.start === null || r2.start === null) {
@@ -40,7 +40,7 @@ const intersectFilterMaps = (f1: Obj<FilterRange>, f2: Obj<FilterRange>) => {
   return result;
 };
 
-export const getFilterMaps = (filter: Filter): Obj<FilterRange>[] => {
+const getFilterMaps = (filter: Filter): Obj<FilterRange>[] => {
   if (isFilterArray(filter)) {
     const [type, ...filterParts] = filter;
     const subBoxes = filterParts.map(f => getFilterMaps(f as Filter));
@@ -73,7 +73,7 @@ export const getFilterMaps = (filter: Filter): Obj<FilterRange>[] => {
   }) as Obj<FilterRange>[][]);
 };
 
-export const getFilterValues = (filterMaps: Obj<FilterRange>[]) => {
+const getFilterValues = (filterMaps: Obj<FilterRange>[]) => {
   const valueSets: Obj<Set<Value>> = {};
   for (const map of filterMaps) {
     for (const k of Object.keys(map)) {
@@ -93,7 +93,7 @@ export const getFilterValues = (filterMaps: Obj<FilterRange>[]) => {
   ]);
 };
 
-export const splitFilterMap = (
+const splitFilterMap = (
   filterMap: Obj<FilterRange>,
   values: Obj<(Value | undefined)[]>,
 ) =>
@@ -122,3 +122,15 @@ export const splitFilterMap = (
       ),
     [filterMap],
   );
+
+export const getSplitFilters = (filters: (Filter | undefined)[]) => {
+  const filterMaps = filters.map(f => f && getFilterMaps(f));
+  const allFilterValues = getFilterValues(
+    flatten(filterMaps.filter(f => f) as Obj<FilterRange>[][]),
+  );
+  return filterMaps.map(filter =>
+    flatten((filter || [{}]).map(f => splitFilterMap(f, allFilterValues))).sort(
+      (f1, f2) => hash(f1).localeCompare(hash(f2)),
+    ),
+  );
+};

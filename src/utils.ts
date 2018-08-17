@@ -1,7 +1,12 @@
-import { FieldPath, NestedFields } from './typings';
+import keysToObject from 'keys-to-object';
+
+import { FieldPath, NestedFields, Obj } from './typings';
 
 export const flatten = <T = any>(arrays: T[][]) =>
   arrays.reduce((res, a) => res.concat(a), []);
+
+const isObject = (obj: any) =>
+  Object.prototype.toString.call(obj) === '[object Object]';
 
 const hashPart = (obj: any): string => {
   if (Array.isArray(obj)) {
@@ -40,3 +45,13 @@ export const getNestedFields = (fields: FieldPath[]): NestedFields =>
     },
     {} as NestedFields,
   );
+
+export const uniqueKeys = (obj1: Obj, obj2: Obj) =>
+  Array.from(new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})]));
+
+export const merge = (obj1: any, obj2: any) => {
+  if (isObject(obj1) && isObject(obj2)) {
+    return keysToObject(uniqueKeys(obj1, obj2), k => merge(obj1[k], obj2[k]));
+  }
+  return obj2 === undefined ? obj1 : obj2;
+};

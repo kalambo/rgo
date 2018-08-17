@@ -11,7 +11,7 @@ import {
   State,
   Value,
 } from './typings';
-import { getNestedFields, hash } from './utils';
+import { getNestedFields } from './utils';
 
 type Change<T> = { index: number; added?: T[]; removed?: number; value?: any };
 
@@ -124,13 +124,14 @@ const getFieldsChanges = (
 interface SearchesState {
   data: DataState;
   searches: Search[];
-  path: (string | number)[];
 }
 
 const getSearchesChanges = (
   schema: Schema,
   state: SearchesState | null,
   newState: SearchesState,
+  prevStore: string | null,
+  prevId: string | null,
 ) =>
   keysToObject(
     Array.from(
@@ -146,12 +147,13 @@ const getSearchesChanges = (
       const newSearch = newState.searches.find(s => s.name === name) || null;
 
       const ids =
-        search && getSearchIds(schema, state!.data, state!.path, search);
+        search && getSearchIds(schema, state!.data, search, prevStore, prevId);
       const newIds = getSearchIds(
         schema,
         newState.data,
-        newState.path,
         newSearch || search!,
+        prevStore,
+        prevId,
       );
 
       const nestedFields = search
@@ -186,29 +188,11 @@ const getSearchesChanges = (
           ...getSearchesChanges(
             schema,
             state && !isNew
-              ? {
-                  data: state.data,
-                  searches: nextSearches,
-                  path: [
-                    ...state.path,
-                    search!.store,
-                    hash(search!.filter),
-                    hash(search!.sort),
-                    hash(search!.slice),
-                  ],
-                }
+              ? { data: state.data, searches: nextSearches }
               : null,
-            {
-              data: newState.data,
-              searches: newNextSearches,
-              path: [
-                ...newState.path,
-                newSearch!.store,
-                hash(newSearch!.filter),
-                hash(newSearch!.sort),
-                hash(newSearch!.slice),
-              ],
-            },
+            { data: newState.data, searches: newNextSearches },
+            search!.store,
+            id,
           ),
         }),
       );
@@ -224,8 +208,10 @@ export const emitUpdateChanges = (
     onChange(
       getSearchesChanges(
         schema,
-        { data, searches, path: [] },
-        { data: newData, searches, path: [] },
+        { data, searches },
+        { data: newData, searches },
+        null,
+        null,
       ),
     );
   });
@@ -240,8 +226,10 @@ export const emitSearchesChanges = (
   onChange(
     getSearchesChanges(
       schema,
-      { data, searches, path: [] },
-      { data, searches: newSearches, path: [] },
+      { data, searches },
+      { data, searches: newSearches },
+      null,
+      null,
     ),
   );
 };

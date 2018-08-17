@@ -1,7 +1,8 @@
 import { emitUpdateChanges, emitSearchesChanges } from './changes';
 import { mergeData } from './data';
 import { getSearchesRequests, getUpdateRequests } from './requests';
-import { Data, Search, State } from './typings';
+import { Data, FirstIds, Requests, Schema, Search, State } from './typings';
+import { merge } from './utils';
 
 const combineData = (state: State, type: 'server' | 'client', update: Data) => {
   return {
@@ -12,23 +13,26 @@ const combineData = (state: State, type: 'server' | 'client', update: Data) => {
   };
 };
 
-export default () => {
+export default (
+  schema: Schema,
+  resolve: (requests: Requests) => { data: Data; firstIds: FirstIds },
+) => {
   let state: State = {
-    schema: {},
+    schema,
     queries: [],
-    data: {
-      server: {},
-      client: {},
-      marks: [],
-    },
+    data: { server: {}, client: {}, firstIds: {} },
   };
 
-  const fetchData = async request => {
-    // ASYNC LOAD
-    console.log(request);
-    const newData = combineData(state, 'server', {});
-    emitUpdateChanges(state, newData);
-    state = { ...state, data: newData };
+  const fetchData = (requests: Requests | null) => {
+    if (requests) {
+      const { data, firstIds } = resolve(requests);
+      const newData = {
+        ...combineData(state, 'server', data),
+        firstIds: merge(state.data.firstIds, firstIds),
+      };
+      emitUpdateChanges(state, newData);
+      state = { ...state, data: newData };
+    }
   };
 
   return {

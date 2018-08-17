@@ -1,5 +1,6 @@
-// import { getSearchesRequests } from './requests';
-import { emitUpdateChanges } from './changes';
+import { getSearchesRequests } from './requests';
+// import { emitUpdateChanges } from './changes';
+// import { getSplitSearches } from './searches';
 
 const state = {
   schema: {
@@ -14,6 +15,7 @@ const state = {
           name: 'people',
           store: 'people',
           filter: [['firstName'], '<', 'Jon'] as any,
+          // slice: { start: 1, end: 2 },
           fields: [
             ['firstName'],
             ['lastName'],
@@ -52,57 +54,105 @@ const state = {
       },
     },
     client: {},
-    marks: {},
+    firstIds: {},
   },
 };
 
-emitUpdateChanges(state, {
-  ...state.data,
-  server: {
-    ...state.data.server,
-    people: {
-      ...state.data.server.people,
-      A: {
-        ...state.data.server.people.A,
-        firstName: 'Bob',
-      },
-      C: {
-        firstName: 'First C',
-        lastName: 'Last C',
-        email: 'Email C',
-        address: 'C',
-      },
-    },
-    addresses: {
-      ...state.data.server.addresses,
-      C: { city: 'City C', postcode: 'Postcode C' },
-    },
-  },
-});
-
 // console.log(
 //   JSON.stringify(
-//     getSearchesRequests(state, [
-//       {
-//         name: 'people',
-//         store: 'people',
-//         filter: [['firstName'], '<', 'Steve'] as any,
-//         fields: [
-//           ['firstName'],
-//           ['email'],
-//           ['address', 'postcode'],
+//     getSplitSearches(
+//       state.schema,
+//       [
+//         [
 //           {
-//             name: 'addresses',
-//             store: 'addresses',
-//             fields: [['postcode'], ['street']],
+//             name: 'yay',
+//             store: 'people',
+//             filter: [['firstName'], '<', 'Jon'] as any,
+//             fields: [
+//               ['firstName'],
+//               ['lastName'],
+//               ['address', 'city'],
+//               {
+//                 name: 'addresses',
+//                 store: 'addresses',
+//                 filter: [['city'], '=', 'London'] as any,
+//                 fields: [['postcode']],
+//               },
+//             ],
 //           },
 //         ],
-//       },
-//     ]),
+//         [
+//           {
+//             name: 'woop',
+//             store: 'people',
+//             filter: [['firstName'], '<', 'Steve'] as any,
+//             fields: [
+//               ['firstName'],
+//               ['email'],
+//               ['address', 'postcode'],
+//               {
+//                 name: 'addresses',
+//                 store: 'addresses',
+//                 fields: [['postcode'], ['street']],
+//               },
+//             ],
+//           },
+//         ],
+//       ],
+//       null,
+//     ),
 //     null,
 //     2,
 //   ),
 // );
+
+// emitUpdateChanges(state, {
+//   ...state.data,
+//   server: {
+//     ...state.data.server,
+//     people: {
+//       ...state.data.server.people,
+//       A: {
+//         ...state.data.server.people.A,
+//         firstName: 'Bob',
+//       },
+//       C: {
+//         firstName: 'First C',
+//         lastName: 'Last C',
+//         email: 'Email C',
+//         address: 'C',
+//       },
+//     },
+//     addresses: {
+//       ...state.data.server.addresses,
+//       C: { city: 'City C', postcode: 'Postcode C' },
+//     },
+//   },
+// });
+
+console.log(
+  JSON.stringify(
+    getSearchesRequests(state, [
+      {
+        name: 'people',
+        store: 'people',
+        filter: [['firstName'], '<', 'Steve'] as any,
+        fields: [
+          ['firstName'],
+          ['email'],
+          ['address', 'postcode'],
+          {
+            name: 'addresses',
+            store: 'addresses',
+            fields: [['postcode'], ['street']],
+          },
+        ],
+      },
+    ]),
+    null,
+    2,
+  ),
+);
 
 // console.log(
 //   JSON.stringify(

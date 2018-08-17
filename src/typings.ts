@@ -41,27 +41,46 @@ export interface NestedFields {
   [key: string]: null | NestedFields;
 }
 
-export interface Request {
-  store: string;
-  selection: [Obj<FilterRange>[], Sort, Slice];
-  fields: NestedFields;
-  requests: Request[];
-  isNew: boolean;
-}
+export type Requests = [
+  string,
+  [
+    Obj<FilterRange>[],
+    [
+      Sort,
+      (
+        | {
+            key: string;
+            index: number;
+          }
+        | [
+            Slice[],
+            {
+              fields: NestedFields;
+              requests: Requests;
+            }
+          ])[]
+    ][]
+  ][]
+][];
+
+export type Schema = Obj<Obj<string>>;
+
+export type Query = {
+  searches: Search[];
+  onChange: (changes: any) => void;
+};
 
 export type Record = Obj<null | Value | Value[]>;
 
 export type Data = Obj<Obj<Record>>;
 
+export type FirstIds = Obj<Obj<string>>;
+
 export type DataState = {
   server: Data;
   client: Data;
-  marks: any;
+  firstIds: FirstIds;
 };
-
-export type Query = { searches: Search[]; onChange: (changes: any) => void };
-
-export type Schema = Obj<Obj<string>>;
 
 export interface State {
   schema: Schema;
