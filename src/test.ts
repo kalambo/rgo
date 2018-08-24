@@ -1,4 +1,4 @@
-import { getSearchesRequests } from './requests';
+import { getSearchesRequests } from './searches';
 // import { emitUpdateChanges } from './changes';
 // import { getSplitSearches } from './searches';
 
