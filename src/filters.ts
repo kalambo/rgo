@@ -43,32 +43,40 @@ export const setFilterVariables = (
   );
 
 const getFilterValues = (filterMaps: Filter) => {
-  const valueSets: Obj<Set<Value>> = {};
+  const valueSets: Obj<{
+    values: Value[];
+    startUndefined?: true;
+    startNull?: true;
+    endUndefined?: true;
+    endNull?: true;
+  }> = {};
   for (const map of filterMaps) {
     for (const k of Object.keys(map)) {
-      valueSets[k] = valueSets[k] || new Set();
-      if (
-        map[k].start.value !== undefined &&
-        map[k].start.value !== null &&
-        map[k].start.fields.length === 0
-      ) {
-        valueSets[k].add(map[k].start.value!);
+      valueSets[k] = valueSets[k] || { values: [] };
+      if (map[k].start.value === undefined) {
+        valueSets[k].startUndefined = true;
+      } else if (map[k].start.value === null) {
+        valueSets[k].startNull = true;
+      } else if (map[k].start.fields.length === 0) {
+        valueSets[k].values.push(map[k].start.value!);
       }
-      if (
-        map[k].end.value !== undefined &&
-        map[k].end.value !== null &&
-        map[k].end.fields.length === 0
-      ) {
-        valueSets[k].add(map[k].end.value!);
+      if (map[k].end.value === undefined) {
+        valueSets[k].endUndefined = true;
+      } else if (map[k].end.value === null) {
+        valueSets[k].endNull = true;
+      } else if (map[k].end.fields.length === 0) {
+        valueSets[k].values.push(map[k].end.value!);
       }
     }
   }
   return keysToObject(Object.keys(valueSets), k => [
-    undefined,
-    null,
-    ...Array.from(valueSets[k]).sort((a, b) => (a === b ? 0 : a < b ? -1 : 1)),
-    null,
-    undefined,
+    ...(valueSets[k].startUndefined ? [undefined] : []),
+    ...(valueSets[k].startNull ? [null] : []),
+    ...unique(valueSets[k].values).sort(
+      (a, b) => (a === b ? 0 : a < b ? -1 : 1),
+    ),
+    ...(valueSets[k].endNull ? [null] : []),
+    ...(valueSets[k].endUndefined ? [undefined] : []),
   ]);
 };
 
@@ -77,10 +85,10 @@ const splitFilterMap = (
   values: Obj<(Value | null | undefined)[]>,
 ) =>
   Object.keys(values).reduce(
-    (res, k) =>
+    (filterMaps, field) =>
       flatten(
-        res.map(f => {
-          const r: FilterRange = f[k] || {
+        filterMaps.map(filter => {
+          const r: FilterRange = filter[field] || {
             start: { fields: [] },
             end: { fields: [] },
           };
@@ -89,34 +97,24 @@ const splitFilterMap = (
             r.end.fields.length !== 0 ||
             (r.start.value !== undefined && r.start.value === r.end.value)
           ) {
-            return [f];
+            return [filter];
           }
           const result: FilterRange[] = [];
-          const startIndex =
-            r.start.value === undefined
-              ? 0
-              : r.start.value === null
-                ? 1
-                : values[k].indexOf(r.start.value);
-          const endIndex =
-            r.end.value === undefined
-              ? values[k].length - 1
-              : r.end.value === null
-                ? values[k].length - 2
-                : values[k].indexOf(r.end.value);
+          const startIndex = values[field].indexOf(r.start.value);
+          const endIndex = values[field].lastIndexOf(r.end.value);
           for (let i = startIndex; i < endIndex; i++) {
             result.push({
-              start: { value: values[k][i], fields: [] },
-              end: { value: values[k][i + 1], fields: [] },
+              start: { value: values[field][i], fields: [] },
+              end: { value: values[field][i + 1], fields: [] },
             });
             if (i < endIndex - 1) {
               result.push({
-                start: { value: values[k][i + 1], fields: [] },
-                end: { value: values[k][i + 1], fields: [] },
+                start: { value: values[field][i + 1], fields: [] },
+                end: { value: values[field][i + 1], fields: [] },
               });
             }
           }
-          return result.map(v => ({ ...f, [k]: v }));
+          return result.map(v => ({ ...filter, [field]: v }));
         }),
       ),
     [filterMap],
@@ -134,10 +132,10 @@ export const getSplitFilters = (filters: Filter[]) => {
 export const compareFilters = (filter1: Filter, filter2: Filter) => {
   const hashes1 = unique(filter1.map(hash));
   const hashes2 = unique(filter2.map(hash));
-  if (hashes1.every(hashes2.includes)) {
+  if (hashes1.every(h => hashes2.includes(h))) {
     if (hashes1.length === hashes2.length) return 0;
     return 1;
   }
-  if (hashes2.every(hashes1.includes)) return -1;
+  if (hashes2.every(h => hashes1.includes(h))) return -1;
   return null;
 };

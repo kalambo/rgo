@@ -21,12 +21,12 @@ const getRanges = (
   slice: Slice,
 ): Range[] => {
   if (slice.start !== 0 || slice.end !== undefined) {
-    const range = data.ranges[store].find(
+    const range = (data.ranges[store] || []).find(
       r => compareFilters(r.filter, filter) === 0,
     );
     return range ? range.ranges : [];
   }
-  return data.ranges[store].some(
+  return (data.ranges[store] || []).some(
     r =>
       r.ranges.length === 1 &&
       r.ranges[0].start === 0 &&
@@ -87,7 +87,7 @@ export const getIdsAndGaps = (
   }[] = [];
   const combined = getCombinedData(data);
   const compare = compareIds(schema, combined, store, sort);
-  for (const id of Object.keys(data.client[store])) {
+  for (const id of Object.keys(data.client[store] || {})) {
     const index = combinedIds.indexOf(id);
     if (index !== -1) {
       idChanges.push({ type: 'removed', id, index });

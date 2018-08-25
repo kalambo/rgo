@@ -1,5 +1,5 @@
 import { getSplitFilters } from './filters';
-import { Obj, Search, Slice } from './typings';
+import { FieldPath, Obj, Search, Slice } from './typings';
 import { flatten, hash } from './utils';
 
 const mapFlattened = <T, U>(
@@ -134,18 +134,13 @@ const getSplitSearches = (
         return mapSetGroups(
           storeSearches.map((s, i) => ({
             ...s,
-            fields: [
-              ...s.fields.map(f => f.join('.')),
-              ...(splitSearches[i] || []),
-            ],
+            fields: [...s.fields, ...(splitSearches[i] || [])],
           })),
           s => s.fields,
           (fieldSearches, allFields) => {
             const fields = {
-              fields: (allFields.filter(
-                f => !Array.isArray(f),
-              ) as string[]).map(f => f.split('.')),
-              searches: allFields.filter(f => Array.isArray(f)) as NewSearch[],
+              fields: allFields.filter(f => Array.isArray(f)) as FieldPath[],
+              searches: allFields.filter(f => !Array.isArray(f)) as NewSearch[],
             };
             const splitFilters = getSplitFilters(
               fieldSearches.map(s => s.filter),
@@ -241,5 +236,5 @@ export const getNewSearches = (
     getSplitSearches([
       searches.map(s => ({ ...s, isNew: false })),
       newSearches.map(s => ({ ...s, isNew: true })),
-    ])[0],
+    ])[1],
   );

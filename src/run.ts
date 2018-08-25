@@ -163,99 +163,99 @@ const runSearches = (
       s => s.name,
     ),
   );
-  const results = names
-    .map(name => {
-      const search =
-        (state && state.searches.find(s => s.name === name)) || null;
-      const newSearch = newState.searches.find(s => s.name === name) || null;
+  const results = names.map(name => {
+    const search = (state && state.searches.find(s => s.name === name)) || null;
+    const newSearch = newState.searches.find(s => s.name === name) || null;
 
-      const idsAndGaps =
-        search && getIdsAndGaps(schema, state!.data, search, prevStore, prevId);
-      const ids = idsAndGaps && idsAndGaps.ids;
-      const newIdsAndGaps =
-        newSearch &&
-        getIdsAndGaps(schema, newState.data, newSearch, prevStore, prevId);
-      if (newIdsAndGaps === null) {
-        return state && ids === null
-          ? null
-          : { name, changes: undefined, searches: [] };
+    const idsAndGaps =
+      search && getIdsAndGaps(schema, state!.data, search, prevStore, prevId);
+    const ids = idsAndGaps && idsAndGaps.ids;
+    const newIdsAndGaps =
+      newSearch &&
+      getIdsAndGaps(schema, newState.data, newSearch, prevStore, prevId);
+    if (newIdsAndGaps === null) {
+      return state && ids === null
+        ? { name, changes: false, searches: [newSearch] }
+        : { name, changes: undefined, searches: [] };
+    }
+    const newIds = newIdsAndGaps.ids;
+
+    const { changes, unchanged } = arrayDiff(ids, newIds, (id, isNew) => {
+      if (id === undefined) {
+        return isNew
+          ? {
+              changes: undefined,
+              searches: [
+                {
+                  ...newSearch!,
+                  filter: newSearch!.filter
+                    ? ['AND', newSearch!.filter, [['id'], '=', id]]
+                    : [['id'], '=', id],
+                },
+              ],
+            }
+          : false;
       }
-      const newIds = newIdsAndGaps.ids;
-
-      const { changes, unchanged } = arrayDiff(ids, newIds, (id, isNew) => {
-        if (id === undefined) {
-          return isNew
-            ? {
-                changes: undefined,
-                searches: [
-                  {
-                    ...newSearch!,
-                    filter: newSearch!.filter
-                      ? ['AND', newSearch!.filter, [['id'], '=', id]]
-                      : [['id'], '=', id],
-                  },
-                ],
-              }
-            : false;
-        }
-        const fieldsChanges = runFields(
-          schema,
-          newSearch!.store,
-          id,
-          state && !isNew
-            ? {
-                data: state.data,
-                fields: search ? getNestedFields(search.fields) : {},
-              }
-            : null,
-          { data: newState.data, fields: getNestedFields(newSearch!.fields) },
-        );
-        const searchesChanges = runSearches(
-          schema,
-          state && !isNew
-            ? { data: state.data, searches: search ? search.searches : [] }
-            : null,
-          { data: newState.data, searches: newSearch!.searches },
-          search!.store,
-          id,
-        );
-        return {
-          changes: { ...fieldsChanges.changes, ...searchesChanges.changes },
-          searches: [...fieldsChanges.searches, ...searchesChanges.searches],
-        };
-      });
+      const fieldsChanges = runFields(
+        schema,
+        newSearch!.store,
+        id,
+        state && !isNew
+          ? {
+              data: state.data,
+              fields: search ? getNestedFields(search.fields) : {},
+            }
+          : null,
+        { data: newState.data, fields: getNestedFields(newSearch!.fields) },
+      );
+      const searchesChanges = runSearches(
+        schema,
+        state && !isNew
+          ? { data: state.data, searches: search ? search.searches : [] }
+          : null,
+        { data: newState.data, searches: newSearch!.searches },
+        search!.store,
+        id,
+      );
       return {
-        name,
-        changes: state
-          ? [
-              ...changes.map(
-                c =>
-                  c.added ? { ...c, added: c.added.map(a => a.changes) } : c,
-              ),
-              ...unchanged.map(c => ({ ...c, value: c.value.changes })),
-            ]
-          : unchanged.map(u => u.value.changes),
-        searches: [
-          ...newIdsAndGaps.gaps.map(slice => ({
-            ...newSearch!,
-            slice,
-          })),
-          ...flatten(
-            state
-              ? [
-                  ...changes.map(
-                    c => (c.added ? flatten(c.added.map(a => a.searches)) : []),
-                  ),
-                  ...unchanged.map(c => c.value.searches),
-                ]
-              : unchanged.map(u => u.value.searches),
-          ),
-        ],
+        changes: { ...fieldsChanges.changes, ...searchesChanges.changes },
+        searches: [...fieldsChanges.searches, ...searchesChanges.searches],
       };
-    })
-    .filter(v => v);
+    });
+    return {
+      name,
+      changes: state
+        ? [
+            ...changes.map(
+              c => (c.added ? { ...c, added: c.added.map(a => a.changes) } : c),
+            ),
+            ...unchanged.map(c => ({ ...c, value: c.value.changes })),
+          ]
+        : unchanged.map(u => u.value.changes),
+      searches: [
+        ...newIdsAndGaps.gaps.map(slice => ({
+          ...newSearch!,
+          slice,
+        })),
+        ...flatten(
+          state
+            ? [
+                ...changes.map(
+                  c => (c.added ? flatten(c.added.map(a => a.searches)) : []),
+                ),
+                ...unchanged.map(c => c.value.searches),
+              ]
+            : unchanged.map(u => u.value.searches),
+        ),
+      ],
+    };
+  });
   return {
-    changes: keysToObject(results, r => r.changes, r => r.name),
+    changes: keysToObject(
+      results.filter(v => v.changes !== false),
+      r => r.changes,
+      r => r.name,
+    ),
     searches: flatten(results.map(r => r.searches)),
   };
 };
@@ -266,31 +266,31 @@ export const runDataUpdate = (
 ) =>
   flatten(
     queries.map(({ searches, onChange }) => {
-      const { value, searches: requestSearches } = runSearches(
+      const { changes, searches: requestSearches } = runSearches(
         schema,
         { data, searches },
         { data: newData, searches },
         null,
         null,
       );
-      onChange(value);
+      onChange(changes);
       return requestSearches;
     }),
   );
 
 export const runSearchUpdate = (
   { schema, queries, data }: State,
-  index: number,
   newSearches: Search[],
+  onChange: (changes) => void,
 ) => {
-  const { searches, onChange } = queries[index];
-  const { value, searches: requestSearches } = runSearches(
+  const query = queries.find(q => q.onChange === onChange);
+  const { changes, searches: requestSearches } = runSearches(
     schema,
-    { data, searches },
+    { data, searches: query ? query.searches : [] },
     { data, searches: newSearches },
     null,
     null,
   );
-  onChange(value);
+  onChange(changes);
   return requestSearches;
 };

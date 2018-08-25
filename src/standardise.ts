@@ -97,13 +97,13 @@ const standardiseFilter = (filter: UserFilter): Filter => {
           o === '>' || o === '='
             ? isObject(value)
               ? { fields: [(value as any).parent] }
-              : { value }
+              : { value, fields: [] }
             : { fields: [] },
         end:
           o === '<' || o === '='
             ? isObject(value)
               ? { fields: [(value as any).parent] }
-              : { value }
+              : { value, fields: [] }
             : { fields: [] },
       },
     },

@@ -12,8 +12,8 @@ import {
   Search,
   Slice,
   Sort,
-} from './typings';
-import { flatten, getNestedFields, merge, unique } from './utils';
+} from '../src/typings';
+import { flatten, getNestedFields, merge, unique } from '../src/utils';
 
 type IdRecord = { id: string } & Record;
 
@@ -26,7 +26,7 @@ interface Db {
     fields: string[],
   ) => IdRecord[];
   get: (store: string, id: string) => Record;
-  update: (store: string, record: Record) => void;
+  update: (store: string, id: string, record: Record) => void;
 }
 
 type Listener = (index: number | null, data: Data, ranges: DataRanges) => void;
@@ -36,11 +36,15 @@ const getNestedStoreFields = (
   store: string,
   fields: NestedFields,
 ) => {
-  let result = keysToObject(Object.keys(fields).filter(f => f === null), null);
-  for (const f of Object.keys(fields).filter(f => f !== null)) {
+  let result = keysToObject(
+    Object.keys(fields).filter(f => fields[f] === null),
+    null,
+  );
+  for (const f of Object.keys(fields).filter(f => fields[f] !== null)) {
     const nextStore = schema.links[store][f];
     result = merge(result, getNestedStoreFields(schema, nextStore, fields[f]!));
   }
+  return result;
 };
 const getStoreFields = (schema: Schema, searches: Search[]) => {
   let result = {};
@@ -132,7 +136,7 @@ const runSearches = (
           s,
           unique([
             ...Object.keys(nestedFields),
-            ...Object.keys(storeFields[store]),
+            ...Object.keys(storeFields[store] || {}),
           ]),
         );
         newRanges.push({ id: result[0].id, ...s });
@@ -140,13 +144,23 @@ const runSearches = (
       }),
     );
     data = merge(data, {
-      store: keysToObject(records, ({ id, ...record }) => record, r => r.id),
+      [store]: keysToObject(records, ({ id, ...record }) => record, r => r.id),
     });
     data = merge(
       data,
       runFields(schema, db, storeFields, store, nestedFields, records),
     );
-    data = merge(data, runSearches(schema, db, storeFields, nextSearches));
+    const { data: nextData, ranges: nextRanges } = runSearches(
+      schema,
+      db,
+      storeFields,
+      nextSearches,
+    );
+    data = merge(data, nextData);
+    ranges = keysToObject(
+      unique([...Object.keys(ranges), ...Object.keys(nextRanges)]),
+      store => [...(ranges[store] || []), ...(nextRanges[store] || [])],
+    );
     ranges[store] = [
       ...(ranges[store] || []),
       { filter, sort, ranges: newRanges },
@@ -166,7 +180,7 @@ const runCommits = (schema: Schema, db: Db, commits: Data[]) => {
           const { fields, formula } = schema.formulae[store][f];
           update[f] = formula(...fields.map(k => next[k]));
         }
-        db.update(store, update);
+        db.update(store, id, update);
       }
     }
   }

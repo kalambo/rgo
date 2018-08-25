@@ -4,7 +4,8 @@ import { getDataRecordValue, mergeData } from './data';
 import { updateRanges } from './ranges';
 import { runDataUpdate, runSearchUpdate } from './run';
 import { getNewSearches } from './searches';
-import { Data, DataRanges, Schema, Search, State } from './typings';
+import { standardiseSearch } from './standardise';
+import { Data, DataRanges, Schema, Search, State, UserSearch } from './typings';
 import { flatten, merge } from './utils';
 
 const combineData = (state: State, type: 'server' | 'client', update: Data) => {
@@ -82,12 +83,19 @@ export default (
   });
 
   return {
-    query(searches: Search[], onChange: () => {}) {
-      state = { ...state, queries: [...state.queries, { searches, onChange }] };
-      doFetch({ searches: runDataUpdate(state, state.data) });
+    query(searches: UserSearch[], onChange: (changes) => void) {
+      const standardSearches = searches.map(standardiseSearch);
+      const prevState = state;
+      state = {
+        ...state,
+        queries: [...state.queries, { searches: standardSearches, onChange }],
+      };
+      doFetch({
+        searches: runSearchUpdate(prevState, standardSearches, onChange),
+      });
       return (newSearches: Search[]) => {
-        const index = state.queries.findIndex(q => q.searches === searches);
-        doFetch({ searches: runSearchUpdate(state, index, newSearches) });
+        const prevState = state;
+        const index = state.queries.findIndex(q => q.onChange === onChange);
         state = {
           ...state,
           queries: [
@@ -96,6 +104,9 @@ export default (
             ...state.queries.slice(index + 1),
           ],
         };
+        doFetch({
+          searches: runSearchUpdate(prevState, newSearches, onChange),
+        });
       };
     },
 

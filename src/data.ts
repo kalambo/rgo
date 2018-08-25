@@ -41,7 +41,7 @@ export const getDataRecordValue = (
   id: string,
   field: string,
 ): RecordValue | undefined => {
-  if (schema.formulae[store][field]) {
+  if (schema.formulae[store] && schema.formulae[store][field]) {
     const values = schema.formulae[store][field].fields.map(f =>
       getDataRecordValue(schema, data, store, id, f),
     );
