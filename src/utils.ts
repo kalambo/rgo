@@ -137,7 +137,7 @@ export const maxValue = (...values: (Value | null | undefined)[]) =>
     return v1 > v2 ? v1 : v2;
   });
 
-export const nestedFields = (fields: FieldPath[]): NestedFields =>
+export const getNestedFields = (fields: FieldPath[]): NestedFields =>
   fields.reduce(
     (result, field) => {
       field.reduce((res, f, i) => {

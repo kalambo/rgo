@@ -203,7 +203,6 @@ const getSplitSearches = (
                           s => s.slice,
                           (sliceSearches, slice) =>
                             sliceSearches.map(() => ({
-                              name: '',
                               store,
                               filter,
                               sort,

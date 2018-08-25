@@ -1,12 +1,11 @@
-// TODO: client (and also server) have list of fields needed to know where any record fits into all slices
+import keysToObject from 'keys-to-object';
 
 import { getDataRecordValue, mergeData } from './data';
 import { updateRanges } from './ranges';
-import { buildRequests } from './requests';
 import { runDataUpdate, runSearchUpdate } from './run';
 import { getNewSearches } from './searches';
-import { Data, DataRanges, Requests, Schema, Search, State } from './typings';
-import { merge } from './utils';
+import { Data, DataRanges, Schema, Search, State } from './typings';
+import { flatten, merge } from './utils';
 
 const combineData = (state: State, type: 'server' | 'client', update: Data) => {
   return {
@@ -19,65 +18,76 @@ const combineData = (state: State, type: 'server' | 'client', update: Data) => {
 
 export default (
   schema: Schema,
-  resolve: (
-    request: { requests?: Requests; commits?: Data[] },
-    onResolve: (data: Data, ranges: DataRanges) => void,
-  ) => void,
-  watchChanges: (onChange: (data: Data) => void) => void,
+  connection: {
+    send: (index: number, searches: Search[], commits: Data[]) => void;
+    listen: (
+      onReceive: (index: number | null, data: Data, ranges: DataRanges) => void,
+    ) => () => void;
+  },
 ) => {
   let state: State = {
     schema,
     queries: [],
     data: { server: {}, client: {}, ranges: {} },
-    requests: [],
+    requests: {},
   };
 
   const doFetch = ({
-    requests = [],
+    searches = [],
     commits = [],
   }: {
-    requests?: Search[];
+    searches?: Search[];
     commits?: Data[];
   }) => {
-    const requestSearches = getNewSearches(state.requests, requests);
-    const newRequests = buildRequests(requestSearches);
-    if (newRequests || commits) {
-      state = { ...state, requests: [...state.requests, ...requestSearches] };
-      resolve(
-        { requests: newRequests || [], commits: commits || [] },
-        (data, ranges) => {
-          const newData = {
-            ...combineData(state, 'server', data),
-            ranges: merge(state.data.ranges, ranges),
-          };
-          runDataUpdate(state, newData);
-          state = {
-            ...state,
-            data: newData,
-            requests: requests.filter(r => !requestSearches.includes(r)),
-          };
-        },
-      );
+    const keys = Object.keys(state.requests);
+    const newSearches = getNewSearches(
+      flatten(keys.map(k => state.requests[k])),
+      searches,
+    );
+    if (newSearches.length > 0 || commits.length > 0) {
+      const index =
+        keys.length === 0 ? 0 : Math.max(...keys.map(k => parseInt(k, 10))) + 1;
+      state = {
+        ...state,
+        requests: { ...state.requests, [index]: newSearches },
+      };
+      connection.send(index, newSearches, commits);
     }
   };
 
-  watchChanges(data => {
-    const newData = {
-      ...state.data,
-      server: merge(state.data.server, data),
-      ranges: updateRanges(state, data),
-    };
-    doFetch({ requests: runDataUpdate(state, newData) });
-    state = { ...state, data: newData };
+  connection.listen((index, data, ranges) => {
+    if (index !== null) {
+      const newData = {
+        ...combineData(state, 'server', data),
+        ranges: merge(state.data.ranges, ranges),
+      };
+      runDataUpdate(state, newData);
+      state = {
+        ...state,
+        data: newData,
+        requests: keysToObject(
+          Object.keys(state.requests).filter(k => parseInt(k, 10) !== index),
+          k => state.requests[k],
+        ),
+      };
+    } else {
+      const newData = {
+        ...state.data,
+        server: merge(state.data.server, data),
+        ranges: updateRanges(state, data),
+      };
+      doFetch({ searches: runDataUpdate(state, newData) });
+      state = { ...state, data: newData };
+    }
   });
 
   return {
     query(searches: Search[], onChange: () => {}) {
       state = { ...state, queries: [...state.queries, { searches, onChange }] };
-      doFetch({ requests: runDataUpdate(state, state.data) });
+      doFetch({ searches: runDataUpdate(state, state.data) });
       return (newSearches: Search[]) => {
         const index = state.queries.findIndex(q => q.searches === searches);
-        doFetch({ requests: runSearchUpdate(state, index, newSearches) });
+        doFetch({ searches: runSearchUpdate(state, index, newSearches) });
         state = {
           ...state,
           queries: [
@@ -91,7 +101,7 @@ export default (
 
     set(update: Data) {
       const newData = combineData(state, 'client', update);
-      doFetch({ requests: runDataUpdate(state, newData) });
+      doFetch({ searches: runDataUpdate(state, newData) });
       state = { ...state, data: newData };
     },
 

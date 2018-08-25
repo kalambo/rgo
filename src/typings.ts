@@ -57,7 +57,7 @@ export interface NestedFields {
 }
 
 export interface Search {
-  name: string;
+  name?: string;
   store: string;
   filter: Filter;
   sort: Sort;
@@ -65,23 +65,6 @@ export interface Search {
   fields: FieldPath[];
   searches: Search[];
 }
-
-export type Requests = [
-  string,
-  [
-    Filter,
-    [
-      Sort,
-      [
-        Slice[],
-        {
-          fields: NestedFields;
-          requests: Requests;
-        }
-      ][]
-    ][]
-  ][]
-][];
 
 export type RecordValue = null | Value | Value[];
 
@@ -128,5 +111,5 @@ export interface State {
   schema: Schema;
   queries: Query[];
   data: DataState;
-  requests: Search[];
+  requests: Obj<Search[]>;
 }

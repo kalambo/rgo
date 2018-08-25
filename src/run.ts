@@ -4,20 +4,36 @@ import { getRecordValue } from './data';
 import { getIdsAndGaps } from './ranges';
 import {
   DataState,
+  FieldPath,
   NestedFields,
   Schema,
   Search,
   State,
   Value,
 } from './typings';
-import { arrayDiff, flatten, nestedFields, unique } from './utils';
+import { arrayDiff, flatten, getNestedFields, unique } from './utils';
 
 interface FieldsState {
   data: DataState;
   fields: NestedFields;
 }
 
-// TODO: replace formula field in request with fields it uses instead
+const getFlatFields = (
+  schema: Schema,
+  store: string,
+  fields: NestedFields,
+): FieldPath[] =>
+  flatten(
+    Object.keys(fields).map(f => {
+      if (fields[f] === null) {
+        if (schema.formulae[store][f]) {
+          return schema.formulae[store][f].fields.map(x => [x]);
+        }
+        return [[f]];
+      }
+      return getFlatFields(schema, store, fields[f]!).map(path => [f, ...path]);
+    }),
+  );
 
 const runFields = (
   schema: Schema,
@@ -33,6 +49,29 @@ const runFields = (
   const results = fields.map(field => {
     const value = state && getRecordValue(schema, state.data, store, id, field);
     const newValue = getRecordValue(schema, newState.data, store, id, field);
+    if (newValue === undefined) {
+      return {
+        field,
+        changes: undefined,
+        searches: [
+          {
+            store,
+            filter: [
+              {
+                id: {
+                  start: { value: id, fields: [] },
+                  end: { value: id, fields: [] },
+                },
+              },
+            ],
+            sort: [{ field: ['id'], direction: 'ASC' }],
+            slice: [{ start: 0 }],
+            fields: getFlatFields(schema, store, { field: newState[field] }),
+            searches: [],
+          },
+        ],
+      };
+    }
     const nextFields = state && state.fields[field];
     const newNextFields = newState.fields[field];
     if (Array.isArray(newValue)) {
@@ -102,7 +141,7 @@ const runFields = (
     };
   });
   return {
-    changes: keysToObject(results, r => r.changes, r => r.name),
+    changes: keysToObject(results, r => r.changes, r => r.field),
     searches: flatten(results.map(r => r.searches)),
   };
 };
@@ -166,10 +205,10 @@ const runSearches = (
           state && !isNew
             ? {
                 data: state.data,
-                fields: search ? nestedFields(search.fields) : {},
+                fields: search ? getNestedFields(search.fields) : {},
               }
             : null,
-          { data: newState.data, fields: nestedFields(newSearch!.fields) },
+          { data: newState.data, fields: getNestedFields(newSearch!.fields) },
         );
         const searchesChanges = runSearches(
           schema,

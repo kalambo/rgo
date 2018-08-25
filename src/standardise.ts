@@ -122,7 +122,7 @@ export const standardiseSearch = ({
     name,
     store,
     filter: filter ? standardiseFilter(filter) : [{}],
-    sort: sort || [{ field: ['id'], direction: 'ASC' }],
+    sort: [...(sort || []), { field: ['id'], direction: 'ASC' }],
     slice: slice ? [slice] : [{ start: 0 }],
     fields: fields.filter(f => Array.isArray(f)) as FieldPath[],
     searches: (fields.filter(f => !Array.isArray(f)) as UserSearch[]).map(
