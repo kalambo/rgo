@@ -17,23 +17,59 @@ export const setup = () => {
   };
 
   const data = {
-    people: {
+    addresses: {
       A: {
-        firstName: 'First A',
-        lastName: 'Last A',
-        email: 'Email A',
-        address: 'A',
+        city: 'Lynchfurt',
       },
       B: {
-        firstName: 'First B',
-        lastName: 'Last B',
-        email: 'Email B',
-        address: 'B',
+        city: 'Tobyhaven',
+      },
+      C: {
+        city: 'Princeview',
+      },
+      D: {
+        city: 'Jeannebury',
+      },
+      E: {
+        city: 'Rileyfurt',
       },
     },
-    addresses: {
-      A: { city: 'City A', postcode: 'Postcode A' },
-      B: { city: 'City B', postcode: 'Postcode B' },
+    people: {
+      A: {
+        firstName: 'Esperanza',
+        lastName: 'Boyle',
+        age: 20,
+        address: 'A',
+        places: ['A', 'B', 'C'],
+      },
+      B: {
+        firstName: 'Delphia',
+        lastName: 'Cole',
+        age: 20,
+        address: 'B',
+        places: ['B', 'C', null],
+      },
+      C: {
+        firstName: 'Ena',
+        lastName: 'Cartwright',
+        age: 40,
+        address: 'C',
+        places: [null, 'C', 'D'],
+      },
+      D: {
+        firstName: 'Griffin',
+        lastName: 'Farrell',
+        age: 30,
+        address: 'D',
+        places: ['D'],
+      },
+      E: {
+        firstName: null,
+        lastName: 'Hansen',
+        age: 20,
+        address: null,
+        places: null,
+      },
     },
   };
 

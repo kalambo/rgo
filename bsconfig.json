@@ -1,0 +1,11 @@
+{
+  "name": "rgo",
+  "namespace": true,
+  "package-specs": {
+    "module": "commonjs",
+    "in-source": false
+  },
+  "suffix": ".js",
+  "sources": ["src"],
+  "refmt": 3
+}

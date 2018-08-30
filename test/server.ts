@@ -139,7 +139,7 @@ const runSearches = (
             ...Object.keys(storeFields[store] || {}),
           ]),
         );
-        newRanges.push({ id: result[0].id, ...s });
+        newRanges.push({ id: result[0] && result[0].id, ...s });
         return result;
       }),
     );
