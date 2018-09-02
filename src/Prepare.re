@@ -152,7 +152,7 @@ let intersectFilterMaps =
       filter
       |. Map.toArray
       |. Array.keepMap(((key, value)) =>
-           value |. mapSome(value => (key, value))
+           value |. mapSome(value => Some((key, value)))
          )
       |. Map.fromArray(~id=(module FieldCmp)),
     )

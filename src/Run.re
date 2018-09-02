@@ -4,206 +4,274 @@ open Utils;
 open Data;
 open Ids;
 
-type runValue =
-  | RunValue(value)
-  | RunRecord(list((string, runRecordValue)))
-and runRecordValue =
-  | RunSingle(runValue)
-  | RunList(list(option(runValue)));
-
-let createFilter = (store, id, field, paths) => {
-  name: "",
-  store,
-  filter: [
-    [
-      (["id"], FilterPoint({value: Some(Value(String(id))), fields: []})),
-    ]
-    |. List.toArray
-    |. Map.fromArray(~id=(module FieldCmp)),
-  ],
-  sort: [Asc(["id"])],
-  slices: [(0, None)],
-  fields:
-    switch (paths) {
-    | [] => [[field]]
-    | paths => paths |. List.map(path => [field, ...path])
-    },
-  searches: [],
+type layerValue =
+  | LayerSingle(value)
+  | LayerList(list(option(value)));
+type valueLayer = {
+  store: string,
+  value: layerValue,
+  getRecordLayer: option(string => recordLayer),
+}
+and recordLayer = {
+  fields: list(string),
+  getValueLayer: string => option(valueLayer),
 };
 
-let rec runValue =
-        (schema, data, store, value, fields)
-        : (option(runValue), list(search)) =>
-  switch (value, fields) {
-  | (Null, _) => (Some(RunValue(Null)), [])
-  | (Value(value), []) => (Some(RunValue(Value(value))), [])
-  | (Value(String(id)), fields) =>
-    runRecord(schema, data, store, id, fields)
-    |. mapPair(r => r |. mapSome(r => RunRecord(r)), requests => requests)
+let rec getValue = (value, getRecordLayer) =>
+  switch (value, getRecordLayer) {
+  | (None, _) => None
+  | (Some(Null), _) => Some(RunValue(Null))
+  | (Some(Value(value)), None) => Some(RunValue(Value(value)))
+  | (Some(Value(String(id))), Some(getRecordLayer)) =>
+    getRecord(getRecordLayer(id))
+    |. mapSome(record => Some(RunRecord(record)))
   | _ => raise(Not_found)
   }
-and runRecordValue =
-    (schema, data, store, id, field, paths)
-    : (option(runRecordValue), list(search)) =>
-  switch (getDataValue(schema, data, store, id, field)) {
-  | None => (None, [createFilter(store, id, field, paths)])
-  | Some(Single(value)) =>
-    runValue(schema, data, store, value, paths)
-    |. mapPair(
-         result => result |. mapSome(result => RunSingle(result)),
-         requests => requests,
-       )
-  | Some(List(values)) =>
+and getRecordValue = value =>
+  switch (value) {
+  | None => None
+  | Some({value: LayerSingle(value), getRecordLayer}) =>
+    getValue(Some(value), getRecordLayer)
+    |. mapSome(value => Some(RunSingle(value)))
+  | Some({value: LayerList(values), getRecordLayer}) =>
     values
-    |. List.map(value => runValue(schema, data, store, value, paths))
-    |. List.unzip
-    |. mapPair(
-         results => Some(RunList(results)),
-         requestsList => requestsList |. List.flatten,
-       )
+    |. List.map(value => getValue(value, getRecordLayer))
+    |. (values => Some(RunList(values)))
   }
-and runRecord =
-    (schema, data, store, id, fields)
-    : (option(list((string, runRecordValue))), list(search)) =>
-  groupBy(fields, (_, fieldPath) =>
-    switch (fieldPath) {
-    | [] => raise(Not_found)
-    | [field, ...path] => (field, path)
-    }
-  )
-  |. List.map(((field, paths)) =>
-       runRecordValue(
-         schema,
-         data,
-         must(get2(schema.links, store, field)),
-         id,
-         field,
-         paths,
-       )
-       |. mapPair(r => r |. mapSome(r => (field, r)), requests => requests)
+and getRecord = ({fields, getValueLayer}) =>
+  fields
+  |. List.map(field =>
+       getRecordValue(getValueLayer(field))
+       |. mapSome(value => Some((field, value)))
      )
-  |. List.unzip
-  |. mapPair(
-       results => results |. List.keepMap(v => v) |. emptyToNone,
-       requestsList => requestsList |. List.flatten,
-     );
+  |. (values => values |. List.keepMap(v => v) |. emptyToNone);
 
-let rec runSearch =
+let rec diffValues = (value1, value2, getRecordLayer1, getRecordLayer2) =>
+  switch (value1, getRecordLayer1, value2, getRecordLayer2) {
+  | (
+      Some(Value(String(id1))),
+      Some(getRecordLayer1),
+      Some(Value(String(id2))),
+      Some(getRecordLayer2),
+    ) =>
+    diffRecords(getRecordLayer1(id1), getRecordLayer2(id2))
+    |. mapSome(changes => Some(ChangeRecord(changes)))
+  | (_, _, value, getRecordLayer2) =>
+    getValue(value, getRecordLayer2)
+    |. mapSome(value => Some(ChangeValue(value)))
+  }
+and diffRecordValues = (value1, value2) =>
+  switch (value1, value2) {
+  | (prev, None) => prev |. mapSome(_ => Some(ChangeClear))
+  | (
+      Some({value: LayerSingle(value1), getRecordLayer: getRecordLayer1}),
+      Some({value: LayerSingle(value2), getRecordLayer: getRecordLayer2}),
+    ) =>
+    diffValues(Some(value1), Some(value2), getRecordLayer1, getRecordLayer2)
+    |. mapSome(change =>
+         Some(
+           switch (change) {
+           | ChangeValue(value) => ChangeSetSingle(value)
+           | ChangeRecord(record) => ChangeSingle(record)
+           },
+         )
+       )
+  | (_, Some({value: LayerSingle(value), getRecordLayer})) =>
+    getValue(Some(value), getRecordLayer)
+    |. mapSome(change => Some(ChangeSetSingle(change)))
+  | (
+      Some({
+        store: store1,
+        value: LayerList(values1),
+        getRecordLayer: getRecordLayer1,
+      }),
+      Some({
+        store: store2,
+        value: LayerList(values2),
+        getRecordLayer: getRecordLayer2,
+      }),
+    ) =>
+    (
+      store1 == store2 ?
+        diff(values1, values2) :
+        [ListRemove(0, values1 |. List.length), ListAdd(0, values2)]
+    )
+    |. List.map(change =>
+         switch (change) {
+         | ListAdd(index, values) =>
+           values
+           |. List.map(value => getValue(value, getRecordLayer2))
+           |. (values => Some(ListAdd(index, values)))
+         | ListChange(index, value) =>
+           diffValues(value, value, getRecordLayer1, getRecordLayer2)
+           |. mapSome(change => Some(ListChange(index, change)))
+         | ListRemove(index, count) => Some(ListRemove(index, count))
+         }
+       )
+    |. List.keepMap(c => c)
+    |. emptyToNone
+    |. mapSome(changes => Some(ChangeList(changes)))
+
+  | (_, Some({value: LayerList(values), getRecordLayer})) =>
+    values
+    |. List.map(value => getValue(value, getRecordLayer))
+    |. (changes => Some(ChangeSetList(changes)))
+  }
+and diffRecords =
+    (
+      {fields: fields1, getValueLayer: getValueLayer1},
+      {fields: fields2, getValueLayer: getValueLayer2},
+    ) =>
+  unique(List.concat(fields1, fields2))
+  |. List.map(field =>
+       diffRecordValues(getValueLayer1(field), getValueLayer2(field))
+       |. mapSome(change => Some((field, change)))
+     )
+  |. List.keepMap(c => c)
+  |. emptyToNone;
+
+let rec createRecordLayer =
         (
           schema: schema,
           data: dataState,
-          {name, store, fields, searches} as search: search,
           parent: option((string, string)),
-        )
-        : (option((string, runRecordValue)), list(search)) => {
-  let combined = mergeNullData(data.server, data.client);
-  switch (getSearchIds(schema, data, search, parent)) {
-  | None => (None, [search])
-  | Some((ids, gaps)) =>
-    ids
-    |. List.map(id =>
-         switch (id) {
-         | Some(id) =>
-           let (recordResult, recordRequests) =
-             runRecord(schema, combined, store, id, fields);
-           let (searchResult, searchRequestsList) =
-             searches
-             |. List.map(search =>
-                  runSearch(schema, data, search, Some((store, id)))
-                )
-             |. List.unzip;
-           (
-             List.concat(
-               switch (recordResult) {
-               | Some(recordResult) => recordResult
-               | None => []
-               },
-               searchResult |. List.keepMap(v => v),
-             )
-             |. emptyToNone
-             |. mapSome(result => RunRecord(result)),
-             List.flatten([recordRequests, ...searchRequestsList]),
-           );
-         | None => (None, [])
-         }
-       )
-    |. List.unzip
-    |. mapPair(
-         result => Some((name, RunList(result))),
-         requestsList =>
-           List.concat(
-             [{...search, slices: gaps}],
-             requestsList |. List.flatten,
+          fields: list(fieldPath),
+          searches: list(search),
+          addRequest: search => unit,
+        ) => {
+  let groupedFields =
+    groupBy(fields, (_, fieldPath) =>
+      switch (fieldPath) {
+      | [] => raise(Not_found)
+      | [field, ...path] => (field, path)
+      }
+    );
+  let fields =
+    unique(
+      List.concat(
+        groupedFields |. List.map(((f, _)) => f),
+        searches |. List.map(search => search.name),
+      ),
+    );
+  {
+    fields,
+    getValueLayer: field =>
+      switch (
+        groupedFields |. List.getAssoc(field, eq),
+        searches
+        |. List.getBy(search => search.name == field)
+        |. mapSome(search =>
+             Some((search, getSearchIds(schema, data, search, parent)))
            ),
-       )
+      ) {
+      | (Some(fields), None) =>
+        switch (parent) {
+        | Some((store, id)) =>
+          switch (
+            getDataValue(
+              schema,
+              mergeNullData(data.server, data.client),
+              store,
+              id,
+              field,
+            )
+          ) {
+          | Some(value) =>
+            Some({
+              store,
+              value:
+                switch (value) {
+                | SingleValue(value) => LayerSingle(value)
+                | ListValue(values) =>
+                  LayerList(values |. List.map(value => Some(value)))
+                },
+              getRecordLayer:
+                fields == [[]] ?
+                  None :
+                  Some(
+                    (
+                      id =>
+                        createRecordLayer(
+                          schema,
+                          data,
+                          Some((
+                            must(get2(schema.links, store, field)),
+                            id,
+                          )),
+                          fields,
+                          [],
+                          addRequest,
+                        )
+                    ),
+                  ),
+            })
+          | None =>
+            addRequest({
+              name: "",
+              store,
+              filter: [
+                [
+                  (
+                    ["id"],
+                    FilterPoint({
+                      value: Some(Value(String(id))),
+                      fields: [],
+                    }),
+                  ),
+                ]
+                |. List.toArray
+                |. Map.fromArray(~id=(module FieldCmp)),
+              ],
+              sort: [Asc(["id"])],
+              slices: [(0, None)],
+              fields:
+                switch (fields) {
+                | [] => [[field]]
+                | paths => paths |. List.map(path => [field, ...path])
+                },
+              searches: [],
+            });
+            None;
+          }
+        | None => raise(Not_found)
+        }
+      | (None, Some(({store, fields, searches} as search, idsAndGaps))) =>
+        switch (idsAndGaps) {
+        | Some((_, Some(gaps))) => addRequest({...search, slices: gaps})
+        | Some((_, None)) => ()
+        | None => addRequest(search)
+        };
+        idsAndGaps
+        |. mapSome(((ids, _)) =>
+             Some({
+               store,
+               value:
+                 ids
+                 |. List.map(id =>
+                      id |. mapSome(id => Some(Value(String(id))))
+                    )
+                 |. LayerList,
+               getRecordLayer:
+                 Some(
+                   (
+                     id =>
+                       createRecordLayer(
+                         schema,
+                         data,
+                         Some((store, id)),
+                         fields,
+                         searches,
+                         addRequest,
+                       )
+                   ),
+                 ),
+             })
+           );
+      | (None, None) => None
+      | (Some(_), Some(_)) => raise(Not_found)
+      },
   };
 };
-
-let rec getValueChange = (value1, value2) =>
-  switch (value1, value2) {
-  | (value1, value2) when value1 == value2 => None
-  | (_, None) => Some(ChangeClear)
-  | (_, Some(RunValue(value))) => Some(ChangeValue(value))
-  | (None, Some(RunRecord(record))) =>
-    getRecordChange([], record) |. mapSome(change => ChangeRecord(change))
-  | (Some(RunRecord(record1)), Some(RunRecord(record2))) =>
-    getRecordChange(record1, record2)
-    |. mapSome(change => ChangeRecord(change))
-  | (Some(RunValue(_)), Some(RunRecord(_))) => raise(Not_found)
-  }
-and getRecordChange =
-    (
-      record1: list((string, runRecordValue)),
-      record2: list((string, runRecordValue)),
-    )
-    : option(list((string, change))) =>
-  unique(
-    List.concat(
-      record1 |. List.map(v => fst(v)),
-      record2 |. List.map(v => fst(v)),
-    ),
-  )
-  |. List.keepMap(field =>
-       switch (
-         record1 |. List.getAssoc(field, eq),
-         record2 |. List.getAssoc(field, eq),
-       ) {
-       | (value1, value2) when value1 == value2 => None
-       | (_, None) => Some((field, ChangeSingle(ChangeClear)))
-       | (None, Some(RunSingle(value))) =>
-         getValueChange(None, Some(value))
-         |. mapSome(change => (field, ChangeSingle(change)))
-       | (Some(RunSingle(value1)), Some(RunSingle(value2))) =>
-         getValueChange(Some(value1), Some(value2))
-         |. mapSome(change => (field, ChangeSingle(change)))
-       | (None, Some(RunList(values))) =>
-         Some((
-           field,
-           ChangeList(
-             values |. List.map(value => getValueChange(None, value)),
-           ),
-         ))
-       | (Some(RunList(values1)), Some(RunList(values2))) =>
-         Some((
-           field,
-           ChangeList(
-             values2
-             |. List.mapWithIndex((index, value2) =>
-                  getValueChange(
-                    switch (List.get(values1, index)) {
-                    | Some(Some(value1)) => Some(value1)
-                    | _ => None
-                    },
-                    value2,
-                  )
-                ),
-           ),
-         ))
-       | (Some(RunSingle(_)), Some(RunList(_))) => raise(Not_found)
-       | (Some(RunList(_)), Some(RunSingle(_))) => raise(Not_found)
-       }
-     )
-  |. emptyToNone;
 
 let run =
     (
@@ -213,18 +281,12 @@ let run =
       searches1: list(search),
       searches2: list(search),
     ) => {
-  let (result1, _) =
-    searches1
-    |. List.map(search1 => runSearch(schema, data1, search1, None))
-    |. List.unzip
-    |. mapPair(result => result |. List.keepMap(v => v), requests => requests);
-  let (result2, requests) =
-    searches2
-    |. List.map(search2 => runSearch(schema, data2, search2, None))
-    |. List.unzip
-    |. mapPair(
-         result => result |. List.keepMap(v => v),
-         requestsList => requestsList |. List.flatten,
-       );
-  (getRecordChange(result1, result2), requests);
+  let requests = ref([]);
+  let addRequest = request => requests := [request, ...requests^];
+  let changes =
+    diffRecords(
+      createRecordLayer(schema, data1, None, [], searches1, _ => ()),
+      createRecordLayer(schema, data2, None, [], searches2, addRequest),
+    );
+  (changes, requests^);
 };

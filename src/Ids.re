@@ -21,8 +21,8 @@ let getFilterValues =
       fields
       |. List.map(field =>
            switch (getDataValue(schema, data, store, id, field)) {
-           | Some(Single(value)) => [value]
-           | Some(List(values)) => values
+           | Some(SingleValue(value)) => [value]
+           | Some(ListValue(values)) => values
            | None => raise(Not_found)
            }
          )
@@ -315,7 +315,7 @@ let getSearchIds =
              | None => (gapStart, None)
              }
            );
-      Some((ids, mappedGaps));
+      Some((ids, mappedGaps |. emptyToNone));
     };
   | _ => raise(Not_found)
   };

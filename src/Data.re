@@ -83,7 +83,7 @@ let mergeNullData = (data1: data, data2: nullData) =>
         records
         |. Map.String.toArray
         |. Array.keepMap(((id, record)) =>
-             record |. mapSome(record => (id, record))
+             record |. mapSome(record => Some((id, record)))
            )
         |. Map.String.fromArray,
       )
@@ -138,7 +138,7 @@ let rec getDataValue =
   | None => get3(data, store, id, field)
   };
 
-let rec getValues =
+let rec getAllValues =
         (
           schema: schema,
           data: data,
@@ -154,11 +154,13 @@ let rec getValues =
       (
         switch (getDataValue(schema, data, store, value, field)) {
         | None => raise(Not_found)
-        | Some(Single(value)) => [value]
-        | Some(List(value)) => value
+        | Some(SingleValue(value)) => [value]
+        | Some(ListValue(value)) => value
         }
       )
-      |. List.map(nextId => getValues(schema, data, nextStore, nextId, path))
+      |. List.map(nextId =>
+           getAllValues(schema, data, nextStore, nextId, path)
+         )
       |. List.flatten
     | _ => raise(Not_found)
     }
@@ -170,7 +172,7 @@ let idInFilter =
   |. List.some(filterMap =>
        filterMap
        |. Map.every((field, range) =>
-            getValues(schema, data, store, Value(String(id)), field)
+            getAllValues(schema, data, store, Value(String(id)), field)
             |. List.some(value =>
                  switch (range) {
                  | FilterPoint({value: Some(v)}) => value == v
@@ -212,8 +214,8 @@ let compareIds =
          res :
          (
            switch (
-             getValues(schema, data, store, Value(String(id1)), field),
-             getValues(schema, data, store, Value(String(id2)), field),
+             getAllValues(schema, data, store, Value(String(id1)), field),
+             getAllValues(schema, data, store, Value(String(id2)), field),
            ) {
            | ([], []) => 0
            | ([], _) => 1

@@ -16,8 +16,8 @@ type directionValue =
   | HighValue(option(value));
 
 type recordValue =
-  | Single(value)
-  | List(list(value));
+  | SingleValue(value)
+  | ListValue(list(value));
 
 type formula = {
   fields: list(string),
@@ -117,13 +117,27 @@ type dataState = {
   ranges: Map.String.t(list(ranges)),
 };
 
+type runValue =
+  | RunValue(value)
+  | RunRecord(list((string, runRecordValue)))
+and runRecordValue =
+  | RunSingle(runValue)
+  | RunList(list(option(runValue)));
+
+type listChange('a, 'b) =
+  | ListAdd(int, list('a))
+  | ListChange(int, 'b)
+  | ListRemove(int, int);
+
 type changeValue =
-  | ChangeClear
-  | ChangeValue(value)
+  | ChangeValue(runValue)
   | ChangeRecord(list((string, change)))
 and change =
-  | ChangeSingle(changeValue)
-  | ChangeList(list(option(changeValue)));
+  | ChangeClear
+  | ChangeSetSingle(runValue)
+  | ChangeSetList(list(option(runValue)))
+  | ChangeSingle(list((string, change)))
+  | ChangeList(list(listChange(option(runValue), changeValue)));
 
 type state = {
   schema,

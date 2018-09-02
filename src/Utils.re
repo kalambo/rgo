@@ -1,4 +1,5 @@
 open Belt;
+open Types;
 
 let eq = (a, b) => a == b;
 
@@ -10,7 +11,7 @@ let must = value =>
 
 let mapSome = (value, map) =>
   switch (value) {
-  | Some(value) => Some(map(value))
+  | Some(value) => map(value)
   | None => None
   };
 
@@ -20,6 +21,12 @@ let emptyToNone = items =>
   switch (items) {
   | [] => None
   | items => Some(items)
+  };
+
+let noneToEmpty = value =>
+  switch (value) {
+  | Some(value) => [value]
+  | None => []
   };
 
 let rec unique = (items: list('a)) =>
@@ -205,3 +212,34 @@ let mapListGroups =
        |. List.keepMap(((i, value)) => i == index ? Some(value) : None)
      );
 };
+
+type diffChange('a) = {
+  added: bool,
+  removed: bool,
+  count: int,
+  value: list('a),
+};
+
+[@bs.module "diff"]
+external diffArrays : (list('a), list('a)) => list(diffChange('a)) =
+  "diffArrays";
+
+let diff = (items1, items2) =>
+  diffArrays(items1, items2)
+  |. List.reduce(
+       ([], 0), ((changes, index), {added, removed, count, value}) =>
+       if (added) {
+         ([ListAdd(index, value), ...changes], index + count);
+       } else if (removed) {
+         ([ListRemove(index, count), ...changes], index);
+       } else {
+         (
+           [
+             ListChange(index, items1 |. List.get(index) |. must),
+             ...changes,
+           ],
+           index + 1,
+         );
+       }
+     )
+  |. fst;
