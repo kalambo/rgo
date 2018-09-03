@@ -6,14 +6,14 @@ open Ids;
 
 type layerValue =
   | LayerSingle(value)
-  | LayerList(list(option(value)));
+  | LayerList(array(option(value)));
 type valueLayer = {
   store: string,
   value: layerValue,
   getRecordLayer: option(string => recordLayer),
 }
 and recordLayer = {
-  fields: list(string),
+  fields: array(string),
   getValueLayer: string => option(valueLayer),
 };
 
@@ -35,16 +35,16 @@ and getRecordValue = value =>
     |. mapSome(value => Some(RunSingle(value)))
   | Some({value: LayerList(values), getRecordLayer}) =>
     values
-    |. List.map(value => getValue(value, getRecordLayer))
+    |. Array.map(value => getValue(value, getRecordLayer))
     |. (values => Some(RunList(values)))
   }
 and getRecord = ({fields, getValueLayer}) =>
   fields
-  |. List.map(field =>
+  |. Array.map(field =>
        getRecordValue(getValueLayer(field))
        |. mapSome(value => Some((field, value)))
      )
-  |. (values => values |. List.keepMap(v => v) |. emptyToNone);
+  |. (values => values |. Array.keepMap(v => v) |. emptyArrayToNone);
 
 let rec diffValues = (value1, value2, getRecordLayer1, getRecordLayer2) =>
   switch (value1, getRecordLayer1, value2, getRecordLayer2) {
@@ -94,13 +94,13 @@ and diffRecordValues = (value1, value2) =>
     (
       store1 == store2 ?
         diff(values1, values2) :
-        [ListRemove(0, values1 |. List.length), ListAdd(0, values2)]
+        [ListRemove(0, values1 |. Array.length), ListAdd(0, values2)]
     )
     |. List.map(change =>
          switch (change) {
          | ListAdd(index, values) =>
            values
-           |. List.map(value => getValue(value, getRecordLayer2))
+           |. Array.map(value => getValue(value, getRecordLayer2))
            |. (values => Some(ListAdd(index, values)))
          | ListChange(index, value) =>
            diffValues(value, value, getRecordLayer1, getRecordLayer2)
@@ -109,12 +109,13 @@ and diffRecordValues = (value1, value2) =>
          }
        )
     |. List.keepMap(c => c)
-    |. emptyToNone
+    |. List.toArray
+    |. emptyArrayToNone
     |. mapSome(changes => Some(ChangeList(changes)))
 
   | (_, Some({value: LayerList(values), getRecordLayer})) =>
     values
-    |. List.map(value => getValue(value, getRecordLayer))
+    |. Array.map(value => getValue(value, getRecordLayer))
     |. (changes => Some(ChangeSetList(changes)))
   }
 and diffRecords =
@@ -122,13 +123,15 @@ and diffRecords =
       {fields: fields1, getValueLayer: getValueLayer1},
       {fields: fields2, getValueLayer: getValueLayer2},
     ) =>
-  unique(List.concat(fields1, fields2))
-  |. List.map(field =>
+  Array.concat(fields1, fields2)
+  |. Set.String.fromArray
+  |. Set.String.toArray
+  |. Array.map(field =>
        diffRecordValues(getValueLayer1(field), getValueLayer2(field))
        |. mapSome(change => Some((field, change)))
      )
-  |. List.keepMap(c => c)
-  |. emptyToNone;
+  |. Array.keepMap(c => c)
+  |. emptyArrayToNone;
 
 let rec createRecordLayer =
         (
@@ -147,12 +150,13 @@ let rec createRecordLayer =
       }
     );
   let fields =
-    unique(
-      List.concat(
-        groupedFields |. List.map(((f, _)) => f),
-        searches |. List.map(search => search.name),
-      ),
-    );
+    List.concat(
+      groupedFields |. List.map(((f, _)) => f),
+      searches |. List.map(search => search.name),
+    )
+    |. List.toArray
+    |. Set.String.fromArray
+    |. Set.String.toArray;
   {
     fields,
     getValueLayer: field =>
@@ -183,7 +187,9 @@ let rec createRecordLayer =
                 switch (value) {
                 | SingleValue(value) => LayerSingle(value)
                 | ListValue(values) =>
-                  LayerList(values |. List.map(value => Some(value)))
+                  LayerList(
+                    values |. List.map(value => Some(value)) |. List.toArray,
+                  )
                 },
               getRecordLayer:
                 fields == [[]] ?
@@ -225,9 +231,13 @@ let rec createRecordLayer =
               sort: [Asc(["id"])],
               slices: [(0, None)],
               fields:
-                switch (fields) {
-                | [] => [[field]]
-                | paths => paths |. List.map(path => [field, ...path])
+                switch (fields, get2(schema.formulae, store, field)) {
+                | ([], None) => [[field]]
+                | ([], Some({fields})) =>
+                  fields |. List.map(field => [field])
+                | (paths, None) =>
+                  paths |. List.map(path => [field, ...path])
+                | (_, Some(_)) => raise(Not_found)
                 },
               searches: [],
             });
@@ -250,6 +260,7 @@ let rec createRecordLayer =
                  |. List.map(id =>
                       id |. mapSome(id => Some(Value(String(id))))
                     )
+                 |. List.toArray
                  |. LayerList,
                getRecordLayer:
                  Some(

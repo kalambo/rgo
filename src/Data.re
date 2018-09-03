@@ -24,104 +24,59 @@ let compareDirectionValues = (value1: directionValue, value2: directionValue) =>
     );
 
 let mergeData = (data1: data, data2: data) =>
-  Map.String.merge(data1, data2, (_, records1, records2) =>
-    switch (records1, records2) {
-    | (Some(records1), Some(records2)) =>
-      Some(
-        Map.String.merge(records1, records2, (_, record1, record2) =>
-          switch (record1, record2) {
-          | (Some(record1), Some(record2)) =>
-            Some(
-              Map.String.merge(record1, record2, (_, value1, value2) =>
-                switch (value1, value2) {
-                | (Some(_), Some(value))
-                | (Some(value), None)
-                | (None, Some(value)) => Some(value)
-                | (None, None) => raise(Not_found)
-                }
-              ),
-            )
-          | (Some(record), None)
-          | (None, Some(record)) => Some(record)
-          | (None, None) => raise(Not_found)
-          }
-        ),
-      )
-    | (Some(records), None)
-    | (None, Some(records)) => Some(records)
-    | (None, None) => raise(Not_found)
-    }
+  mergeMaps(data1, data2, (records1, records2) =>
+    Some(
+      mergeMaps(records1, records2, (record1, record2) =>
+        Some(mergeMaps(record1, record2, (_, value) => Some(value)))
+      ),
+    )
   );
 
 let mergeNullData = (data1: data, data2: nullData) =>
-  Map.String.merge(data1, data2, (_, records1, records2) =>
-    switch (records1, records2) {
-    | (Some(records1), Some(records2)) =>
+  mergeConvertMaps(
+    data1,
+    data2,
+    records2 =>
+      records2
+      |. Map.String.toList
+      |. List.keepMap(((id, record)) =>
+           record |. mapSome(record => Some((id, record)))
+         )
+      |. emptyToNone
+      |. mapSome(entries =>
+           Some(entries |. List.toArray |. Map.String.fromArray)
+         ),
+    (records1, records2) =>
       Some(
-        Map.String.merge(records1, records2, (_, record1, record2) =>
-          switch (record1, record2) {
-          | (_, Some(None)) => None
-          | (Some(record1), Some(Some(record2))) =>
-            Some(
-              Map.String.merge(record1, record2, (_, value1, value2) =>
-                switch (value1, value2) {
-                | (Some(_), Some(value))
-                | (Some(value), None)
-                | (None, Some(value)) => Some(value)
-                | (None, None) => raise(Not_found)
-                }
-              ),
-            )
-          | (record, None)
-          | (None, Some(record)) => record
-          }
+        mergeConvertMaps(
+          records1,
+          records2,
+          record2 => record2,
+          (record1, record2) =>
+            record2
+            |. mapSome(record2 =>
+                 Some(
+                   mergeMaps(record1, record2, (_, value) => Some(value)),
+                 )
+               ),
         ),
-      )
-    | (Some(records), None) => Some(records)
-    | (None, Some(records)) =>
-      Some(
-        records
-        |. Map.String.toArray
-        |. Array.keepMap(((id, record)) =>
-             record |. mapSome(record => Some((id, record)))
-           )
-        |. Map.String.fromArray,
-      )
-    | (None, None) => raise(Not_found)
-    }
+      ),
   );
 
 let mergeNullNullData = (data1: nullData, data2: nullData) =>
-  Map.String.merge(data1, data2, (_, records1, records2) =>
-    switch (records1, records2) {
-    | (Some(records1), Some(records2)) =>
-      Some(
-        Map.String.merge(records1, records2, (_, record1, record2) =>
+  mergeMaps(data1, data2, (records1, records2) =>
+    Some(
+      mergeMaps(records1, records2, (record1, record2) =>
+        Some(
           switch (record1, record2) {
-          | (_, Some(None)) => Some(None)
-          | (Some(Some(record1)), Some(Some(record2))) =>
-            Some(
-              Some(
-                Map.String.merge(record1, record2, (_, value1, value2) =>
-                  switch (value1, value2) {
-                  | (Some(_), Some(value))
-                  | (Some(value), None)
-                  | (None, Some(value)) => Some(value)
-                  | (None, None) => raise(Not_found)
-                  }
-                ),
-              ),
-            )
-          | (Some(record), None)
-          | (None | Some(None), Some(record)) => Some(record)
-          | (None, None) => raise(Not_found)
-          }
-        ),
-      )
-    | (Some(records), None)
-    | (None, Some(records)) => Some(records)
-    | (None, None) => raise(Not_found)
-    }
+          | (_, None as record2)
+          | (None, Some(_) as record2) => record2
+          | (Some(record1), Some(record2)) =>
+            Some(mergeMaps(record1, record2, (_, value) => Some(value)))
+          },
+        )
+      ),
+    )
   );
 
 let rec getDataValue =

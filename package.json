@@ -7,11 +7,14 @@
   "main": "lib/js/src/Index.js",
   "scripts": {
     "prepare": "yarn run build",
-    "build": "bsb -make-world",
+    "build": "bsb -make-world && tsc",
     "clean": "bsb -clean-world"
   },
   "dependencies": {
     "bs-platform": "^4.0.5",
     "diff": "^3.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^3.0.3"
   }
 }

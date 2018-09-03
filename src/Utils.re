@@ -23,6 +23,12 @@ let emptyToNone = items =>
   | items => Some(items)
   };
 
+let emptyArrayToNone = items =>
+  switch (items) {
+  | [||] => None
+  | items => Some(items)
+  };
+
 let noneToEmpty = value =>
   switch (value) {
   | Some(value) => [value]
@@ -213,29 +219,52 @@ let mapListGroups =
      );
 };
 
+let mergeMaps = (map1, map2, mergeValues) =>
+  Map.String.merge(map1, map2, (_, value1, value2) =>
+    switch (value1, value2) {
+    | (Some(value1), Some(value2)) => mergeValues(value1, value2)
+    | (Some(value), None)
+    | (None, Some(value)) => Some(value)
+    | (None, None) => None
+    }
+  );
+
+let mergeConvertMaps = (map1, map2, convert, mergeValues) =>
+  Map.String.merge(map1, map2, (_, value1, value2) =>
+    switch (value1, value2) {
+    | (Some(value1), Some(value2)) => mergeValues(value1, value2)
+    | (Some(value), None) => Some(value)
+    | (None, Some(value)) => convert(value)
+    | (None, None) => None
+    }
+  );
+
+[@bs.deriving abstract]
 type diffChange('a) = {
   added: bool,
   removed: bool,
   count: int,
-  value: list('a),
+  value: array('a),
 };
 
 [@bs.module "diff"]
-external diffArrays : (list('a), list('a)) => list(diffChange('a)) =
+external diffArrays : (array('a), array('a)) => array(diffChange('a)) =
   "diffArrays";
 
 let diff = (items1, items2) =>
   diffArrays(items1, items2)
-  |. List.reduce(
-       ([], 0), ((changes, index), {added, removed, count, value}) =>
-       if (added) {
-         ([ListAdd(index, value), ...changes], index + count);
-       } else if (removed) {
-         ([ListRemove(index, count), ...changes], index);
+  |. Array.reduce(([], 0), ((changes, index), change) =>
+       if (addedGet(change)) {
+         (
+           [ListAdd(index, valueGet(change)), ...changes],
+           index + countGet(change),
+         );
+       } else if (removedGet(change)) {
+         ([ListRemove(index, countGet(change)), ...changes], index);
        } else {
          (
            [
-             ListChange(index, items1 |. List.get(index) |. must),
+             ListChange(index, items1 |. Array.get(index) |. must),
              ...changes,
            ],
            index + 1,

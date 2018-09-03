@@ -6,12 +6,14 @@ open Run;
 open Prepare;
 open Utils;
 
+[@bs.module] external convertChange : changeValue => userChange = "./change";
+
 let runDataUpdate = ({schema, queries, data}, newData) =>
   queries
   |. List.map(((searches, onChange)) =>
        switch (run(schema, data, newData, searches, searches)) {
        | (Some(change), requests) =>
-         onChange(change);
+         onChange(convertChange(ChangeRecord(change)));
          requests;
        | (_, requests) => requests
        }
@@ -24,7 +26,7 @@ let runSearchUpdate = ({schema, queries, data}, newSearches, onChange) =>
        if (queryOnChange == onChange) {
          switch (run(schema, data, data, searches, newSearches)) {
          | (Some(change), requests) =>
-           onChange(change);
+           onChange(convertChange(ChangeRecord(change)));
            requests;
          | (_, requests) => requests
          };
@@ -119,7 +121,7 @@ let default =
     });
 
   (
-    (searches: list(userSearch), onChange: list((string, change)) => unit) => {
+    (searches: list(userSearch), onChange: userChange => unit) => {
       let searches = searches |. List.map(prepareSearch);
       let prevState = state^;
       state :=

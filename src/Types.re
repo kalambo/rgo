@@ -119,29 +119,31 @@ type dataState = {
 
 type runValue =
   | RunValue(value)
-  | RunRecord(list((string, runRecordValue)))
+  | RunRecord(array((string, runRecordValue)))
 and runRecordValue =
   | RunSingle(runValue)
-  | RunList(list(option(runValue)));
+  | RunList(array(option(runValue)));
 
 type listChange('a, 'b) =
-  | ListAdd(int, list('a))
+  | ListAdd(int, array('a))
   | ListChange(int, 'b)
   | ListRemove(int, int);
 
 type changeValue =
   | ChangeValue(runValue)
-  | ChangeRecord(list((string, change)))
+  | ChangeRecord(array((string, change)))
 and change =
   | ChangeClear
   | ChangeSetSingle(runValue)
-  | ChangeSetList(list(option(runValue)))
-  | ChangeSingle(list((string, change)))
-  | ChangeList(list(listChange(option(runValue), changeValue)));
+  | ChangeSetList(array(option(runValue)))
+  | ChangeSingle(array((string, change)))
+  | ChangeList(array(listChange(option(runValue), changeValue)));
+
+type userChange;
 
 type state = {
   schema,
-  queries: list((list(search), list((string, change)) => unit)),
+  queries: list((list(search), userChange => unit)),
   data: dataState,
   requests: Map.Int.t(list(search)),
   index: int,
