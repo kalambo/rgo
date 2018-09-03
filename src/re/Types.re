@@ -1,4 +1,4 @@
-open Belt;
+type keyMap('a) = array((string, 'a));
 
 type nonNullValue =
   | Bool(bool)
@@ -17,47 +17,41 @@ type directionValue =
 
 type recordValue =
   | SingleValue(value)
-  | ListValue(list(value));
+  | ArrayValue(array(value));
 
 type formula = {
-  fields: list(string),
-  formula: list(recordValue) => recordValue,
+  fields: array(string),
+  formula: array(recordValue) => recordValue,
 };
 
 type schema = {
-  links: Map.String.t(Map.String.t(string)),
-  formulae: Map.String.t(Map.String.t(formula)),
+  links: keyMap(keyMap(string)),
+  formulae: keyMap(keyMap(formula)),
 };
 
-type fieldPath = list(string);
-
-module FieldCmp =
-  Id.MakeComparable({
-    type t = fieldPath;
-    let cmp = compare;
-  });
+type fieldPath = array(string);
 
 type filterValue = {
   value: option(value),
-  fields: list(string),
+  fields: array(string),
 };
 
 type filterRange =
   | FilterPoint(filterValue)
   | FilterRange(filterValue, filterValue);
 
-type filterMap = Map.t(FieldCmp.t, filterRange, FieldCmp.identity);
+type filterMap = array((fieldPath, filterRange));
 
-type filter = list(filterMap);
+type filter = array(filterMap);
 
 type userFilterValue =
   | FilterValue(value)
   | FilterVariable(string);
 
 type userFilter =
-  | FilterOr(list(userFilter))
-  | FilterAnd(list(userFilter))
-  | FilterIn(fieldPath, list(value))
+  | FilterOr(array(userFilter))
+  | FilterAnd(array(userFilter))
+  | FilterIn(fieldPath, array(value))
   | FilterNeq(fieldPath, userFilterValue)
   | FilterLte(fieldPath, userFilterValue)
   | FilterGte(fieldPath, userFilterValue)
@@ -69,7 +63,7 @@ type sortPart =
   | Asc(fieldPath)
   | Desc(fieldPath);
 
-type sort = list(sortPart);
+type sort = array(sortPart);
 
 type slice = (int, option(int));
 
@@ -78,28 +72,28 @@ type search = {
   store: string,
   filter,
   sort,
-  slices: list(slice),
-  fields: list(fieldPath),
-  searches: list(search),
+  slices: array(slice),
+  fields: array(fieldPath),
+  searches: array(search),
 };
 
 type userSearch = {
   name: string,
   store: string,
   filter: option(userFilter),
-  sort: option(sort),
+  sort: option(array(sortPart)),
   slice: option(slice),
-  fields: list(userField),
+  fields: array(userField),
 }
 and userField =
   | UserField(fieldPath)
   | UserSearch(userSearch);
 
-type record = Map.String.t(recordValue);
+type record = keyMap(recordValue);
 
-type data = Map.String.t(Map.String.t(record));
+type data = keyMap(keyMap(record));
 
-type nullData = Map.String.t(Map.String.t(option(record)));
+type nullData = keyMap(keyMap(option(record)));
 
 type rangeStart =
   | RangeFirst
@@ -109,42 +103,40 @@ type range = (rangeStart, option(int));
 
 type ranges =
   | FullRange(filter)
-  | PartialRange(filter, sort, list(range));
+  | PartialRange(filter, sort, array(range));
 
 type dataState = {
   server: data,
   client: nullData,
-  ranges: Map.String.t(list(ranges)),
+  ranges: keyMap(array(ranges)),
 };
 
 type runValue =
   | RunValue(value)
-  | RunRecord(array((string, runRecordValue)))
+  | RunRecord(keyMap(runRecordValue))
 and runRecordValue =
   | RunSingle(runValue)
-  | RunList(array(option(runValue)));
+  | RunArray(array(option(runValue)));
 
-type listChange('a, 'b) =
-  | ListAdd(int, array('a))
-  | ListChange(int, 'b)
-  | ListRemove(int, int);
+type arrayChange('a, 'b) =
+  | ArrayAdd(int, array('a))
+  | ArrayChange(int, 'b)
+  | ArrayRemove(int, int);
 
 type changeValue =
   | ChangeValue(runValue)
-  | ChangeRecord(array((string, change)))
+  | ChangeRecord(keyMap(change))
 and change =
   | ChangeClear
   | ChangeSetSingle(runValue)
-  | ChangeSetList(array(option(runValue)))
-  | ChangeSingle(array((string, change)))
-  | ChangeList(array(listChange(option(runValue), changeValue)));
-
-type userChange;
+  | ChangeSetArray(array(option(runValue)))
+  | ChangeSingle(keyMap(change))
+  | ChangeArray(array(arrayChange(option(runValue), changeValue)));
 
 type state = {
   schema,
-  queries: list((list(search), userChange => unit)),
+  queries: array((array(search), changeValue => unit)),
   data: dataState,
-  requests: Map.Int.t(list(search)),
+  requests: array((int, array(search))),
   index: int,
 };

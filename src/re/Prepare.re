@@ -7,7 +7,7 @@ let intersectFilterMaps =
     (filter1: filterMap, filter2: filterMap)
     : option(filterMap) =>
   switch (
-    Map.merge(filter1, filter2, (_, range1, range2) =>
+    merge(filter1, filter2, (_, range1, range2) =>
       Some(
         switch (range1, range2) {
         | (Some(range), None)
@@ -55,7 +55,7 @@ let intersectFilterMaps =
                   | (Some(Null) | None, value)
                   | (value, Some(Null) | None) => value
                   },
-                fields: unique(List.concat(startFields1, startFields2)),
+                fields: unique(Array.concat(startFields1, startFields2)),
               },
               {
                 value:
@@ -67,7 +67,7 @@ let intersectFilterMaps =
                   | (Some(Null) | None, value)
                   | (value, Some(Null) | None) => value
                   },
-                fields: unique(List.concat(endFields1, endFields2)),
+                fields: unique(Array.concat(endFields1, endFields2)),
               },
             ),
           )
@@ -101,7 +101,9 @@ let intersectFilterMaps =
               FilterPoint({
                 value,
                 fields:
-                  unique(List.flatten([startFields, endFields, fields])),
+                  unique(
+                    Array.concatMany([|startFields, endFields, fields|]),
+                  ),
               }),
             )
           }
@@ -113,7 +115,7 @@ let intersectFilterMaps =
             Some(
               FilterPoint({
                 value: Some(value1),
-                fields: unique(List.concat(fields1, fields2)),
+                fields: unique(Array.concat(fields1, fields2)),
               }),
             ) :
             None
@@ -128,7 +130,7 @@ let intersectFilterMaps =
           Some(
             FilterPoint({
               value: Some(value),
-              fields: unique(List.concat(fields1, fields2)),
+              fields: unique(Array.concat(fields1, fields2)),
             }),
           )
         | (
@@ -138,7 +140,7 @@ let intersectFilterMaps =
           Some(
             FilterPoint({
               value: None,
-              fields: unique(List.concat(fields1, fields2)),
+              fields: unique(Array.concat(fields1, fields2)),
             }),
           )
         | (None, None) => None
@@ -146,104 +148,94 @@ let intersectFilterMaps =
       )
     )
   ) {
-  | filter when Map.some(filter, (_, value) => value == None) => None
+  | filter when Array.some(filter, ((_, value)) => value == None) => None
   | filter =>
     Some(
       filter
-      |. Map.toArray
       |. Array.keepMap(((key, value)) =>
            value |. mapSome(value => Some((key, value)))
-         )
-      |. Map.fromArray(~id=(module FieldCmp)),
+         ),
     )
   };
 
 let rec prepareFilter = (filter: userFilter) : filter =>
   switch (filter) {
-  | FilterOr(filters) => filters |. List.map(prepareFilter) |. List.flatten
+  | FilterOr(filters) =>
+    filters |. Array.map(prepareFilter) |. Array.concatMany
   | FilterAnd(filters) =>
     filters
-    |. List.map(prepareFilter)
-    |. List.reduce([Map.make(~id=(module FieldCmp))], (filters1, filters2) =>
+    |. Array.map(prepareFilter)
+    |. Array.reduce([||], (filters1, filters2) =>
          filters1
-         |. List.map(filter1 =>
+         |. Array.map(filter1 =>
               filters2
-              |. List.map(filter2 => intersectFilterMaps(filter1, filter2))
-              |. List.keepMap(v => v)
+              |. Array.map(filter2 => intersectFilterMaps(filter1, filter2))
+              |. Array.keepMap(v => v)
             )
-         |. List.flatten
+         |. Array.concatMany
        )
   | FilterIn(field, values) =>
     values
-    |. List.map(value =>
+    |. Array.map(value =>
          prepareFilter(FilterEq(field, FilterValue(value)))
        )
-    |. List.flatten
+    |. Array.concatMany
   | FilterNeq(field, value) =>
-    List.concat(
+    Array.concat(
       prepareFilter(FilterLt(field, value)),
       prepareFilter(FilterGt(field, value)),
     )
   | FilterLte(field, value) =>
-    List.concat(
+    Array.concat(
       prepareFilter(FilterLt(field, value)),
       prepareFilter(FilterEq(field, value)),
     )
   | FilterGte(field, value) =>
-    List.concat(
+    Array.concat(
       prepareFilter(FilterGt(field, value)),
       prepareFilter(FilterEq(field, value)),
     )
-  | FilterEq(field, value) => [
-      Map.fromArray(
-        ~id=(module FieldCmp),
-        [|
-          (
-            field,
-            FilterPoint(
-              switch (value) {
-              | FilterValue(value) => {value: Some(value), fields: []}
-              | FilterVariable(field) => {value: None, fields: [field]}
-              },
-            ),
+  | FilterEq(field, value) => [|
+      [|
+        (
+          field,
+          FilterPoint(
+            switch (value) {
+            | FilterValue(value) => {value: Some(value), fields: [||]}
+            | FilterVariable(field) => {value: None, fields: [|field|]}
+            },
           ),
-        |],
-      ),
-    ]
-  | FilterLt(field, value) => [
-      Map.fromArray(
-        ~id=(module FieldCmp),
-        [|
-          (
-            field,
-            FilterRange(
-              {value: None, fields: []},
-              switch (value) {
-              | FilterValue(value) => {value: Some(value), fields: []}
-              | FilterVariable(field) => {value: None, fields: [field]}
-              },
-            ),
+        ),
+      |],
+    |]
+  | FilterLt(field, value) => [|
+      [|
+        (
+          field,
+          FilterRange(
+            {value: None, fields: [||]},
+            switch (value) {
+            | FilterValue(value) => {value: Some(value), fields: [||]}
+            | FilterVariable(field) => {value: None, fields: [|field|]}
+            },
           ),
-        |],
-      ),
-    ]
-  | FilterGt(field, value) => [
-      Map.fromArray(
-        ~id=(module FieldCmp),
-        [|
-          (
-            field,
-            FilterRange(
-              switch (value) {
-              | FilterValue(value) => {value: Some(value), fields: []}
-              | FilterVariable(field) => {value: None, fields: [field]}
-              },
-              {value: None, fields: []},
-            ),
+        ),
+      |],
+    |]
+  | FilterGt(field, value) => [|
+      [|
+        (
+          field,
+          FilterRange(
+            switch (value) {
+            | FilterValue(value) => {value: Some(value), fields: [||]}
+            | FilterVariable(field) => {value: None, fields: [|field|]}
+            },
+            {value: None, fields: [||]},
           ),
-        |],
-      ),
-    ]
+        ),
+      |],
+    |]
   };
 
 let rec prepareSearch =
@@ -254,23 +246,23 @@ let rec prepareSearch =
   filter:
     switch (filter) {
     | Some(filter) => prepareFilter(filter)
-    | None => [Map.make(~id=(module FieldCmp))]
+    | None => [||]
     },
   sort:
     switch (sort) {
     | Some(sort) =>
-      List.some(sort, (Asc(field) | Desc(field)) => field == ["id"]) ?
-        sort : List.concat(sort, [Asc(["id"])])
-    | None => [Asc(["id"])]
+      Array.some(sort, (Asc(field) | Desc(field)) => field == [|"id"|]) ?
+        sort : Array.concat(sort, [|Asc([|"id"|])|])
+    | None => [|Asc([|"id"|])|]
     },
   slices:
     switch (slice) {
-    | Some(slice) => [slice]
-    | None => [(0, None)]
+    | Some(slice) => [|slice|]
+    | None => [|(0, None)|]
     },
   fields:
     fields
-    |. List.keepMap(field =>
+    |. Array.keepMap(field =>
          switch (field) {
          | UserField(field) => Some(field)
          | UserSearch(_) => None
@@ -278,7 +270,7 @@ let rec prepareSearch =
        ),
   searches:
     fields
-    |. List.keepMap(field =>
+    |. Array.keepMap(field =>
          switch (field) {
          | UserSearch(search) => Some(prepareSearch(search))
          | UserField(_) => None

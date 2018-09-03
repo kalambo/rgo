@@ -6,6 +6,6 @@
     "in-source": false
   },
   "suffix": ".js",
-  "sources": ["src"],
+  "sources": ["src/re"],
   "refmt": 3
 }

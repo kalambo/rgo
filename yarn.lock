@@ -6,9 +6,17 @@ bs-platform@^4.0.5:
   version "4.0.5"
   resolved "https://registry.yarnpkg.com/bs-platform/-/bs-platform-4.0.5.tgz#d4fd9bbdd11765af5b75110a5655065ece05eed6"
 
+deep-equal@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/deep-equal/-/deep-equal-1.0.1.tgz#f5d260292b660e084eff4cdbc9f08ad3247448b5"
+
 diff@^3.5.0:
   version "3.5.0"
   resolved "https://registry.yarnpkg.com/diff/-/diff-3.5.0.tgz#800c0dd1e0a8bfbc95835c202ad220fe317e5a12"
+
+keys-to-object@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/keys-to-object/-/keys-to-object-0.2.0.tgz#eecec37d7ad110bafb517376e14c5a717f285dcf"
 
 typescript@^3.0.3:
   version "3.0.3"

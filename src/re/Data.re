@@ -38,14 +38,10 @@ let mergeNullData = (data1: data, data2: nullData) =>
     data2,
     records2 =>
       records2
-      |. Map.String.toList
-      |. List.keepMap(((id, record)) =>
+      |. Array.keepMap(((id, record)) =>
            record |. mapSome(record => Some((id, record)))
          )
-      |. emptyToNone
-      |. mapSome(entries =>
-           Some(entries |. List.toArray |. Map.String.fromArray)
-         ),
+      |. emptyToNone,
     (records1, records2) =>
       Some(
         mergeConvertMaps(
@@ -85,10 +81,10 @@ let rec getDataValue =
   switch (get2(schema.formulae, store, field)) {
   | Some({fields, formula}) =>
     switch (
-      List.map(fields, field => getDataValue(schema, data, store, id, field))
+      Array.map(fields, field => getDataValue(schema, data, store, id, field))
     ) {
-    | values when values |. List.some(value => value == None) => None
-    | values => values |. List.keepMap(v => v) |. formula |. Some
+    | values when values |. Array.some(value => value == None) => None
+    | values => values |. Array.keepMap(v => v) |. formula |. Some
     }
   | None => get3(data, store, id, field)
   };
@@ -101,22 +97,22 @@ let rec getAllValues =
           id: value,
           field: fieldPath,
         ) =>
-  switch (field) {
-  | [] => [id]
-  | [field, ...path] =>
+  switch (take(field)) {
+  | None => [|id|]
+  | Some((field, path)) =>
     switch (get2(schema.links, store, field), id) {
     | (Some(nextStore), Value(String(value))) =>
       (
         switch (getDataValue(schema, data, store, value, field)) {
         | None => raise(Not_found)
-        | Some(SingleValue(value)) => [value]
-        | Some(ListValue(value)) => value
+        | Some(SingleValue(value)) => [|value|]
+        | Some(ArrayValue(values)) => values
         }
       )
-      |. List.map(nextId =>
+      |. Array.map(nextId =>
            getAllValues(schema, data, nextStore, nextId, path)
          )
-      |. List.flatten
+      |. Array.concatMany
     | _ => raise(Not_found)
     }
   };
@@ -124,11 +120,11 @@ let rec getAllValues =
 let idInFilter =
     (schema: schema, data: data, store: string, id: string, filter: filter) =>
   filter
-  |. List.some(filterMap =>
+  |. Array.some(filterMap =>
        filterMap
-       |. Map.every((field, range) =>
+       |. Array.every(((field, range)) =>
             getAllValues(schema, data, store, Value(String(id)), field)
-            |. List.some(value =>
+            |. Array.some(value =>
                  switch (range) {
                  | FilterPoint({value: Some(v)}) => value == v
                  | FilterRange({value: Some(startValue)}, _)
@@ -164,7 +160,7 @@ let compareIds =
       id2: string,
     ) =>
   sort
-  |. List.reduce(0, (res, (Asc(field) | Desc(field)) as sort) =>
+  |. Array.reduce(0, (res, (Asc(field) | Desc(field)) as sort) =>
        res != 0 ?
          res :
          (
@@ -172,9 +168,9 @@ let compareIds =
              getAllValues(schema, data, store, Value(String(id1)), field),
              getAllValues(schema, data, store, Value(String(id2)), field),
            ) {
-           | ([], []) => 0
-           | ([], _) => 1
-           | (_, []) => (-1)
+           | ([||], [||]) => 0
+           | ([||], _) => 1
+           | (_, [||]) => (-1)
            | (values1, values2) =>
              (
                switch (sort) {
@@ -183,15 +179,15 @@ let compareIds =
                }
              )
              * (
-               List.makeBy(
-                 max(List.length(values1), List.length(values2)), i =>
+               Array.makeBy(
+                 max(Array.length(values1), Array.length(values2)), i =>
                  i
                )
-               |. List.reduce(0, (res, i) =>
+               |. Array.reduce(0, (res, i) =>
                     res != 0 ?
                       res :
                       (
-                        switch (List.get(values1, i), List.get(values2, i)) {
+                        switch (values1[i], values2[i]) {
                         | (value1, value2) when value1 == value2 => 0
                         | (Some(Value(value1)), Some(Value(value2))) =>
                           value1 < value2 ? (-1) : 1
@@ -210,13 +206,15 @@ let compareIds =
 let getSortedIds =
     (schema: schema, data: data, store: string, filter: filter, sort: sort) =>
   (
-    switch (data |. Map.String.get(store)) {
-    | Some(ids) => ids |. Map.String.keysToArray |. List.fromArray
-    | None => []
+    switch (data |. get(store)) {
+    | Some(ids) => ids |. Array.map(((key, _)) => key)
+    | None => [||]
     }
   )
-  |. List.keep(id => idInFilter(schema, data, store, id, filter))
-  |. List.sort(compareIds(schema, data, store, sort));
+  |. Array.keep(id => idInFilter(schema, data, store, id, filter))
+  |. List.fromArray
+  |. List.sort(compareIds(schema, data, store, sort))
+  |. List.toArray;
 
 type changeType =
   | ChangeAdd
@@ -235,19 +233,19 @@ let getDataChanges =
   let combined = mergeNullData(data, newData);
   let (changes, combinedIds) =
     (
-      switch (newData |. Map.String.get(store)) {
-      | Some(records) => records |. Map.String.keysToArray |. List.fromArray
-      | None => []
+      switch (newData |. get(store)) {
+      | Some(records) => records |. Array.map(((key, _)) => key)
+      | None => [||]
       }
     )
-    |. List.reduce(
-         ([], ids),
+    |. Array.reduce(
+         ([||], ids),
          ((changes, ids), id) => {
            let (items, ids) =
-             switch (indexOf(ids, id)) {
+             switch (ids |. indexOf(id)) {
              | Some(index) =>
-               let newIds = splice(ids, index, 1, []);
-               (List.concat(changes, [(index, ChangeAdd)]), newIds);
+               let newIds = splice(ids, index, 1, [||]);
+               (Array.concat(changes, [|(index, ChangeAdd)|]), newIds);
              | None => (changes, ids)
              };
            if (must(get2(newData, store, id)) != None
@@ -258,8 +256,8 @@ let getDataChanges =
                  id,
                  compareIds(schema, combined, store, sort),
                );
-             let newIds = splice(ids, index, 0, [id]);
-             (List.concat(changes, [(index, ChangeRemove)]), newIds);
+             let newIds = splice(ids, index, 0, [|id|]);
+             (Array.concat(changes, [|(index, ChangeRemove)|]), newIds);
            } else {
              (items, ids);
            };
@@ -270,29 +268,29 @@ let getDataChanges =
 
 let applyDataChanges =
     (
-      changes: list((int, changeType)),
-      items: list('a),
+      changes: array((int, changeType)),
+      items: array('a),
       map: ('a, int, int) => 'a,
       reverse: bool,
     ) =>
-  (reverse ? List.reverse(changes) : changes)
-  |. List.reduce(items, (items, (index, changeType)) =>
+  (reverse ? Array.reverse(changes) : changes)
+  |. Array.reduce(items, (items, (index, changeType)) =>
        switch (changeType) {
        | ChangeAdd =>
-         items |. List.map(item => map(item, index, reverse ? (-1) : 1))
+         items |. Array.map(item => map(item, index, reverse ? (-1) : 1))
        | ChangeRemove =>
-         items |. List.map(item => map(item, index, reverse ? 1 : (-1)))
+         items |. Array.map(item => map(item, index, reverse ? 1 : (-1)))
        }
      );
 
 let updateRanges = (schema: schema, data: dataState, newData: nullData) =>
-  Map.String.merge(data.ranges, newData, (store, ranges, records) =>
-    switch (ranges, records) {
-    | (None, _) => None
-    | (Some(ranges), _) =>
+  merge(data.ranges, newData, (store, ranges, _) =>
+    switch (ranges) {
+    | None => None
+    | Some(ranges) =>
       Some(
         ranges
-        |. List.map(range =>
+        |. Array.map(range =>
              switch (range) {
              | FullRange(_) => range
              | PartialRange(filter, sort, ranges) =>

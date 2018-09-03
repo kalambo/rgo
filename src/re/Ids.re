@@ -10,139 +10,147 @@ let getFilterValues =
       store: string,
       id: string,
       value: option(value),
-      fields: list(string),
+      fields: array(string),
     ) =>
   switch (
-    List.concat(
+    Array.concat(
       switch (value) {
-      | Some(value) => [value]
-      | None => []
+      | Some(value) => [|value|]
+      | None => [||]
       },
       fields
-      |. List.map(field =>
+      |. Array.map(field =>
            switch (getDataValue(schema, data, store, id, field)) {
-           | Some(SingleValue(value)) => [value]
-           | Some(ListValue(values)) => values
+           | Some(SingleValue(value)) => [|value|]
+           | Some(ArrayValue(values)) => values
            | None => raise(Not_found)
            }
          )
-      |. List.flatten,
+      |. Array.concatMany,
     )
   ) {
-  | [] => [Null]
+  | [||] => [|Null|]
   | values => values
   };
 
 let setFilterVariables =
     (schema: schema, data: data, store: string, id: string, filter: filter) =>
   filter
-  |. List.map(filterMap =>
+  |. Array.map(filterMap =>
        filterMap
-       |. Map.map(range =>
-            switch (range) {
-            | FilterPoint({value, fields}) =>
-              switch (
-                unique(
-                  getFilterValues(schema, data, store, id, value, fields),
+       |. Array.map(((field, range)) =>
+            (
+              field,
+              switch (range) {
+              | FilterPoint({value, fields}) =>
+                switch (
+                  unique(
+                    getFilterValues(schema, data, store, id, value, fields),
+                  )
+                ) {
+                | [|value|] =>
+                  FilterPoint({value: Some(value), fields: [||]})
+                | _ => raise(Not_found)
+                }
+              | FilterRange(
+                  {value: startValue, fields: startFields},
+                  {value: endValue, fields: endFields},
+                ) =>
+                FilterRange(
+                  {
+                    value:
+                      switch (
+                        take(
+                          getFilterValues(
+                            schema,
+                            data,
+                            store,
+                            id,
+                            startValue,
+                            startFields,
+                          ),
+                        )
+                      ) {
+                      | None => raise(Not_found)
+                      | Some((value, values)) =>
+                        values
+                        |. Array.reduce(value, (value1, value2) =>
+                             compareDirectionValues(
+                               LowValue(Some(value1)),
+                               LowValue(Some(value2)),
+                             )
+                             == (-1) ?
+                               value1 : value2
+                           )
+                        |. Some
+                      },
+                    fields: [||],
+                  },
+                  {
+                    value:
+                      switch (
+                        take(
+                          getFilterValues(
+                            schema,
+                            data,
+                            store,
+                            id,
+                            endValue,
+                            endFields,
+                          ),
+                        )
+                      ) {
+                      | None => raise(Not_found)
+                      | Some((value, values)) =>
+                        values
+                        |. Array.reduce(value, (value1, value2) =>
+                             compareDirectionValues(
+                               HighValue(Some(value1)),
+                               HighValue(Some(value2)),
+                             )
+                             == (-1) ?
+                               value1 : value2
+                           )
+                        |. Some
+                      },
+                    fields: [||],
+                  },
                 )
-              ) {
-              | [value] => FilterPoint({value: Some(value), fields: []})
-              | _ => raise(Not_found)
-              }
-            | FilterRange(
-                {value: startValue, fields: startFields},
-                {value: endValue, fields: endFields},
-              ) =>
-              FilterRange(
-                {
-                  value:
-                    switch (
-                      getFilterValues(
-                        schema,
-                        data,
-                        store,
-                        id,
-                        startValue,
-                        startFields,
-                      )
-                    ) {
-                    | [] => raise(Not_found)
-                    | [value, ...values] =>
-                      values
-                      |. List.reduce(value, (value1, value2) =>
-                           compareDirectionValues(
-                             LowValue(Some(value1)),
-                             LowValue(Some(value2)),
-                           )
-                           == (-1) ?
-                             value1 : value2
-                         )
-                      |. Some
-                    },
-                  fields: [],
-                },
-                {
-                  value:
-                    switch (
-                      getFilterValues(
-                        schema,
-                        data,
-                        store,
-                        id,
-                        endValue,
-                        endFields,
-                      )
-                    ) {
-                    | [] => raise(Not_found)
-                    | [value, ...values] =>
-                      values
-                      |. List.reduce(value, (value1, value2) =>
-                           compareDirectionValues(
-                             HighValue(Some(value1)),
-                             HighValue(Some(value2)),
-                           )
-                           == (-1) ?
-                             value1 : value2
-                         )
-                      |. Some
-                    },
-                  fields: [],
-                },
-              )
-            }
+              },
+            )
           )
      );
 
 let getRanges =
     (
-      ranges: Map.String.t(list(ranges)),
+      ranges: keyMap(array(ranges)),
       store: string,
       filter: filter,
       sort: sort,
     ) =>
-  switch (Map.String.get(ranges, store)) {
+  switch (ranges |. get(store)) {
   | Some(ranges) =>
     if (ranges
-        |. List.keepMap(range =>
+        |. Array.keepMap(range =>
              switch (range) {
              | FullRange(rangeFilter) => Some(rangeFilter)
              | PartialRange(_, _, _) => None
              }
            )
-        |. List.some(rangeFilter => listContainsAll(rangeFilter, filter))) {
-      [(RangeFirst, None)];
+        |. Array.some(rangeFilter => containsAll(rangeFilter, filter))) {
+      [|(RangeFirst, None)|];
     } else {
       ranges
-      |. List.keepMap(range =>
+      |. Array.keepMap(range =>
            switch (range) {
            | PartialRange(rangeFilter, rangeSort, ranges) =>
              rangeFilter == filter && rangeSort == sort ? Some(ranges) : None
            | FullRange(_) => None
            }
          )
-      |. List.flatten;
+      |. Array.concatMany;
     }
-  | None => []
+  | None => [||]
   };
 
 let getSearchIds =
@@ -153,7 +161,7 @@ let getSearchIds =
       parent: option((string, string)),
     ) =>
   switch (slices) {
-  | [(sliceStart, sliceEnd)] =>
+  | [|(sliceStart, sliceEnd)|] =>
     let filter =
       switch (parent) {
       | Some((parentStore, parentId)) =>
@@ -167,7 +175,7 @@ let getSearchIds =
       | None => variableFilter
       };
     let ranges = getRanges(data.ranges, store, filter, sort);
-    if (List.length(ranges) == 0) {
+    if (Array.length(ranges) == 0) {
       None;
     } else {
       let (changes, (serverIds, combinedIds)) =
@@ -176,7 +184,7 @@ let getSearchIds =
         applyDataChanges(
           changes,
           ranges
-          |. List.map(((rangeStart, rangeLength)) =>
+          |. Array.map(((rangeStart, rangeLength)) =>
                switch (rangeStart) {
                | RangeFirst => (0, 0, rangeLength)
                | RangeIndex(rangeIndex, rangeId) => (
@@ -200,16 +208,16 @@ let getSearchIds =
         );
       let (ids, gaps, _) =
         mappedRanges
-        |. List.reduce(
-             ([], [], 0),
+        |. Array.reduce(
+             ([||], [||], 0),
              (
                (ids, gaps, prevCombinedIndex),
                (combinedIndex, rangeIndex, length),
              ) => {
-               let gapStart = sliceStart + List.length(ids);
+               let gapStart = sliceStart + Array.length(ids);
                let gap =
                  slice(
-                   [],
+                   [||],
                    gapStart,
                    Some(
                      switch (sliceEnd) {
@@ -219,7 +227,7 @@ let getSearchIds =
                    ),
                  );
                (
-                 List.flatten([
+                 Array.concatMany([|
                    ids,
                    gap,
                    slice(
@@ -233,18 +241,20 @@ let getSearchIds =
                      | (None, None) => None
                      },
                    ),
-                 ]),
-                 List.length(gap) == 0 ?
+                 |]),
+                 Array.length(gap) == 0 ?
                    gaps :
-                   [
-                     (
-                       gapStart,
-                       Some(List.length(gap)),
-                       prevCombinedIndex,
-                       Some(combinedIndex - prevCombinedIndex),
-                     ),
-                     ...gaps,
-                   ],
+                   Array.concat(
+                     [|
+                       (
+                         gapStart,
+                         Some(Array.length(gap)),
+                         prevCombinedIndex,
+                         Some(combinedIndex - prevCombinedIndex),
+                       ),
+                     |],
+                     gaps,
+                   ),
                  switch (length) {
                  | Some(length) => combinedIndex + length
                  | None => 0
@@ -255,33 +265,36 @@ let getSearchIds =
       let mappedGaps =
         applyDataChanges(
           changes,
-          switch (
-            sliceEnd,
-            List.get(mappedRanges, List.length(mappedRanges) - 1),
-          ) {
+          switch (sliceEnd, mappedRanges[Array.length(mappedRanges) - 1]) {
           | (_, None) => raise(Not_found)
-          | (None, Some((combinedIndex, rangeIndex, Some(rangeLength)))) => [
-              (
-                rangeIndex + rangeLength,
-                None,
-                combinedIndex + rangeLength,
-                None,
-              ),
-              ...gaps,
-            ]
+          | (None, Some((combinedIndex, rangeIndex, Some(rangeLength)))) =>
+            Array.concat(
+              [|
+                (
+                  rangeIndex + rangeLength,
+                  None,
+                  combinedIndex + rangeLength,
+                  None,
+                ),
+              |],
+              gaps,
+            )
           | (
               Some(sliceEnd),
               Some((combinedIndex, rangeIndex, Some(rangeLength))),
             )
-              when rangeIndex + rangeLength < sliceEnd => [
-              (
-                rangeIndex + rangeLength,
-                Some(sliceEnd - rangeIndex - rangeLength),
-                combinedIndex + rangeLength,
-                None,
-              ),
-              ...gaps,
-            ]
+              when rangeIndex + rangeLength < sliceEnd =>
+            Array.concat(
+              [|
+                (
+                  rangeIndex + rangeLength,
+                  Some(sliceEnd - rangeIndex - rangeLength),
+                  combinedIndex + rangeLength,
+                  None,
+                ),
+              |],
+              gaps,
+            )
           | _ => gaps
           },
           (
@@ -309,7 +322,7 @@ let getSearchIds =
           ),
           true,
         )
-        |. List.map(((gapStart, gapLength, _, _)) =>
+        |. Array.map(((gapStart, gapLength, _, _)) =>
              switch (gapLength) {
              | Some(gapLength) => (gapStart, Some(gapStart + gapLength))
              | None => (gapStart, None)
