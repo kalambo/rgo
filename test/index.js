@@ -1,4 +1,4 @@
-import { setup } from './setup';
+const setup = require('./setup');
 
 const rgo = setup();
 
@@ -7,15 +7,15 @@ rgo.query(
     {
       name: 'people',
       store: 'people',
-      filter: [['firstName'], '<', 'Jon'] as any,
+      filter: ['firstName', '<', 'Jon'],
       fields: [
-        ['firstName'],
-        ['lastName'],
+        'firstName',
+        'lastName',
         // ['address', 'city'],
         // {
         //   name: 'addresses',
         //   store: 'addresses',
-        //   filter: [['city'], '=', 'London'] as any,
+        //   filter: [['city'], '=', 'London'],
         //   fields: [['postcode']],
         // },
       ],

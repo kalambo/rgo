@@ -12,12 +12,12 @@ export type NullData = Obj<Obj<null | Record>>;
 
 export interface ScalarField {
   scalar: Scalar;
-  isList: boolean;
+  isList?: true;
   formula?: { fields: string[]; map: (...args) => Value | Value[] };
 }
 export interface LinkField {
   store: string;
-  isList: boolean;
+  isList?: true;
 }
 export type Field = ScalarField | LinkField;
 
@@ -99,4 +99,15 @@ export interface RequestSearch {
   slices: Slice[];
   fields: string[][];
   searches: RequestSearch[];
+}
+
+export interface Connection {
+  send: (index: number, searches: Search[], commits: NullData[]) => void;
+  listen: (
+    onReceive: (
+      index: number | undefined,
+      data: NullData,
+      ranges: Obj<Ranges[]>,
+    ) => void,
+  ) => () => void;
 }

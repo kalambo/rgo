@@ -1,5 +1,3 @@
-import keysToObject from 'keys-to-object';
-
 import {
   Field,
   Filter,
@@ -166,9 +164,12 @@ const nullDataToRe = (schema: Schema, nullData: NullData) =>
       id =>
         nullData[store][id] &&
         recordToRe(
-          keysToObject(
-            Object.keys(schema[store]),
-            field => (schema[store][field] as ScalarField).scalar || 'string',
+          Object.keys(schema[store]).reduce(
+            (res, field) => ({
+              ...res,
+              [store]: (schema[store][field] as ScalarField).scalar || 'string',
+            }),
+            {},
           ),
           nullData[store][id]!,
         ),

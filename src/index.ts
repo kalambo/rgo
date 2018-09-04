@@ -3,21 +3,9 @@ import buildRgo from './re/Index';
 
 import * as toJs from './toJs';
 import * as toRe from './toRe';
-import { NullData, Obj, Ranges, Schema, Search } from './typings';
+import { Connection, Schema } from './typings';
 
-export default (
-  schema: Schema,
-  connection: {
-    send: (index: number, searches: Search[], commits: NullData[]) => void;
-    listen: (
-      onReceive: (
-        index: number | undefined,
-        data: NullData,
-        ranges: Obj<Ranges[]>,
-      ) => void,
-    ) => () => void;
-  },
-) => {
+export default (schema: Schema, connection: Connection) => {
   const [query] = buildRgo(
     toRe.schema(schema),
     (index, searches, commits) =>

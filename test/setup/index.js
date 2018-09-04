@@ -1,19 +1,21 @@
-import keysToObject from 'keys-to-object';
+const rgo = require('../../lib/js/src/index').default;
 
-import rgo from '../src/index';
-import { idInFilter, sortIds } from '../src/data';
-import { Filter, Slice, Sort } from '../src/typings';
+const { idInFilter, sortIds } = require('./data');
+const server = require('./server');
+const { keysToObject } = require('./utils');
 
-import { server } from './server';
-
-export const setup = () => {
+module.exports = () => {
   const schema = {
-    links: {
-      people: {
-        address: 'addresses',
-      },
+    people: {
+      firstName: { scalar: 'string' },
+      lastName: { scalar: 'string' },
+      age: { scalar: 'int' },
+      address: { store: 'addresses' },
+      places: { store: 'addresses', isList: true },
     },
-    formulae: {},
+    addresses: {
+      city: { scalar: 'string' },
+    },
   };
 
   const data = {
@@ -74,13 +76,7 @@ export const setup = () => {
   };
 
   const db = {
-    find(
-      store: string,
-      filter: Filter,
-      sort: Sort,
-      slice: Slice,
-      fields: string[],
-    ) {
+    find(store, filter, sort, slice, fields) {
       const ids = sortIds(
         schema,
         data,
@@ -103,6 +99,9 @@ export const setup = () => {
     },
     update(store, id, data) {
       data[store][id] = { ...data[store][id], ...data };
+    },
+    delete(store, id) {
+      delete data[store][id];
     },
   };
 

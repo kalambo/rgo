@@ -12,9 +12,7 @@
   },
   "dependencies": {
     "bs-platform": "^4.0.5",
-    "deep-equal": "^1.0.1",
-    "diff": "^3.5.0",
-    "keys-to-object": "^0.2.0"
+    "diff": "^3.5.0"
   },
   "devDependencies": {
     "typescript": "^3.0.3"
