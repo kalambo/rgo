@@ -2,130 +2,76 @@ open Belt;
 open Types;
 open Utils;
 open Data;
+open Filters;
 
-let getFilterValues =
+let getFilterValue =
     (
       schema: schema,
       data: data,
       store: string,
       id: string,
-      value: option(value),
-      fields: array(string),
+      value: filterVariable,
     ) =>
-  switch (
-    Array.concat(
-      switch (value) {
-      | Some(value) => [|value|]
-      | None => [||]
-      },
-      fields
-      |. Array.map(field =>
-           switch (getDataValue(schema, data, store, id, field)) {
-           | Some(SingleValue(value)) => [|value|]
-           | Some(ArrayValue(values)) => values
-           | None => raise(Not_found)
-           }
-         )
-      |. Array.concatMany,
-    )
-  ) {
-  | [||] => [|Null|]
-  | values => values
+  switch (value) {
+  | FilterValue(value) => value
+  | FilterVariable(field) =>
+    switch (getDataValue(schema, data, store, id, field)) {
+    | Some(SingleValue(value)) => value
+    | _ => raise(Not_found)
+    }
   };
 
-let setFilterVariables =
-    (schema: schema, data: data, store: string, id: string, filter: filter) =>
-  filter
-  |. Array.map(filterMap =>
-       filterMap
-       |. Array.map(((field, range)) =>
-            (
-              field,
-              switch (range) {
-              | FilterPoint({value, fields}) =>
-                switch (
-                  unique(
-                    getFilterValues(schema, data, store, id, value, fields),
-                  )
-                ) {
-                | [|value|] =>
-                  FilterPoint({value: Some(value), fields: [||]})
-                | _ => raise(Not_found)
-                }
-              | FilterRange(
-                  {value: startValue, fields: startFields},
-                  {value: endValue, fields: endFields},
-                ) =>
-                FilterRange(
-                  {
-                    value:
-                      switch (
-                        take(
-                          getFilterValues(
-                            schema,
-                            data,
-                            store,
-                            id,
-                            startValue,
-                            startFields,
-                          ),
-                        )
-                      ) {
-                      | None => raise(Not_found)
-                      | Some((value, values)) =>
-                        values
-                        |. Array.reduce(value, (value1, value2) =>
-                             compareDirectionValues(
-                               LowValue(Some(value1)),
-                               LowValue(Some(value2)),
-                             )
-                             == (-1) ?
-                               value1 : value2
-                           )
-                        |. Some
-                      },
-                    fields: [||],
-                  },
-                  {
-                    value:
-                      switch (
-                        take(
-                          getFilterValues(
-                            schema,
-                            data,
-                            store,
-                            id,
-                            endValue,
-                            endFields,
-                          ),
-                        )
-                      ) {
-                      | None => raise(Not_found)
-                      | Some((value, values)) =>
-                        values
-                        |. Array.reduce(value, (value1, value2) =>
-                             compareDirectionValues(
-                               HighValue(Some(value1)),
-                               HighValue(Some(value2)),
-                             )
-                             == (-1) ?
-                               value1 : value2
-                           )
-                        |. Some
-                      },
-                    fields: [||],
-                  },
-                )
-              },
-            )
-          )
-     );
+let rec setFilterVariables =
+        (
+          schema: schema,
+          data: data,
+          store: string,
+          id: string,
+          filter: filter(filterVariable),
+        ) =>
+  switch (filter) {
+  | FilterOr(filters) =>
+    FilterOr(
+      filters
+      |. Array.map(filter =>
+           setFilterVariables(schema, data, store, id, filter)
+         ),
+    )
+  | FilterAnd(filters) =>
+    FilterAnd(
+      filters
+      |. Array.map(filter =>
+           setFilterVariables(schema, data, store, id, filter)
+         ),
+    )
+  | FilterIn(field, values) =>
+    FilterIn(
+      field,
+      values
+      |. Array.map(value => getFilterValue(schema, data, store, id, value)),
+    )
+  | Filter(field, operation, value) =>
+    Filter(field, operation, getFilterValue(schema, data, store, id, value))
+  };
+
+let compareFilters = (filter1, filter2) => {
+  let filterMaps1 =
+    filterToMap(filter1, value => {value: Some(value), fields: [||]});
+  let filterMaps2 =
+    filterToMap(filter2, value => {value: Some(value), fields: [||]});
+  switch (getSplitFilters([|filterMaps1, filterMaps2|])) {
+  | [|splitMaps1, splitMaps2|] =>
+    containsAll(splitMaps1, splitMaps2) ?
+      Array.length(splitMaps1) == Array.length(splitMaps2) ? 0 : 1 : (-1)
+  | _ => raise(Not_found)
+  };
+};
 
 let getRanges =
     (
       ranges: keyMap(array(ranges)),
       store: string,
-      filter: filter,
+      filter: filter(value),
       sort: sort,
     ) =>
   switch (ranges |. get(store)) {
@@ -137,14 +83,15 @@ let getRanges =
              | PartialRange(_, _, _) => None
              }
            )
-        |. Array.some(rangeFilter => containsAll(rangeFilter, filter))) {
+        |. Array.some(rangeFilter => compareFilters(rangeFilter, filter) == 1)) {
       [|(RangeFirst, None)|];
     } else {
       ranges
       |. Array.keepMap(range =>
            switch (range) {
            | PartialRange(rangeFilter, rangeSort, ranges) =>
-             rangeFilter == filter && rangeSort == sort ? Some(ranges) : None
+             compareFilters(rangeFilter, filter) == 0 && rangeSort == sort ?
+               Some(ranges) : None
            | FullRange(_) => None
            }
          )
@@ -172,7 +119,14 @@ let getSearchIds =
           parentId,
           variableFilter,
         )
-      | None => variableFilter
+      | None =>
+        setFilterVariables(
+          schema,
+          mergeNullData(data.server, data.client),
+          "",
+          "",
+          variableFilter,
+        )
       };
     let ranges = getRanges(data.ranges, store, filter, sort);
     if (Array.length(ranges) == 0) {

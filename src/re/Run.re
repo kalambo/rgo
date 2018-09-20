@@ -285,17 +285,12 @@ let rec createRecordLayer =
               Some({
                 name: "",
                 store,
-                filter: [|
-                  [|
-                    (
-                      [|"id"|],
-                      FilterPoint({
-                        value: Some(Value(String(id))),
-                        fields: [||],
-                      }),
-                    ),
-                  |],
-                |],
+                filter:
+                  Filter(
+                    [|"id"|],
+                    FilterEq,
+                    FilterValue(Value(String(id))),
+                  ),
                 sort: [|Asc([|"id"|])|],
                 slices: [|(0, None)|],
                 fields:

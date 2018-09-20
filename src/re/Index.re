@@ -3,8 +3,17 @@ open Types;
 open Data;
 open Split;
 open Run;
-open Prepare;
 open Utils;
+
+let rec addIdSort = (search: search) : search => {
+  ...search,
+  sort:
+    Array.some(search.sort, (Asc(field) | Desc(field)) =>
+      field == [|"id"|]
+    ) ?
+      search.sort : Array.concat(search.sort, [|Asc([|"id"|])|]),
+  searches: search.searches |. Array.map(addIdSort),
+};
 
 let runDataUpdate = ({schema, queries, data}, newData) =>
   queries
@@ -112,8 +121,8 @@ let default =
     });
 
   (
-    (searches: array(userSearch), onChange: changeValue => unit) => {
-      let searches = searches |. Array.map(search => search |. prepareSearch);
+    (searches: array(search), onChange: changeValue => unit) => {
+      let searches = searches |. Array.map(search => search |. addIdSort);
       let prevState = state^;
       state :=
         {
@@ -121,8 +130,8 @@ let default =
           queries: Array.concat([|(searches, onChange)|], state^.queries),
         };
       doFetch(runSearchUpdate(prevState, searches, onChange), [||]);
-      (newSearches: array(userSearch)) => {
-        let newSearches = newSearches |. Array.map(prepareSearch);
+      (newSearches: array(search)) => {
+        let newSearches = newSearches |. Array.map(addIdSort);
         let prevState = state^;
         state :=
           {

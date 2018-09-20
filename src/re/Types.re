@@ -42,22 +42,23 @@ type filterRange =
 
 type filterMap = array((fieldPath, filterRange));
 
-type filter = array(filterMap);
+type operation =
+  | FilterNeq
+  | FilterLte
+  | FilterGte
+  | FilterEq
+  | FilterLt
+  | FilterGt;
 
-type userFilterValue =
+type filterVariable =
   | FilterValue(value)
   | FilterVariable(string);
 
-type userFilter =
-  | FilterOr(array(userFilter))
-  | FilterAnd(array(userFilter))
-  | FilterIn(fieldPath, array(value))
-  | FilterNeq(fieldPath, userFilterValue)
-  | FilterLte(fieldPath, userFilterValue)
-  | FilterGte(fieldPath, userFilterValue)
-  | FilterEq(fieldPath, userFilterValue)
-  | FilterLt(fieldPath, userFilterValue)
-  | FilterGt(fieldPath, userFilterValue);
+type filter('a) =
+  | FilterOr(array(filter('a)))
+  | FilterAnd(array(filter('a)))
+  | FilterIn(fieldPath, array('a))
+  | Filter(fieldPath, operation, 'a);
 
 type sortPart =
   | Asc(fieldPath)
@@ -70,24 +71,12 @@ type slice = (int, option(int));
 type search = {
   name: string,
   store: string,
-  filter,
+  filter: filter(filterVariable),
   sort,
   slices: array(slice),
   fields: array(fieldPath),
   searches: array(search),
 };
-
-type userSearch = {
-  name: string,
-  store: string,
-  filter: option(userFilter),
-  sort: option(array(sortPart)),
-  slice: option(slice),
-  fields: array(userField),
-}
-and userField =
-  | UserField(fieldPath)
-  | UserSearch(userSearch);
 
 type record = keyMap(recordValue);
 
@@ -102,8 +91,8 @@ type rangeStart =
 type range = (rangeStart, option(int));
 
 type ranges =
-  | FullRange(filter)
-  | PartialRange(filter, sort, array(range));
+  | FullRange(filter(value))
+  | PartialRange(filter(value), sort, array(range));
 
 type dataState = {
   server: data,

@@ -89,66 +89,70 @@ let rec getDataValue =
   | None => get3(data, store, id, field)
   };
 
-let rec getAllValues =
+let rec getNestedValue =
         (
           schema: schema,
           data: data,
           store: string,
-          id: value,
+          value: value,
           field: fieldPath,
         ) =>
   switch (take(field)) {
-  | None => [|id|]
+  | None => value
   | Some((field, path)) =>
-    switch (get2(schema.links, store, field), id) {
-    | (Some(nextStore), Value(String(value))) =>
-      (
-        switch (getDataValue(schema, data, store, value, field)) {
-        | None => raise(Not_found)
-        | Some(SingleValue(value)) => [|value|]
-        | Some(ArrayValue(values)) => values
-        }
-      )
-      |. Array.map(nextId =>
-           getAllValues(schema, data, nextStore, nextId, path)
-         )
-      |. Array.concatMany
+    switch (get2(schema.links, store, field)) {
+    | Some(nextStore) =>
+      switch (value) {
+      | Value(String(value)) =>
+        getNestedValue(
+          schema,
+          data,
+          nextStore,
+          switch (getDataValue(schema, data, store, value, field)) {
+          | Some(SingleValue(value)) => value
+          | _ => raise(Not_found)
+          },
+          path,
+        )
+      | Null => Null
+      | _ => raise(Not_found)
+      }
     | _ => raise(Not_found)
     }
   };
 
-let idInFilter =
-    (schema: schema, data: data, store: string, id: string, filter: filter) =>
-  filter
-  |. Array.some(filterMap =>
-       filterMap
-       |. Array.every(((field, range)) =>
-            getAllValues(schema, data, store, Value(String(id)), field)
-            |. Array.some(value =>
-                 switch (range) {
-                 | FilterPoint({value: Some(v)}) => value == v
-                 | FilterRange({value: Some(startValue)}, _)
-                     when
-                       compareDirectionValues(
-                         LowValue(Some(startValue)),
-                         LowValue(Some(value)),
-                       )
-                       != (-1) =>
-                   false
-                 | FilterRange(_, {value: Some(endValue)})
-                     when
-                       compareDirectionValues(
-                         HighValue(Some(endValue)),
-                         HighValue(Some(value)),
-                       )
-                       != 1 =>
-                   false
-                 | FilterRange({value: Some(_)}, {value: Some(_)}) => true
-                 | _ => raise(Not_found)
-                 }
-               )
-          )
-     );
+let rec idInFilter =
+        (
+          schema: schema,
+          data: data,
+          store: string,
+          id: string,
+          filter: filter(value),
+        ) =>
+  switch (filter) {
+  | FilterOr(filters) =>
+    filters
+    |. Array.some(filter => idInFilter(schema, data, store, id, filter))
+  | FilterAnd(filters) =>
+    filters
+    |. Array.every(filter => idInFilter(schema, data, store, id, filter))
+  | FilterIn(field, values) =>
+    getNestedValue(schema, data, store, Value(String(id)), field)
+    |. (v => values |. Array.some(value => value == v))
+  | Filter(field, operation, value) =>
+    getNestedValue(schema, data, store, Value(String(id)), field)
+    |. (
+      v =>
+        switch (operation) {
+        | FilterNeq => value != v
+        | FilterLte => value <= v
+        | FilterGte => value >= v
+        | FilterEq => value == v
+        | FilterLt => value < v
+        | FilterGt => value > v
+        }
+    )
+  };
 
 let compareIds =
     (
@@ -165,46 +169,32 @@ let compareIds =
          res :
          (
            switch (
-             getAllValues(schema, data, store, Value(String(id1)), field),
-             getAllValues(schema, data, store, Value(String(id2)), field),
+             getNestedValue(schema, data, store, Value(String(id1)), field),
+             getNestedValue(schema, data, store, Value(String(id2)), field),
            ) {
-           | ([||], [||]) => 0
-           | ([||], _) => 1
-           | (_, [||]) => (-1)
-           | (values1, values2) =>
+           | (value1, value2) when value1 == value2 => 0
+           | (Value(value1), Value(value2)) =>
              (
                switch (sort) {
                | Asc(_) => 1
                | Desc(_) => (-1)
                }
              )
-             * (
-               Array.makeBy(
-                 max(Array.length(values1), Array.length(values2)), i =>
-                 i
-               )
-               |. Array.reduce(0, (res, i) =>
-                    res != 0 ?
-                      res :
-                      (
-                        switch (values1[i], values2[i]) {
-                        | (value1, value2) when value1 == value2 => 0
-                        | (Some(Value(value1)), Some(Value(value2))) =>
-                          value1 < value2 ? (-1) : 1
-                        | (Some(Null), Some(_))
-                        | (_, None) => 1
-                        | (Some(_), Some(Null))
-                        | (None, _) => (-1)
-                        }
-                      )
-                  )
-             )
+             * (value1 < value2 ? (-1) : 1)
+           | (Null, _) => 1
+           | (_, Null) => (-1)
            }
          )
      );
 
 let getSortedIds =
-    (schema: schema, data: data, store: string, filter: filter, sort: sort) =>
+    (
+      schema: schema,
+      data: data,
+      store: string,
+      filter: filter(value),
+      sort: sort,
+    ) =>
   (
     switch (data |. get(store)) {
     | Some(ids) => ids |. Array.map(((key, _)) => key)
@@ -226,7 +216,7 @@ let getDataChanges =
       data: data,
       newData: nullData,
       store: string,
-      filter: filter,
+      filter: filter(value),
       sort: sort,
     ) => {
   let ids = getSortedIds(schema, data, store, filter, sort);

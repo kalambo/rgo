@@ -24,14 +24,17 @@ export type Field = ScalarField | LinkField;
 export type Schema = Obj<Obj<Field>>;
 
 export type FilterUnit =
-  | [string, '=' | '!=', Value | null | { field: string }]
-  | [string, '<' | '>' | '<=' | '>=', Value | { field: string }]
+  | [
+      string,
+      '=' | '!=' | '<' | '>' | '<=' | '>=',
+      Value | null | { field: string }
+    ]
   | [string, 'in', (Value | null | { field: string })[]];
 
 export interface FilterArray
-  extends Array<'AND' | 'OR' | FilterUnit | FilterArray> {
-  [0]: 'AND' | 'OR';
-  [index: number]: 'AND' | 'OR' | FilterUnit | FilterArray;
+  extends Array<'OR' | 'AND' | FilterUnit | FilterArray> {
+  [0]: 'OR' | 'AND';
+  [index: number]: 'OR' | 'AND' | FilterUnit | FilterArray;
 }
 export type Filter = FilterUnit | FilterArray;
 
@@ -71,35 +74,32 @@ export interface Change {
     | ListChange<undefined | SetValue, ChangeValue>[];
 }
 
-export type Range =
-  | { id: string; start: number; end?: number }
-  | { end?: number };
-
-export type Ranges = { filter } | { filter; sort; ranges: Range[] };
-
 export interface Rgo {
   query: (searches: Search[], onChange: (change: Change) => void) => void;
 }
 
-export interface FilterValue {
-  value: undefined | Value;
-  fields: string[];
-}
-
-export type FilterMap = {
+export interface SortPart {
+  direction: 'ASC' | 'DESC';
   field: string[];
-  range: FilterValue[];
-}[];
+}
 
 export interface RequestSearch {
   name: string;
   store: string;
-  filter: FilterMap[];
-  sort: { direction: 'ASC' | 'DESC'; field: string[] }[];
+  filter: Filter;
+  sort: SortPart[];
   slices: Slice[];
   fields: string[][];
   searches: RequestSearch[];
 }
+
+export type Range =
+  | { id: string; start: number; end?: number }
+  | { end?: number };
+
+export type Ranges =
+  | { filter: Filter }
+  | { filter: Filter; sort: SortPart[]; ranges: Range[] };
 
 export interface Connection {
   send: (index: number, searches: Search[], commits: NullData[]) => void;

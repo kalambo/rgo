@@ -1,138 +1,16 @@
 open Belt;
 open Types;
 open Utils;
-open Data;
+open Filters;
 
 type newSearch = {
   store: string,
-  filter,
+  filter: array(filterMap),
   sort,
   slices: array(slice),
   fields: array(fieldPath),
   searches: array(newSearch),
   isNew: bool,
-};
-
-let getFilterValues = (filters: array(filter)) =>
-  filters
-  |. Array.concatMany
-  |. Array.reduce([||], (valuesMap, filterMap) =>
-       merge(valuesMap, filterMap, (_, values, range) =>
-         unique(
-           Array.concat(
-             switch (values) {
-             | Some(values) => values
-             | None => [|LowValue(None), HighValue(None)|]
-             },
-             switch (range) {
-             | Some(FilterPoint({value, fields})) =>
-               Array.length(fields) == 0 ? [|LowValue(value)|] : [||]
-             | Some(
-                 FilterRange(
-                   {value: startValue, fields: startFields},
-                   {value: endValue, fields: endFields},
-                 ),
-               ) =>
-               Array.length(startFields) == 0 && Array.length(endFields) == 0 ?
-                 [|LowValue(startValue), HighValue(endValue)|] : [||]
-             | None => [||]
-             },
-           ),
-         )
-         |. List.fromArray
-         |. List.sort(compareDirectionValues)
-         |. List.toArray
-         |. Some
-       )
-     );
-
-let splitFilterMap =
-    (
-      filterMap: filterMap,
-      values: array((fieldPath, array(directionValue))),
-    ) =>
-  values
-  |. Array.reduce([|filterMap|], (filterMaps, (field, values)) =>
-       filterMaps
-       |. Array.map(filterMap =>
-            switch (
-              switch (filterMap |. get(field)) {
-              | Some(range) => range
-              | None =>
-                FilterRange(
-                  {value: None, fields: [||]},
-                  {value: None, fields: [||]},
-                )
-              }
-            ) {
-            | FilterPoint(_) => [|filterMap|]
-            | FilterRange({fields: startFields}, {fields: endFields})
-                when
-                  Array.length(startFields) != 0
-                  || Array.length(endFields) != 0 => [|
-                filterMap,
-              |]
-            | FilterRange({value: startValue}, {value: endValue}) =>
-              Array.mapWithIndex(
-                values,
-                (
-                  index,
-                  (LowValue(value) | HighValue(value)) as directionValue,
-                ) =>
-                switch (
-                  compareDirectionValues(
-                    directionValue,
-                    LowValue(startValue),
-                  ),
-                  compareDirectionValues(
-                    directionValue,
-                    HighValue(endValue),
-                  ),
-                  values[index + 1],
-                ) {
-                | (
-                    cmp1,
-                    cmp2,
-                    Some(LowValue(nextValue) | HighValue(nextValue)),
-                  )
-                    when cmp1 != (-1) && cmp2 != 1 =>
-                  Array.concat(
-                    [|
-                      FilterRange(
-                        {value, fields: [||]},
-                        {value: nextValue, fields: [||]},
-                      ),
-                    |],
-                    cmp2 == (-1) ?
-                      [|
-                        FilterRange(
-                          {value: nextValue, fields: [||]},
-                          {value: nextValue, fields: [||]},
-                        ),
-                      |] :
-                      [||],
-                  )
-                | _ => [||]
-                }
-              )
-              |. Array.concatMany
-              |. Array.map(range => filterMap |. set(field, range))
-            }
-          )
-       |. Array.concatMany
-     );
-
-let getSplitFilters = (filters: array(filter)) => {
-  let values = getFilterValues(filters);
-  filters
-  |. Array.map(filter =>
-       filter
-       |. Array.map(filterMap => splitFilterMap(filterMap, values))
-       |. Array.concatMany
-       |. List.fromArray
-       |. List.sort(compare)
-       |. List.toArray
-     );
 };
 
 let getFilterSearches = (searches: array(newSearch)) => {
@@ -243,7 +121,27 @@ let rec getSplitSearches =
                        searches,
                      ),
                    ) =>
-                   {store, filter, sort, slices, fields, searches, isNew}
+                   {
+                     store,
+                     filter:
+                       filterToMap(filter, value =>
+                         switch (value) {
+                         | FilterValue(value) => {
+                             value: Some(value),
+                             fields: [||],
+                           }
+                         | FilterVariable(field) => {
+                             value: None,
+                             fields: [|field|],
+                           }
+                         }
+                       ),
+                     sort,
+                     slices,
+                     fields,
+                     searches,
+                     isNew,
+                   }
                  )
               |. mapArrayGroups(
                    ({fields, searches}) =>
@@ -330,7 +228,15 @@ let rec cleanSearches = (searches: array(newSearch)) =>
          switch (fields, cleanSearches(searches)) {
          | ([||], [||]) => None
          | (_, searches) =>
-           Some({name: "", store, filter, sort, slices, fields, searches})
+           Some({
+             name: "",
+             store,
+             filter: filterFromMap(filter),
+             sort,
+             slices,
+             fields,
+             searches,
+           })
          }
        }
      );
